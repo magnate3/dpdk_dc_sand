@@ -41,6 +41,7 @@ cd ..
 # Create a new, combined repo
 git init $COMMON_NAME
 cd $COMMON_NAME
+git branch -m master main
 
 # A throwaway commit so that I can actually get a branch going.
 # Otherwise it makes switching between branches a bit challenging.
