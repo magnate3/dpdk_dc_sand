@@ -10,14 +10,22 @@ git clone git@github.com:ska-sa/katfgpu.git
 git clone git@github.com:ska-sa/katxgpu.git
 
 cd katfgpu
-# Get rid of the nvvp files from katfgpu
-git filter-repo --path-glob '*.nvvp' --invert-paths
+# Get rid of the nvvp files and json stats from katfgpu
+git filter-repo --path-glob '*.nvvp' \
+                --path 'katfgpu/scratch/stats/*.json' \
+                --invert-paths
 git rm -r 3rdparty
 git commit -am "Remove submodule since katxgpu will also pull it in and cause conflict"
+# Get rid of the branches that we don't want to pull into the new repo.
+# They are still in the old repos, if we want them, we are just not
+# bringing them across.
+git branch -D coarse_delay
+git branch -D heap-loss-perc
+git branch -D memcpy-loop-throughput
+git branch -D single-rx-stream
 cd ..
 
-# This trick makes the prebeamformer_reorder branch available in the
-# new repo.
+# This makes the prebeamformer_reorder branch available in the new repo.
 cd katxgpu
 git checkout prebeamform_reorder
 git checkout main
@@ -26,13 +34,18 @@ cd ..
 # Create a new, combined repo
 git init $COMMON_NAME
 cd $COMMON_NAME
+
+# A throwaway commit so that I can actually get a branch going.
+# Otherwise it makes switching between branches a bit challenging.
+touch deleteme
+git add deleteme && git commit -m "throwaway"
 git branch -m master main
 
 # Start pulling in katfgpu's history
 git remote add -f $FGPU_NAME ../katfgpu/
 git merge $FGPU_NAME/master --allow-unrelated-histories --no-edit
 
-# Move the C++ files into the same folder as the Python source.
+# Move the C++ files into the same folder as the Python source, but a subfolder.
 # Then move all the source code to a temp location to make the merge of katxgpu easier. 
 # Move the docs to their proper subfolder (katxgpu's is called docs so there's no collission).
 # Move the scratch stuff to a temporary place to prevent collissions with katxgpu.
@@ -58,7 +71,8 @@ git filter-repo --path-rename src/:katfgpu/_katfgpu/ \
                 --force
 # We need to use --force argument because it thinks we are not on a fresh clone. Which we aren't.
 
-# Pull in katxgpu's history.
+# Pull in katxgpu's history. Merge main and the prebeamformer_reorder branch,
+# we want to keep those.
 git branch prebeamform_reorder
 git remote add -f $XGPU_NAME ../katxgpu/
 git merge $XGPU_NAME/main --allow-unrelated-histories --no-edit
@@ -66,7 +80,7 @@ git checkout prebeamform_reorder
 git merge $XGPU_NAME/prebeamform_reorder --allow-unrelated-histories --no-edit
 git checkout main
 
-# Same thing happens to the C++ source - join the Python files first.
+# Same thing happens to the C++ source - join the Python files, but in a subfolder.
 # Then move everything to its appropriate place in the src/ tree.
 # Then we can shift katfgpu's stuff into its rightful place alongside.
 # The same thing with docs and scratch.
@@ -89,4 +103,7 @@ git filter-repo --path-rename src/:katxgpu/_katxgpu/ \
                 --path-rename requirements.txt:misc/$XGPU_NAME/requirements.txt \
                 --path-rename setup.py:misc/$XGPU_NAME/setup.py \
                 --force
+
+# Remove the temporary commit.
+git filter-repo --path deleteme --invert-path
 
