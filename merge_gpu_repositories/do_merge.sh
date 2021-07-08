@@ -26,6 +26,7 @@ cd ..
 # Create a new, combined repo
 git init $COMMON_NAME
 cd $COMMON_NAME
+git branch -m master main
 
 # Start pulling in katfgpu's history
 git remote add -f $FGPU_NAME ../katfgpu/
@@ -58,8 +59,12 @@ git filter-repo --path-rename src/:katfgpu/_katfgpu/ \
 # We need to use --force argument because it thinks we are not on a fresh clone. Which we aren't.
 
 # Pull in katxgpu's history.
+git branch prebeamform_reorder
 git remote add -f $XGPU_NAME ../katxgpu/
 git merge $XGPU_NAME/main --allow-unrelated-histories --no-edit
+git checkout prebeamform_reorder
+git merge $XGPU_NAME/prebeamform_reorder --allow-unrelated-histories --no-edit
+git checkout main
 
 # Same thing happens to the C++ source - join the Python files first.
 # Then move everything to its appropriate place in the src/ tree.
