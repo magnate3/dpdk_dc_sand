@@ -31,8 +31,7 @@ git checkout prebeamform_reorder
 git checkout main
 cd ..
 
-# This trick makes the prebeamformer_reorder branch available in the
-# new repo.
+# This makes the prebeamformer_reorder branch available in the new repo.
 cd katxgpu
 git checkout prebeamform_reorder
 git checkout main
@@ -41,6 +40,11 @@ cd ..
 # Create a new, combined repo
 git init $COMMON_NAME
 cd $COMMON_NAME
+
+# A throwaway commit so that I can actually get a branch going.
+# Otherwise it makes switching between branches a bit challenging.
+touch deleteme
+git add deleteme && git commit -m "throwaway"
 git branch -m master main
 
 # A throwaway commit so that I can actually get a branch going.
