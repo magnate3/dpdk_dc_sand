@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e  # Stop on errors instead of bumbling along.
 
 COMMON_NAME=katgpucbf
 FGPU_NAME=fgpu
@@ -35,7 +36,7 @@ git merge $FGPU_NAME/master --allow-unrelated-histories --no-edit
 # Move the docs to their proper subfolder (katxgpu's is called docs so there's no collission).
 # Move the scratch stuff to a temporary place to prevent collissions with katxgpu.
 # All the individual files in the root folder get moved to a misc folder for later manual procesing.
-git filter-repo --path-rename src/:katfgpu/ \
+git filter-repo --path-rename src/:katfgpu/_katfgpu/ \
                 --path-rename katfgpu/:src_$COMMON_NAME/$FGPU_NAME/ \
                 --path-rename test/:test_$FGPU_NAME/ \
                 --path-rename doc/:doc/$FGPU_NAME/ \
@@ -65,7 +66,7 @@ git merge $XGPU_NAME/main --allow-unrelated-histories --no-edit
 # Then we can shift katfgpu's stuff into its rightful place alongside.
 # The same thing with docs and scratch.
 # Misc files also get to their own folder, those will need to be manually combined.
-git filter-repo --path-rename src/:katxgpu/ \
+git filter-repo --path-rename src/:katxgpu/_katxgpu/ \
                 --path-rename katxgpu/:src/$COMMON_NAME/$XGPU_NAME/ \
                 --path-rename src_$COMMON_NAME/:src/$COMMON_NAME/ \
                 --path-rename test/:test/$XGPU_NAME/ \
