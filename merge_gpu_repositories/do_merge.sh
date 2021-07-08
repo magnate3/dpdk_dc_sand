@@ -31,6 +31,13 @@ git checkout prebeamform_reorder
 git checkout main
 cd ..
 
+# This trick makes the prebeamformer_reorder branch available in the
+# new repo.
+cd katxgpu
+git checkout prebeamform_reorder
+git checkout main
+cd ..
+
 # Create a new, combined repo
 git init $COMMON_NAME
 cd $COMMON_NAME

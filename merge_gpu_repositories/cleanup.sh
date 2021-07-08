@@ -2,5 +2,5 @@
 
 rm -rf katfgpu
 rm -rf katxgpu 
-rm -rf katcorrelator
+rm -rf katgpucbf 
 
