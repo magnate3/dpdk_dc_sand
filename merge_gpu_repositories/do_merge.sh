@@ -1,8 +1,8 @@
 #!/bin/bash
 
-COMMON_NAME=katcorrelator
+COMMON_NAME=katgpucbf
 FGPU_NAME=fgpu
-XGPU_NAME=xgpu
+XGPU_NAME=xbgpu
 
 # Fresh clone of both repos.
 git clone git@github.com:ska-sa/katfgpu.git
@@ -11,10 +11,15 @@ git clone git@github.com:ska-sa/katxgpu.git
 cd katfgpu
 # Get rid of the nvvp files from katfgpu
 git filter-repo --path-glob '*.nvvp' --invert-paths
-git submodule set-url 3rdparty/spead2 https://github.com/ska-sa/spead2.git
-git commit -am "Change url on spead2 submodule to match with katxgpu"
 git rm -r 3rdparty
 git commit -am "Remove submodule since katxgpu will also pull it in and cause conflict"
+cd ..
+
+# This trick makes the prebeamformer_reorder branch available in the
+# new repo.
+cd katxgpu
+git checkout prebeamform_reorder
+git checkout main
 cd ..
 
 # Create a new, combined repo
