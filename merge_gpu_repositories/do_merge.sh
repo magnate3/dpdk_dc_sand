@@ -31,9 +31,21 @@ git checkout prebeamform_reorder
 git checkout main
 cd ..
 
+# This makes the prebeamformer_reorder branch available in the new repo.
+cd katxgpu
+git checkout prebeamform_reorder
+git checkout main
+cd ..
+
 # Create a new, combined repo
 git init $COMMON_NAME
 cd $COMMON_NAME
+
+# A throwaway commit so that I can actually get a branch going.
+# Otherwise it makes switching between branches a bit challenging.
+touch deleteme
+git add deleteme && git commit -m "throwaway"
+git branch -m master main
 
 # A throwaway commit so that I can actually get a branch going.
 # Otherwise it makes switching between branches a bit challenging.
@@ -46,7 +58,7 @@ git remote add -f $FGPU_NAME ../katfgpu/
 git merge $FGPU_NAME/master --allow-unrelated-histories --no-edit
 
 # Move the C++ files into the same folder as the Python source, but a subfolder.
-# Then move all the source code to a temp location to make the merge of katxgpu easier. 
+# Then move all the source code to a temp location to make the merge of katxgpu easier.
 # Move the docs to their proper subfolder (katxgpu's is called docs so there's no collission).
 # Move the scratch stuff to a temporary place to prevent collissions with katxgpu.
 # All the individual files in the root folder get moved to a misc folder for later manual procesing.
