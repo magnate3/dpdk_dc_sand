@@ -10,8 +10,7 @@ The requirements that this script is meant to determine include:
 3. The maximum and minumum rate of change of delay.
 """
 
-__author__ = "Gareth Callanan"
-__maintainer__ = "Tyrone van Balla"
+__author__ = "SARAO DSP Group"
 
 import argparse
 import csv
@@ -80,6 +79,9 @@ def calculate_baselines(antenna_pos_coords: dict) -> dict:
         )  # get lat and long of second ant
 
         # calculate baseline between antenna pair
+        # NOTE: Technically the distance that we want is a chord, not a geodesic. Geopy doesn't
+        # make it easy to get this though, and the difference is trivial on these distance scales, so
+        # we have opted to leave this as-is.
         baselines[ant_pair] = distance.GeodesicDistance(ant_a, ant_b).kilometers
 
     return baselines
@@ -103,14 +105,8 @@ def calculate_delay_from_source_elevation(baseline: float, source_elevation_degr
     """
     Calculate the delay between two antennas in seconds based on a source's elevation.
 
-    For the purposes of this calculation a right angle triangle is constructed. The baseline
-    vector is the hypotenuse of this triangle. The wavefront from the source is the second side.
-    For elevation != 90 degrees, the wavefront will intercept one antenna before the other. The
-    third side of this triangle is the line perpendicular to the wavefront that extends to the
-    antenna from the wavefront. This third side is the length of delay between the two antennas.
-    The angle between the third side and the baseline vector is equal to this elevation angle.
+    See "Theory" section in the readme.md for further explation of how this is calculated.
 
-    A diagram is included in the repo in which this script is located.
     :param baseline: distance between the two antennas considered, for specifications, use the maximum baseline, in m
     :param source_elevation_degrees: elevation to the point source, specificed in degrees
     """
