@@ -148,7 +148,7 @@ class PreBeamformReorder(accel.Operation):
     [batch][antennas][channels][samples_per_channel][polarisations]
 
     The output sample buffer must have the shape:
-    [batch][channels][samples_per_channel//times_per_block][n_ants][polarisations][times_per_block]
+    [n_batches][polarizations][n_channels] [times_per_block][samples_per_channel//times_per_block][n_ants]
 
     A complexity that is introduced by the pre-correlation reorder kernel is that the samples_per_channel index is split over two
     different indices. The first index ranges from 0 to samples_per_channel//times_per_block and the second index

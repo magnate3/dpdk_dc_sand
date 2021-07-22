@@ -38,7 +38,6 @@ import numpy as np
 from ctypes import c_int  # Only need this from the library
 from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
-from utils import config
 from beamform_reorder import reorder
 
 # DEBUG - to be removed when debug complete

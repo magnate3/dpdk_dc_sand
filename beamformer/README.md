@@ -6,4 +6,4 @@ Input:  Data as ingest by an X-Engine core. This data is assumed to a subset of 
 	uint16_t [n_batches][n_antennas] [n_channels] [n_samples_per_channel] [polarizations]
 
 Output: Data suitable for beamforming.
-	uint16_t [n_batches][n_channels] [n_samples_per_channel//times_per_block][n_antennas] [polarizations] [times_per_block]
+	uint16_t [n_batches][polarizations][n_channels] [times_per_block][samples_per_channel//times_per_block][n_ants]
