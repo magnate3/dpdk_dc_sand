@@ -1,0 +1,10 @@
+numpy
+numba
+typing
+typing_extensions
+pybind11
+pytest
+ctypes
+utils
+pkg_resources
+katsdpsigproc[CUDA] @ git+https://github.com/ska-sa/katsdpsigproc
