@@ -73,20 +73,20 @@ class PreBeamformReorderTemplate:
 
         # 3. Declare the input and output data shapes
         self.inputDataShape = (
-            self.n_batches,
-            self.n_ants,
-            self.n_channels,
-            self.n_samples_per_channel,
-            self.n_polarisations,
+            accel.Dimension(self.n_batches, exact=True),
+            accel.Dimension(self.n_ants, exact=True),
+            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_samples_per_channel, exact=True),
+            accel.Dimension(self.n_polarisations, exact=True),
         )
 
         self.outputDataShape = (
-            self.n_batches,
-            self.n_polarisations,
-            self.n_channels,
-            self.n_samples_per_channel // self.n_times_per_block,
-            self.n_times_per_block,
-            self.n_ants,
+            accel.Dimension(self.n_batches, exact=True),
+            accel.Dimension(self.n_polarisations, exact=True),
+            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_samples_per_channel // self.n_times_per_block, exact=True),
+            accel.Dimension(self.n_times_per_block, exact=True),
+            accel.Dimension(self.n_ants, exact=True),
         )
 
         # self.outputDataShape = (
@@ -107,10 +107,10 @@ class PreBeamformReorderTemplate:
         # - This is in the x-dimension and remains constant for the lifetime of the object.
         # - TODO: Error-check these values (As in, bounds/values, not method).
         # self.n_blocks_x = (self.matrix_size + THREADS_PER_BLOCK - 1) // THREADS_PER_BLOCK
-        # self.n_blocks_x = ((self.matrix_size + THREADS_PER_BLOCK) // THREADS_PER_BLOCK) - 1 
+        # self.n_blocks_x = ((self.matrix_size + THREADS_PER_BLOCK) // THREADS_PER_BLOCK) - 1
 
 
-        #self.n_blocks_x = self.matrix_size // THREADS_PER_BLOCK 
+        #self.n_blocks_x = self.matrix_size // THREADS_PER_BLOCK
         self.n_blocks_x = int(np.ceil(self.matrix_size / THREADS_PER_BLOCK))
         #self.n_blocks_x = float(self.matrix_size / THREADS_PER_BLOCK)
 
@@ -164,7 +164,7 @@ class PreBeamformReorder(accel.Operation):
         super().__init__(command_queue)
         self.template = template
         self.slots["inSamples"] = accel.IOSlot(
-            dimensions=self.template.inputDataShape, dtype=np.uint16
+            dimensions=self.template.inputDataShape, dtype=np.uint16,
         )  # TODO: This must depend on input bitwidth
         self.slots["outReordered"] = accel.IOSlot(dimensions=self.template.outputDataShape, dtype=np.uint16)
 

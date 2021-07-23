@@ -38,7 +38,6 @@ import numpy as np
 from ctypes import c_int  # Only need this from the library
 from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
-from utils import config
 from beamform_reorder import reorder
 
 # DEBUG - to be removed when debug complete
@@ -99,7 +98,7 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # - This will only occur in the MeerKAT Extension correlator.
     # TODO: Need to consider the case where we round up as some X-Engines will need to do this to capture all the channels.
     n_channels_per_stream = num_channels // num_ants // 4
-    
+
     pol = 2 # Always
 
     # 2. Initialise GPU kernels and buffers.
@@ -125,37 +124,30 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # 3. Generate random input data - need to modify the dtype and  shape of the array as numpy does not have a packet
     # 8-bit int complex type.
 
-    bufSamplesInt16Shape = template.inputDataShape
-    bufSamplesInt8Shape = list(bufSamplesInt16Shape)  # Typecasting to manipulate the data
-    bufSamplesInt8Shape[-1] *= 2  # By converting from int16 to int8, the length of the last dimension doubles.
-    bufSamplesInt8Shape = tuple(bufSamplesInt8Shape)  # type: ignore
+    #bufSamplesInt16Shape = template.inputDataShape
+    #bufSamplesInt8Shape = list(bufSamplesInt16Shape)  # Typecasting to manipulate the data
+    #bufSamplesInt8Shape[-1] *= 2  # By converting from int16 to int8, the length of the last dimension doubles.
+    #bufSamplesInt8Shape = tuple(bufSamplesInt8Shape)  # type: ignore
 
-
-    
-    # TEMP: Inject sample to trace
-    # bufSamples_host.dtype = np.uint8
-    # bufSamples_host[:] = np.zeros(bufSamplesInt8Shape, dtype=np.uint8)
-    # bufSamples_host[0][0][0][0][0] = 1 #Pol0 Sample0 Real
-    # bufSamples_host[0][0][0][0][1] = 55 #Pol0 Sample0 Imag
-
-    # bufSamples_host[0][0][0][1][0] = 77 #Pol0 Sample1 Real
-    # bufSamples_host[0][0][0][1][1] = 33 #Pol0 Sample1 Imag
-
-    # OR
+    # just a hack to get the shape in place  because
+    # we used Dimension objects in the template
+    inputDataShape = (
+            batches,
+            num_ants,
+            n_channels_per_stream,
+            num_samples_per_channel,
+            2,
+        )
 
     # Inject random data for test.
-    bufSamples_host.dtype = np.uint8
+    # Didn't want to change the shape anymore so we inject
+    # random data in uint16 format.
     bufSamples_host[:] = np.random.randint(
-        low=0,
-        high=256,
-        size=bufSamplesInt8Shape,
-        dtype=np.uint8,
-    )
-
-    # Convert back to uint16 as to deal with the complex (real and imag) as single word pairs.
-    bufSamples_host.dtype = np.uint16
-    bufSamples_host = np.ndarray.view(bufSamples_host, dtype=np.uint16)
-
+        low=1,
+        high=pow(2,16)-2,
+        size=inputDataShape,
+        dtype=bufSamples_host.dtype,
+    )#.view(dtype=bufSamples_host.dtype)
 
 
     # 4. Transfer input sample array to the GPU, run kernel, transfer output Reordered array to the CPU.
@@ -179,17 +171,18 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     ###### TODO
     ######   CHANGE THE FINAL ARRAY DIMENSIONS WHNE CONVERTING TO REAL AND IMAG
     # 6. Verify the processed/returned result
-    #    - Both the input and output data are ultimately of type np.int8    
-    bufReordered_host.dtype = np.uint8
-    bufReordered_host = np.ndarray.view(bufReordered_host, dtype=np.uint8)
+    #    - Both the input and output data are ultimately of type np.int8
 
-    output_data_cpu.dtype = np.uint8
-    output_data_cpu = np.ndarray.view(output_data_cpu, dtype=np.uint8)
 
     # Debug: Force failure.
     # output_data_cpu[0][0][0][0][0][0] = 9
 
     # 7. Check if both arrays are identical.
+    # these views will bail if the memory isn't contiguous
+
+    viewed_cpu = output_data_cpu.view(dtype=np.int8)
+    viewed_gpu = bufReordered_host.view(dtype=np.int8)
+
     np.testing.assert_array_equal(output_data_cpu, bufReordered_host)
 
 if __name__ == "__main__":
