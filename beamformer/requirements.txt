@@ -4,6 +4,7 @@ typing
 typing_extensions
 pybind11
 pytest
+matplotlib
 ctypes
 utils
 pkg_resources
