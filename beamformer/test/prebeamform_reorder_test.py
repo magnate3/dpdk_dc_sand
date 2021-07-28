@@ -121,15 +121,17 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     bufReordered_device = preBeamformReorder.buffer("outReordered")
     bufReordered_host = bufReordered_device.empty_like()
 
-    # 3. Generate random input data - need to modify the dtype and  shape of the array as numpy does not have a packet
+    # 3. Generate random input data - need to modify the dtype and shape of the array as numpy does not have a packet
     # 8-bit int complex type.
 
-    bufSamplesInt16Shape = template.inputDataShape
-    bufSamplesInt8Shape = list(bufSamplesInt16Shape)  # Typecasting to manipulate the data
-    bufSamplesInt8Shape[-1] *= 2  # By converting from int16 to int8, the length of the last dimension doubles.
-    bufSamplesInt8Shape = tuple(bufSamplesInt8Shape)  # type: ignore
-
-
+    # Get the shape in place because we used Dimension objects in the template
+    inputDataShape = (
+        batches,
+        num_ants,
+        n_channels_per_stream,
+        num_samples_per_channel,
+        pol,
+    )
     
     # TEMP: Inject sample to trace
     # bufSamples_host.dtype = np.uint8
@@ -143,19 +145,16 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # OR
 
     # Inject random data for test.
-    bufSamples_host.dtype = np.uint8
     bufSamples_host[:] = np.random.randint(
-        low=0,
-        high=256,
-        size=bufSamplesInt8Shape,
-        dtype=np.uint8,
+        low=1,
+        high=pow(2,16)-2,
+        size=inputDataShape,
+        dtype=bufSamples_host.dtype,
     )
 
     # Convert back to uint16 as to deal with the complex (real and imag) as single word pairs.
     bufSamples_host.dtype = np.uint16
     bufSamples_host = np.ndarray.view(bufSamples_host, dtype=np.uint16)
-
-
 
     # 4. Transfer input sample array to the GPU, run kernel, transfer output Reordered array to the CPU.
     bufSamples_device.set(queue, bufSamples_host)
@@ -173,23 +172,21 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     )
 
     # Debug: Print out differences (with location)
-    #print_mismatch(output_data_cpu, bufReordered_host)
+    # print_mismatch(output_data_cpu, bufReordered_host)
 
     ###### TODO
     ######   CHANGE THE FINAL ARRAY DIMENSIONS WHNE CONVERTING TO REAL AND IMAG
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8    
-    bufReordered_host.dtype = np.uint8
-    bufReordered_host = np.ndarray.view(bufReordered_host, dtype=np.uint8)
-
-    output_data_cpu.dtype = np.uint8
-    output_data_cpu = np.ndarray.view(output_data_cpu, dtype=np.uint8)
 
     # Debug: Force failure.
     # output_data_cpu[0][0][0][0][0][0] = 9
 
     # 7. Check if both arrays are identical.
-    np.testing.assert_array_equal(output_data_cpu, bufReordered_host)
+    # These views will bail if memory is not contiguous.
+    viewed_cpu = output_data_cpu.view(dtype=np.int8)
+    viewed_gpu = bufReordered_host.view(dtype=np.int8)
+    np.testing.assert_array_equal(viewed_cpu, viewed_gpu)
 
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):

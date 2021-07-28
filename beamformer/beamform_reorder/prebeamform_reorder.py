@@ -73,30 +73,21 @@ class PreBeamformReorderTemplate:
 
         # 3. Declare the input and output data shapes
         self.inputDataShape = (
-            self.n_batches,
-            self.n_ants,
-            self.n_channels,
-            self.n_samples_per_channel,
-            self.n_polarisations,
+            accel.Dimension(self.n_batches, exact=True),
+            accel.Dimension(self.n_ants, exact=True),
+            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_samples_per_channel, exact=True),
+            accel.Dimension(self.n_polarisations, exact=True),
         )
 
         self.outputDataShape = (
-            self.n_batches,
-            self.n_polarisations,
-            self.n_channels,
-            self.n_samples_per_channel // self.n_times_per_block,
-            self.n_times_per_block,
-            self.n_ants,
+            accel.Dimension(self.n_batches, exact=True),
+            accel.Dimension(self.n_polarisations, exact=True),
+            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_samples_per_channel // self.n_times_per_block, exact=True),
+            accel.Dimension(self.n_times_per_block, exact=True),
+            accel.Dimension(self.n_ants, exact=True),
         )
-
-        # self.outputDataShape = (
-        #     self.n_batches,
-        #     self.n_channels,
-        #     self.n_samples_per_channel // self.n_times_per_block,
-        #     self.n_ants,
-        #     self.n_polarisations,
-        #     self.n_times_per_block,
-        # )
 
         # The size of a data matrix required to be reordered is the same for Input or Output data shapes
         self.matrix_size = self.n_ants * self.n_channels * self.n_samples_per_channel * self.n_polarisations
@@ -106,13 +97,7 @@ class PreBeamformReorderTemplate:
         # 4. Calculate the number of thread blocks to launch per kernel call
         # - This is in the x-dimension and remains constant for the lifetime of the object.
         # - TODO: Error-check these values (As in, bounds/values, not method).
-        # self.n_blocks_x = (self.matrix_size + THREADS_PER_BLOCK - 1) // THREADS_PER_BLOCK
-        # self.n_blocks_x = ((self.matrix_size + THREADS_PER_BLOCK) // THREADS_PER_BLOCK) - 1 
-
-
-        #self.n_blocks_x = self.matrix_size // THREADS_PER_BLOCK 
         self.n_blocks_x = int(np.ceil(self.matrix_size / THREADS_PER_BLOCK))
-        #self.n_blocks_x = float(self.matrix_size / THREADS_PER_BLOCK)
 
         # 5. Compile the kernel
         #   - The size of this kernel simply depends on the individual matrix size and the
@@ -172,9 +157,7 @@ class PreBeamformReorder(accel.Operation):
         """Run the correlation kernel."""
         inSamples_buffer = self.buffer("inSamples")
         outReordered_buffer = self.buffer("outReordered")
-        # outTest_buffer = self.buffer("outTest")
         max_threadIdx = int(1024 * self.template.n_blocks_x)
-        # max_threadIdx = 1024 * self.template.n_blocks_x
 
         self.command_queue.enqueue_kernel(
             self.template.kernel,
@@ -185,12 +168,3 @@ class PreBeamformReorder(accel.Operation):
             global_size=(max_threadIdx, self.template.n_batches),
             local_size=(1024, 1),
         )
-        # self.command_queue.enqueue_kernel(
-        #     self.template.kernel,
-        #     [inSamples_buffer.buffer, outReordered_buffer.buffer],
-        #     # Even though we are using CUDA, we follow OpenCLs grid/block conventions. As such we need to multiply the number
-        #     # of blocks(global_size) by the block size(local_size) in order to specify global threads not global blocks.
-        #     # - Global size is across the x- and y-dimensions (for this application).
-        #     global_size=(1024 * self.template.n_blocks_x, self.template.n_batches),
-        #     local_size=(1024, 1),
-        # )
