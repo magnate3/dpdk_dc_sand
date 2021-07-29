@@ -123,7 +123,7 @@ class PreBeamformReorderTemplate:
 
 class PreBeamformReorder(accel.Operation):
     """
-    Class containing a pre-correlation reorder kernel compiled from a PreBeamformReorderTemplate.
+    Class containing a pre-beamform reorder kernel compiled from a PreBeamformReorderTemplate.
 
     This class specifies the shape of the input sample and output reordered buffers required by the kernel. The
     parameters specified in the PreBeamformReorderTemplate object are used to determine the shape of the buffers.
@@ -135,13 +135,13 @@ class PreBeamformReorder(accel.Operation):
     The output sample buffer must have the shape:
     [n_batches][polarizations][n_channels] [times_per_block][samples_per_channel//times_per_block][n_ants]
 
-    A complexity that is introduced by the pre-correlation reorder kernel is that the samples_per_channel index is split over two
+    A complexity that is introduced by the pre-beamform reorder kernel is that the samples_per_channel index is split over two
     different indices. The first index ranges from 0 to samples_per_channel//times_per_block and the second index
     ranges from 0 to times_per_block. Times per block is calculated by the PreBeamformReorderTemplate object.
     In 8-bit input mode times_per_block is equal to 16.
 
     Each input element is a complex 8-bit integer sample. Numpy does not support 8-bit complex numbers,
-    so the input sample array has dtype of np.int16 as a placeholder.
+    so the input sample array has dtype of np.uint16 as a placeholder.
     """
 
     def __init__(self, template: PreBeamformReorderTemplate, command_queue: accel.AbstractCommandQueue) -> None:

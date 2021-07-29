@@ -1,11 +1,10 @@
 """
-Module for performing unit tests on the Pre-correlation Reorder.
+Module for performing unit tests on the Pre-beamform Reorder.
 
-The pre-correlation reorder operates on a block of data with the following dimensions:
+The pre-beamform reorder operates on a block of data with the following dimensions:
     - uint16_t [n_antennas] [n_channels] [n_samples_per_channel] [polarizations]
       transposed to
-      uint16_t [n_channels] [n_samples_per_channel//times_per_block]
-            [n_antennas] [polarizations] [times_per_block]
+      uint16_t [n_batches][polarizations][n_channels] [times_per_block][samples_per_channel//times_per_block][n_ants]
     - Typical values for the dimensions
         - n_antennas (a) = 64
         - n_channels (c) = 128
@@ -25,23 +24,24 @@ Contains two tests, one parametrised and one batched:
         - Batches = 10
 
 Ultimately both kernels:
-    1. Populate a host-side array with random, numpy.int8 data ranging from -127 to 128.
-    2. Instantiate the precorrelation_reorder_kernel and passes this input data to it.
+    1. Populate a host-side array with random, numpy.uint16 data ranging from 0 to 16383-2.
+    2. Instantiate the prebeamformer_reorder_kernel and passes this input data to it.
     3. Grab the output, reordered data.
     4. Verify it relative to the input array.
 
 """
-import os
 import pytest
 import test_parameters
 import numpy as np
-from ctypes import c_int  # Only need this from the library
 from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
 from beamform_reorder import reorder
 
 # DEBUG - to be removed when debug complete
+
+
 def print_mismatch(output_data_cpu, bufReordered_host):
+    """Debug methos for printing differences betwen arrays with index positions."""
     if len(output_data_cpu) != len(bufReordered_host):
         print(f"output_data_cpu is {output_data_cpu} and bufReordered_host is {bufReordered_host}")
     else:
@@ -61,9 +61,15 @@ def print_mismatch(output_data_cpu, bufReordered_host):
                         for sample in range(samples_chan):
                             for ant in range(ants):
                                 count = count + 1
-                                if output_data_cpu[batch][pol][chan][tbs][sample][ant] != bufReordered_host[batch][pol][chan][tbs][sample][ant]:
-                                    print(f"output_data_cpu is {output_data_cpu[batch][pol][chan][tbs][sample][ant]} and bufReordered_host is {bufReordered_host[batch][pol][chan][tbs][sample][ant]}: batch:{batch} pol:{pol} chan:{chan} tbs:{tbs} sample:{sample} ant:{ant}")
+                                if (
+                                    output_data_cpu[batch][pol][chan][tbs][sample][ant]
+                                    != bufReordered_host[batch][pol][chan][tbs][sample][ant]
+                                ):
+                                    print(
+                                        f"output_data_cpu is {output_data_cpu[batch][pol][chan][tbs][sample][ant]} and bufReordered_host is {bufReordered_host[batch][pol][chan][tbs][sample][ant]}: batch:{batch} pol:{pol} chan:{chan} tbs:{tbs} sample:{sample} ant:{ant}"
+                                    )
     print(f"Count is: {count}")
+
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("num_ants", test_parameters.array_size)
@@ -76,10 +82,11 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
 
     This unit test runs the kernel on a combination of parameters indicated in test_parameters.py. The values parametrised
     are indicated in the parameter list, operating on a *single* batch. This unit test also invokes verification of the reordered data.
-    However, due to the CPU-side verification taking quite long, the batch-mode test is done in a separate unit test using static parameters.
 
     Parameters
     ----------
+    batches: int
+        Number of batches to process.
     num_ants: int
         The number of antennas from which data will be received.
     num_channels: int
@@ -88,6 +95,8 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
         The number of channels per stream is calculated from this value.
     num_samples_per_channel: int
         The number of time samples per frequency channel.
+    n_times_per_block: int
+        Number of blocks to break the number of samples per channel into.
     """
     # Now to create the actual PreBeamformReorderTemplate
     # 1. Array parameters
@@ -98,8 +107,8 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # - This will only occur in the MeerKAT Extension correlator.
     # TODO: Need to consider the case where we round up as some X-Engines will need to do this to capture all the channels.
     n_channels_per_stream = num_channels // num_ants // 4
-    
-    pol = 2 # Always
+
+    pol = 2  # Always
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -132,8 +141,8 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
         num_samples_per_channel,
         pol,
     )
-    
-    # TEMP: Inject sample to trace
+
+    # DEBUG: Inject sample to trace
     # bufSamples_host.dtype = np.uint8
     # bufSamples_host[:] = np.zeros(bufSamplesInt8Shape, dtype=np.uint8)
     # bufSamples_host[0][0][0][0][0] = 1 #Pol0 Sample0 Real
@@ -147,7 +156,7 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # Inject random data for test.
     bufSamples_host[:] = np.random.randint(
         low=1,
-        high=pow(2,16)-2,
+        high=pow(2, 16) - 2,
         size=inputDataShape,
         dtype=bufSamples_host.dtype,
     )
@@ -163,23 +172,28 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
 
     # 5. Run CPU version. This will be used to verify GPU reorder.
     input_data_shape = [batches, num_ants, n_channels_per_stream, num_samples_per_channel, pol]
-    output_data_shape = [batches, pol, n_channels_per_stream, int(num_samples_per_channel/n_times_per_block), n_times_per_block, num_ants]
+    output_data_shape = [
+        batches,
+        pol,
+        n_channels_per_stream,
+        int(num_samples_per_channel / n_times_per_block),
+        n_times_per_block,
+        num_ants,
+    ]
 
     output_data_cpu = reorder.reorder(
         input_data=bufSamples_host,
-        input_data_shape = input_data_shape,
-        output_data_shape = output_data_shape,
+        input_data_shape=input_data_shape,
+        output_data_shape=output_data_shape,
     )
 
-    # Debug: Print out differences (with location)
+    # DEBUG: Print out differences (with location)
     # print_mismatch(output_data_cpu, bufReordered_host)
 
-    ###### TODO
-    ######   CHANGE THE FINAL ARRAY DIMENSIONS WHNE CONVERTING TO REAL AND IMAG
     # 6. Verify the processed/returned result
-    #    - Both the input and output data are ultimately of type np.int8    
+    #    - Both the input and output data are ultimately of type np.int8
 
-    # Debug: Force failure.
+    # DEBUG: Force failure.
     # output_data_cpu[0][0][0][0][0][0] = 9
 
     # 7. Check if both arrays are identical.
@@ -188,6 +202,13 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     viewed_gpu = bufReordered_host.view(dtype=np.int8)
     np.testing.assert_array_equal(viewed_cpu, viewed_gpu)
 
+
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):
-        test_prebeamform_reorder_parametrised(test_parameters.batches[0], test_parameters.array_size[a], test_parameters.num_channels[0], test_parameters.num_samples_per_channel[0], test_parameters.n_times_per_block[0])
+        test_prebeamform_reorder_parametrised(
+            test_parameters.batches[0],
+            test_parameters.array_size[a],
+            test_parameters.num_channels[0],
+            test_parameters.num_samples_per_channel[0],
+            test_parameters.n_times_per_block[0],
+        )
