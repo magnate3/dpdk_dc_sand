@@ -1,6 +1,7 @@
-/* Declare a functor that takes a function, calls it with integers in the range
- * 1..N and returns the sum of the results. The callback must be given as a
- * tuple whose first element is a PyCapsule. The capsule must
+/* Declare a higher-order function that takes a function, calls it with
+ * integers in the range 1..N and returns the sum of the results. The callback
+ * must be given as a tuple whose first element is a PyCapsule. The capsule
+ * must
  *
  * - contain a function pointer;
  * - have a name of *exactly* "int (int, void *)";
