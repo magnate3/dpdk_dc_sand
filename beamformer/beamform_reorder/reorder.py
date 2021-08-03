@@ -12,7 +12,8 @@ def run_reorder(
     n_channel: int,
     ants: int,
     samples_chan: int,
-    n_times_per_block: int,
+    n_blocks: int,
+    complexity: int,
 ):
     """Reorder input data into provided datashape.
 
@@ -32,7 +33,7 @@ def run_reorder(
         Number of antennas in array.
     samples_chan: int
         Number of samples per channels.
-    n_times_per_block: int
+    n_blocks: int
         Number of blocks to break the number of samples per channel into.
     Returns
     -------
@@ -40,22 +41,22 @@ def run_reorder(
         Output array of reshaped data.
     """
     # Option 1:
-    for batch in range(batches):
-        for pol in range(pols):
-            for chan in range(n_channel):
-                for ant in range(ants):
-                    for sample in range(samples_chan):
-                        timeOuter = int(sample / n_times_per_block)
-                        timeInner = int(sample % n_times_per_block)
-                        output_data[batch][pol][chan][timeOuter][timeInner, ant] = input_data[batch][ant][chan][
-                            sample, pol
-                        ]
+    # for b in range(batches):
+    #     for p in range(pols):
+    #         for c in range(n_channel):
+    #             for a in range(ants):
+    #                 for s in range(samples_chan):
+    #                     for cmplx in range(complexity):
+    #                         to = int(s / n_blocks) # to = timeOuter
+    #                         ti = int(s % n_blocks) # ti = timeInner
+    #                         output_data[b, p, c, to, ti, a, cmplx] = input_data[b, a, c, s, p, cmplx]
 
     # or
 
     # Option 2:
-    # output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_times_per_block, pols).transpose(0,5,2,3,4,1)
-
+    # output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_blocks, pols).transpose(0,5,2,3,4,1)
+    
+    output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_blocks, pols, complexity).transpose(0,5,2,3,4,1,6)
     return output_data
 
 
@@ -76,14 +77,15 @@ def reorder(input_data: np.ndarray, input_data_shape: tuple, output_data_shape: 
     np.ndarray of type uint16
         Output array of reshaped data.
     """
-    output_data = np.empty(output_data_shape).astype(np.uint16)
+    output_data = np.empty(output_data_shape).astype(np.uint8)
 
     batches = input_data_shape[0]
     ants = input_data_shape[1]
     n_channel = input_data_shape[2]
     samples_chan = input_data_shape[3]
     pols = input_data_shape[4]
-    n_times_per_block = output_data_shape[4]
+    n_blocks = output_data_shape[4]
+    complexity = input_data_shape[5]
 
-    run_reorder(input_data, output_data, batches, pols, n_channel, ants, samples_chan, n_times_per_block)
+    run_reorder(input_data, output_data, batches, pols, n_channel, ants, samples_chan, n_blocks, complexity)
     return output_data
