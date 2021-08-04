@@ -1,6 +1,6 @@
-""" Module containing correlator configuration options that should be tested where appropriate in all unit tests."""
+"""Module containing correlator configuration options that should be tested where appropriate in all unit tests."""
 
-""" batches: Number of batches for processing."""
+"""batches: Number of batches for processing."""
 batches = [3]
 
 """array_size: List of array sizes."""
@@ -19,5 +19,5 @@ num_samples_per_channel = [256, 512, 1024]
 # Number of FFT channels out of the F-Engine
 num_channels = [1024, 4096, 32768]
 
-"""n_times_per_block: The number of blocks to break the number of samples per channel into."""
-n_blocks = [16]
+"""n_samples_per_block: The number of samples per block."""
+n_samples_per_block = [16]

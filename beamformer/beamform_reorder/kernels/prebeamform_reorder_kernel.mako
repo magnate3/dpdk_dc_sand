@@ -2,41 +2,15 @@
  *  This kernel aims to carry out the reorder functionality required by katxgpu beamformer.
  *  This GPU-side reorder makes provision for batched operations (i.e. reordering batches of matrices),
  *  and transforms a 1D block of data in the following matrix format:
- *  - uint16_t [n_batches][n_antennas] [n_channels] [n_samples_per_channel] [polarizations]
+ *  - uint16_t [n_batches][n_antennas][n_channels][n_samples_per_channel][polarizations]
  *    transposed to
- *    uint16_t [n_batches][polarizations][n_channels] [n_blocks][samples_per_channel//n_blocks][n_ants]
+ *    uint16_t [n_batches][polarizations][n_channels][n_blocks][samples_per_channel//n_blocks][n_ants]
  *  - Typical values for the dimensions
  *      - n_antennas (a) = 64
  *      - n_channels (c) = 128
  *      - n_samples_per_channel (t) = 256
  *      - polarisations (p) = 2, always
  *      - times_per_block = 16
- */
-// Includes
-#include <stdint.h>
-#include <stdlib.h>
-#include <sys/cdefs.h>
-
-<%include file="/port.mako"/>
-// Defines, now using mako parametrisation
-#define ANTENNAS ${n_ants}
-#define NR_CHANNELS ${n_channels}
-#define NR_SAMPLES_PER_CHANNEL ${n_samples_per_channel}
-#define NR_POLARISATIONS ${n_polarisations}
-#define NR_BLOCKS ${n_blocks}
-
-// *** DEBUG ***
-#define iThreadDBG 2 //129023 //130048 //104448
-#define iprintDBG 130550 //129023 //130048 //104448
-#define bfNewIdxDBG 23352
-
-/*  \brief Kernel that implements a naive reorder of F-Engine data.
- *
- *  The following CUDA kernel implements a naive (i.e. unrefined) reorder of data ingested by the GPU X-Engine from the F-Engine.
- *  As mentioned at the top of this document, data is received as an array in the format of:
- *   - uint16_t [n_batches][n_antennas] [n_channels] [n_samples_per_channel] [polarisations]
- *   And is required to be reordered into an array of format:
- *   - uint16_t [n_batches][polarizations][n_channels] [n_blocks][samples_per_channel//n_blocks][n_antennas]
  *
  *   Currently, all dimension-strides are calculated within the kernel itself.
  *   - Granted, there are some redudancies/inefficiences in variable usage; however,
@@ -47,6 +21,23 @@
  *   \param[out] pu16ArrayReordered  Pointer to the memory allocated for the reordered output data. Once more, this 1D output array
  *                                   represents multidimensional data in the format described above.
  */
+// Includes
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/cdefs.h>
+
+<%include file="/port.mako"/>
+// Defines, now using mako parametrisation
+#define NR_ANTENNAS ${n_ants}
+#define NR_CHANNELS ${n_channels}
+#define NR_SAMPLES_PER_CHANNEL ${n_samples_per_channel}
+#define NR_POLARISATIONS ${n_polarisations}
+#define NR_SAMPLES_PER_BLOCK ${n_samples_per_block}
+
+// *** DEBUG ***
+#define iThreadDBG 2 //129023 //130048 //104448
+#define iprintDBG 130550 //129023 //130048 //104448
+#define bfNewIdxDBG 23352
 
 __global__
 void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
@@ -75,7 +66,7 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
     // 2. Calculate indices for reorder
     // 2.1. Calculate 'current'/original indices for each dimension
     //      - Matrix Stride should be the same value for Original and Reordered matrices
-    iMatrixStride_y = yindex * ANTENNAS * NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS;
+    iMatrixStride_y = yindex * NR_ANTENNAS * NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS;
     int iAntIndex = iThreadIndex_x / (NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS);
     int iRemIndex = iThreadIndex_x % (NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS);
 
@@ -91,7 +82,7 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
     if((iThreadIndex_x == iThreadDBG)&(blockIdx.y == 0)){
         printf("Debug 2\n");
         printf("iMatrixStride_y: %d\n", iMatrixStride_y);
-        printf("ANTENNAS: %d\n", ANTENNAS);
+        printf("NR_ANTENNAS: %d\n", NR_ANTENNAS);
         printf("NR_CHANNELS: %d\n", NR_CHANNELS);
         printf("NR_SAMPLES_PER_CHANNEL: %d\n", NR_SAMPLES_PER_CHANNEL);      
         printf("NR_POLARISATIONS: %d\n", NR_POLARISATIONS);   
@@ -131,13 +122,13 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
 
     bfNewAntIdx =  iAntIndex;
 
-    bfNewChanIdx = iChanIndex * (ANTENNAS * NR_SAMPLES_PER_CHANNEL);
+    bfNewChanIdx = iChanIndex * (NR_ANTENNAS * NR_SAMPLES_PER_CHANNEL);
 
-    bfNewPolIdx = iPolIndex * NR_SAMPLES_PER_CHANNEL * ANTENNAS * NR_CHANNELS;
+    bfNewPolIdx = iPolIndex * NR_SAMPLES_PER_CHANNEL * NR_ANTENNAS * NR_CHANNELS;
 
-    bfNewTimeOuter = (iTimeIndex/NR_BLOCKS) * (ANTENNAS * NR_BLOCKS);
+    bfNewTimeOuter = (iTimeIndex/NR_SAMPLES_PER_BLOCK) * (NR_ANTENNAS * NR_SAMPLES_PER_BLOCK);
 
-    bfNewTimeInner = (iTimeIndex % NR_BLOCKS) * ANTENNAS;
+    bfNewTimeInner = (iTimeIndex % NR_SAMPLES_PER_BLOCK) * NR_ANTENNAS;
 
     bfNewIdx = bfNewPolIdx + bfNewChanIdx + bfNewTimeOuter + bfNewTimeInner + bfNewAntIdx;
 
@@ -160,7 +151,7 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
     // *** DEBUG ***
     uint16_t u16TempSample;
 
-    if (iThreadIndex_x < (ANTENNAS * NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS))
+    if (iThreadIndex_x < (NR_ANTENNAS * NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS))
     {
         // 3.1. Read out from the original arrayNo 
         u16InputSample = *(pu16Array + iThreadIndex_x + iMatrixStride_y);

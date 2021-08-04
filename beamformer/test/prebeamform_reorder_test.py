@@ -2,21 +2,22 @@
 Module for performing unit tests on the Pre-beamform Reorder.
 
 The pre-beamform reorder operates on a block of data with the following dimensions:
-    - uint16_t [n_antennas] [n_channels] [n_samples_per_channel] [polarizations]
+    - uint16_t [n_antennas][n_channels][n_samples_per_channel][polarizations][complexity]
       transposed to
-      uint16_t [n_batches][polarizations][n_channels] [n_blocks][samples_per_channel//n_blocks][n_ants]
+      uint16_t [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
     - Typical values for the dimensions
         - n_antennas (a) = 64
         - n_channels (c) = 128
         - n_samples_per_channel (t) = 256
         - polarisations (p) = 2, always
         - n_blocks = 16, always
+        - samples_per_block calculated as n_samples_per_channel // n_blocks
 
 Contains one test (parametrised):
     1. The first test uses the list of values present in test/test_parameters.py to run the
-        kernel through a range of value combinations.
-        - This is limited to a batch of one, as the CPU-side verification takes some time to complete.
+        kernel through a range of value combinations. See docstring in `test_prebeamform_reorder_parametrised`
 """
+
 import pytest
 import test_parameters
 import numpy as np
@@ -24,7 +25,7 @@ from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
 from beamform_reorder import reorder
 
-# DEBUG - to be removed when debug complete
+
 def print_mismatch(output_data_cpu, bufReordered_host):
     """Debug methos for printing differences betwen arrays with index positions."""
     if len(output_data_cpu) != len(bufReordered_host):
@@ -62,8 +63,10 @@ def print_mismatch(output_data_cpu, bufReordered_host):
 @pytest.mark.parametrize("num_ants", test_parameters.array_size)
 @pytest.mark.parametrize("num_channels", test_parameters.num_channels)
 @pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
-@pytest.mark.parametrize("n_blocks", test_parameters.n_blocks)
-def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_samples_per_channel, n_blocks):
+@pytest.mark.parametrize("n_samples_per_block", test_parameters.n_samples_per_block)
+def test_prebeamform_reorder_parametrised(
+    batches, num_ants, num_channels, num_samples_per_channel, n_samples_per_block
+):
     """
     Parametrised unit test of the Pre-beamform Reorder kernel.
 
@@ -82,16 +85,15 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
         The number of channels per stream is calculated from this value.
     num_samples_per_channel: int
         The number of time samples per frequency channel.
-    n_blocks: int
-        Number of blocks to break the number of samples per channel into.
+    n_samples_per_block: int
+        Number of samples per block.
 
     This test:
-        1. Populate a host-side array with random, numpy.uint16 data ranging from 0 to 16383-2.
-        2. Instantiate the prebeamformer_reorder_kernel and passes this input data to it.
+        1. Populate a host-side array with random data in the range of the relevant dtype.
+        2. Instantiate the prebeamformer_reorder_kernel and pass this input data to it.
         3. Grab the output, reordered data.
-        4. Verify it relative to the input array.
+        4. Verify it relative to the input array using a reference computed on the host.
     """
-    
     # Now to create the actual PreBeamformReorderTemplate
     # 1. Array parameters
     # - Will be {ants, chans, samples_per_chan, batches}
@@ -101,8 +103,6 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # - This will only occur in the MeerKAT Extension correlator.
     # TODO: Need to consider the case where we round up as some X-Engines will need to do this to capture all the channels.
     n_channels_per_stream = num_channels // num_ants // 4
-
-    pol = 2  # Always
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -167,11 +167,8 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # output_data_cpu[0][0][0][0][0][0] = 9
 
     # 7. Check if both arrays are identical.
-    # These views will bail if memory is not contiguous.
-    #viewed_cpu = output_data_cpu.view(dtype=np.int8)
-    #viewed_gpu = bufReordered_host.view(dtype=np.int8)
-    #np.testing.assert_array_equal(viewed_cpu, viewed_gpu)
     np.testing.assert_array_equal(output_data_cpu, bufReordered_host)
+
 
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):
@@ -180,5 +177,5 @@ if __name__ == "__main__":
             test_parameters.array_size[a],
             test_parameters.num_channels[0],
             test_parameters.num_samples_per_channel[0],
-            test_parameters.n_blocks[0],
+            test_parameters.n_samples_per_block[0],
         )

@@ -12,7 +12,7 @@ def run_reorder(
     n_channel: int,
     ants: int,
     samples_chan: int,
-    n_blocks: int,
+    n_samples_per_block: int,
     complexity: int,
 ):
     """Reorder input data into provided datashape.
@@ -33,8 +33,8 @@ def run_reorder(
         Number of antennas in array.
     samples_chan: int
         Number of samples per channels.
-    n_blocks: int
-        Number of blocks to break the number of samples per channel into.
+    n_samples_per_block: int
+        Number of samples per block.
     Returns
     -------
     np.ndarray of type uint16
@@ -47,16 +47,16 @@ def run_reorder(
     #             for a in range(ants):
     #                 for s in range(samples_chan):
     #                     for cmplx in range(complexity):
-    #                         to = int(s / n_blocks) # to = timeOuter
-    #                         ti = int(s % n_blocks) # ti = timeInner
+    #                         to = int(s / n_samples_per_block) # to = timeOuter
+    #                         ti = int(s % n_samples_per_block) # ti = timeInner
     #                         output_data[b, p, c, to, ti, a, cmplx] = input_data[b, a, c, s, p, cmplx]
 
     # or
 
     # Option 2:
-    # output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_blocks, pols).transpose(0,5,2,3,4,1)
-    
-    output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_blocks, pols, complexity).transpose(0,5,2,3,4,1,6)
+    output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_samples_per_block, pols, complexity).transpose(
+        0, 5, 2, 3, 4, 1, 6
+    )
     return output_data
 
 
@@ -84,8 +84,8 @@ def reorder(input_data: np.ndarray, input_data_shape: tuple, output_data_shape: 
     n_channel = input_data_shape[2]
     samples_chan = input_data_shape[3]
     pols = input_data_shape[4]
-    n_blocks = output_data_shape[4]
+    n_samples_per_block = output_data_shape[4]
     complexity = input_data_shape[5]
 
-    run_reorder(input_data, output_data, batches, pols, n_channel, ants, samples_chan, n_blocks, complexity)
+    run_reorder(input_data, output_data, batches, pols, n_channel, ants, samples_chan, n_samples_per_block, complexity)
     return output_data

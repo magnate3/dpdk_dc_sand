@@ -11,6 +11,7 @@ from katsdpsigproc import accel
 from katsdpsigproc import cuda
 from typing_extensions import Final
 
+
 class PreBeamformReorderTemplate:
     """
     Template class for compiling different variations of the pre-beamform reorder kernel.
@@ -40,7 +41,6 @@ class PreBeamformReorderTemplate:
         self, context: cuda.Context, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
     ) -> None:
         """Initialise the PreBeamformReorderTemplate class and compile the pre-beamform reorder kernel."""
-
         # 1. Set member variables that are used to calculate indices for the input and output buffers
         self.n_ants = n_ants
         self.n_channels = n_channels
@@ -52,6 +52,7 @@ class PreBeamformReorderTemplate:
 
         # n_blocks is hardcoded to 16 and initially started with the tensor core X-Engine kernel and it has shown to allow for efficient thread block size.
         self.n_blocks = 16
+        self.n_samples_per_block = n_samples_per_channel // self.n_blocks
 
         if self.n_samples_per_channel % self.n_blocks != 0:
             raise ValueError(f"samples_per_channel must be divisible by {self.n_blocks}.")
@@ -70,8 +71,8 @@ class PreBeamformReorderTemplate:
             accel.Dimension(self.n_batches, exact=True),
             accel.Dimension(self.n_polarisations, exact=True),
             accel.Dimension(self.n_channels, exact=True),
-            accel.Dimension(self.n_samples_per_channel // self.n_blocks, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
+            accel.Dimension(self.n_samples_per_block, exact=True),
             accel.Dimension(self.n_ants, exact=True),
             accel.Dimension(self.complexity, exact=True),
         )
@@ -99,7 +100,7 @@ class PreBeamformReorderTemplate:
                 "n_channels": self.n_channels,
                 "n_samples_per_channel": self.n_samples_per_channel,
                 "n_polarisations": self.n_polarisations,
-                "n_blocks": self.n_blocks,
+                "n_samples_per_block": self.n_samples_per_block,
             },
             extra_dirs=[pkg_resources.resource_filename(__name__, "")],
         )
@@ -119,21 +120,20 @@ class PreBeamformReorder(accel.Operation):
 
     It is worth noting these matrices follow the C convention, with the fastest-changing dimension being the last on the list.
     The input sample buffer must have the shape:
-    [batch][antennas][channels][samples_per_channel][polarisations]
+    [batch][antennas][channels][samples_per_channel][polarisations][complexity]
 
     The output sample buffer must have the shape:
-    [n_batches][polarizations][n_channels] [n_blocks][samples_per_channel//n_blocks][n_ants]
+    [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
 
-    A complexity that is introduced by the pre-beamform reorder kernel is that the samples_per_channel index is split over two
-    different indices. The first index ranges from 0 to samples_per_channel//n_blocks and the second index
-    ranges from 0 to n_blocks. Times per block is calculated by the PreBeamformReorderTemplate object.
-    In 8-bit input mode n_blocks is equal to 16.
+    The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
+    the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block). Times per block is calculated by
+    the PreBeamformReorderTemplate object.
 
-    Each input element is a complex 8-bit integer sample. Numpy does not support 8-bit complex numbers,
-    so the input sample array has dtype of np.uint16 as a placeholder.
+    Each input element is a complex 8-bit integer sample.
     """
 
     def __init__(self, template: PreBeamformReorderTemplate, command_queue: accel.AbstractCommandQueue) -> None:
+        """Initialise the PreBeamformReorder class."""
         super().__init__(command_queue)
         self.template = template
         self.slots["inSamples"] = accel.IOSlot(

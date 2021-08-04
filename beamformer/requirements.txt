@@ -3,4 +3,4 @@ numba
 pytest
 matplotlib
 pkg_resources
-katsdpsigproc[CUDA] @ git+https://github.com/ska-sa/katsdpsigproc
+katsdpsigproc[CUDA]
