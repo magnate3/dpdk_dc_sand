@@ -2,6 +2,16 @@ default_language_version:
   python: python3
 
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-executables-have-shebangs
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: no-commit-to-branch # without arguments, master/main will be protected.
   - repo: https://github.com/psf/black
     rev: 21.6b0
     hooks:
@@ -15,15 +25,16 @@ repos:
         name: isort (pyi)
         types: [pyi]
   - repo: https://gitlab.com/pycqa/flake8
-    rev: 3.8.2
+    rev: 3.9.2
     hooks:
       - id: flake8
         additional_dependencies: [
-          'flake8-bugbear==21.4.3'
+          'flake8-bugbear==21.4.3',
+          'pep8-naming==0.12.0'
         ]
         exclude: 'scratch/'
   - repo: https://github.com/pycqa/pydocstyle
-    rev: 5.0.2
+    rev: 6.0.0
     hooks:
       - id: pydocstyle
         exclude: 'setup.py|scratch/'  # Because complaining about docstrings here is annoying.
@@ -31,10 +42,23 @@ repos:
     rev: 'v0.910'
     hooks:
       - id: mypy
-        exclude: 'scratch/'
+        # Passing filenames to mypy can do odd things. See
+        # https://github.com/pre-commit/mirrors-mypy/issues/33.
+        # mypy.ini determines the set of files that will actually be checked.
+        pass_filenames: false
+        # The pre-commit hook passes some options, but we set options in mypy.ini.
+        args: []
+        # The pre-commit hook only has python, not pyi.
+        types: []
+        types_or: [python, pyi]
         additional_dependencies: [
+            'aiokatcp==1.0.0',
             'katsdpsigproc==1.2',
             'katsdptelstate==0.11',
             'numpy==1.21.0',
-            'types-setuptools==57.0.0'
+            'spead2==3.3.2',
+            'types-decorator==0.1.5',
+            'types-redis==3.5.4',
+            'types-setuptools==57.0.0',
+            'types-six==0.1.7',
         ]
