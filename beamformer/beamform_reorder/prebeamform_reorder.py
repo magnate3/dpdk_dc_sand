@@ -52,9 +52,6 @@ class PreBeamformReorderTemplate:
 
         # This 128 is hardcoded in the original tensor core kernel. The reason it is set to this needs to be determined.
         self.n_samples_per_block = 128 // self._sample_bitwidth
-
-        # n_blocks is hardcoded to 16 and initially started with the tensor core X-Engine kernel and it has shown to
-        # allow for efficient thread block size.
         self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
 
         if self.n_samples_per_channel % self.n_blocks != 0:
