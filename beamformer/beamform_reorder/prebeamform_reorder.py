@@ -1,14 +1,14 @@
 """
 Module wrapping the pre-correlation reorder Kernel.
 
-The pre-correlation reorder kernel operates on a set of data with dimensions explained below (and in its _kernel.mako file).
-It makes provision for batched operations, i.e. reordering multiple sets of data (matrices) passed to the kernel in a single array.
+The pre-correlation reorder kernel operates on a set of data with dimensions explained (and in its _kernel.mako file).
+It makes provision for batched operations, i.e. reordering multiple sets of data (matrices) passed to the kernel
+in a single array.
 """
 
-import pkg_resources
 import numpy as np
-from katsdpsigproc import accel
-from katsdpsigproc import cuda
+import pkg_resources
+from katsdpsigproc import accel, cuda
 from typing_extensions import Final
 
 
@@ -50,9 +50,12 @@ class PreBeamformReorderTemplate:
         self._sample_bitwidth = 8
         self.complexity = 2
 
-        # n_blocks is hardcoded to 16 and initially started with the tensor core X-Engine kernel and it has shown to allow for efficient thread block size.
-        self.n_blocks = 16
-        self.n_samples_per_block = n_samples_per_channel // self.n_blocks
+        # This 128 is hardcoded in the original tensor core kernel. The reason it is set to this needs to be determined.
+        self.n_samples_per_block = 128 // self._sample_bitwidth
+
+        # n_blocks is hardcoded to 16 and initially started with the tensor core X-Engine kernel and it has shown to
+        # allow for efficient thread block size.
+        self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
 
         if self.n_samples_per_channel % self.n_blocks != 0:
             raise ValueError(f"samples_per_channel must be divisible by {self.n_blocks}.")
@@ -118,7 +121,8 @@ class PreBeamformReorder(accel.Operation):
     This class specifies the shape of the input sample and output reordered buffers required by the kernel. The
     parameters specified in the PreBeamformReorderTemplate object are used to determine the shape of the buffers.
 
-    It is worth noting these matrices follow the C convention, with the fastest-changing dimension being the last on the list.
+    It is worth noting these matrices follow the C convention, with the fastest-changing dimension being
+    the last on the list.
     The input sample buffer must have the shape:
     [batch][antennas][channels][samples_per_channel][polarisations][complexity]
 
@@ -150,8 +154,9 @@ class PreBeamformReorder(accel.Operation):
         self.command_queue.enqueue_kernel(
             self.template.kernel,
             [inSamples_buffer.buffer, outReordered_buffer.buffer],
-            # Even though we are using CUDA, we follow OpenCLs grid/block conventions. As such we need to multiply the number
-            # of blocks(global_size) by the block size(local_size) in order to specify global threads not global blocks.
+            # Even though we are using CUDA, we follow OpenCLs grid/block conventions. As such we need to multiply the
+            # number of blocks(global_size) by the block size(local_size) in order to specify global threads not global
+            # blocks.
             # - Global size is across the x- and y-dimensions (for this application).
             global_size=(max_threadIdx, self.template.n_batches),
             local_size=(self.template.threads_per_block, 1),
