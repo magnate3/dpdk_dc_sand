@@ -18,12 +18,12 @@ Contains one test (parametrised):
         kernel through a range of value combinations. See docstring in `test_prebeamform_reorder_parametrised`
 """
 
+import numpy as np
 import pytest
 import test_parameters
-import numpy as np
+from beamform_reorder import reorder
 from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
-from beamform_reorder import reorder
 
 
 def print_mismatch(output_data_cpu, bufReordered_host):
@@ -53,7 +53,7 @@ def print_mismatch(output_data_cpu, bufReordered_host):
                                 ):
                                     print(
                                         f"output_data_cpu is {output_data_cpu[batch][pol][chan][tbs][sample][ant]}"
-                                        "and bufReordered_host is {bufReordered_host[batch][pol][chan][tbs][sample][ant]}: "
+                                        "and bufReordered_host {bufReordered_host[batch][pol][chan][tbs][sample][ant]}:"
                                         "batch:{batch} pol:{pol} chan:{chan} tbs:{tbs} sample:{sample} ant:{ant}"
                                     )
     print(f"Count is: {count}")
@@ -63,15 +63,13 @@ def print_mismatch(output_data_cpu, bufReordered_host):
 @pytest.mark.parametrize("num_ants", test_parameters.array_size)
 @pytest.mark.parametrize("num_channels", test_parameters.num_channels)
 @pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
-@pytest.mark.parametrize("n_samples_per_block", test_parameters.n_samples_per_block)
-def test_prebeamform_reorder_parametrised(
-    batches, num_ants, num_channels, num_samples_per_channel, n_samples_per_block
-):
+def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_samples_per_channel):
     """
     Parametrised unit test of the Pre-beamform Reorder kernel.
 
-    This unit test runs the kernel on a combination of parameters indicated in test_parameters.py. The values parametrised
-    are indicated in the parameter list, operating on a *single* batch. This unit test also invokes verification of the reordered data.
+    This unit test runs the kernel on a combination of parameters indicated in test_parameters.py. The values
+    parametrised are indicated in the parameter list, operating on a *single* batch. This unit test also invokes
+    verification of the reordered data.
 
     Parameters
     ----------
@@ -101,7 +99,7 @@ def test_prebeamform_reorder_parametrised(
 
     # This integer division is so that when num_ants % num_channels !=0 then the remainder will be dropped.
     # - This will only occur in the MeerKAT Extension correlator.
-    # TODO: Need to consider the case where we round up as some X-Engines will need to do this to capture all the channels.
+    # TODO: Need to consider case where we round up as some X-Engines will need to do this to capture all the channels.
     n_channels_per_stream = num_channels // num_ants // 4
 
     # 2. Initialise GPU kernels and buffers.
@@ -177,5 +175,4 @@ if __name__ == "__main__":
             test_parameters.array_size[a],
             test_parameters.num_channels[0],
             test_parameters.num_samples_per_channel[0],
-            test_parameters.n_samples_per_block[0],
         )
