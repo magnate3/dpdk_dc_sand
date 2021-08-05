@@ -1,0 +1,6 @@
+numpy
+numba
+pytest
+matplotlib
+pkg_resources
+katsdpsigproc[CUDA]
