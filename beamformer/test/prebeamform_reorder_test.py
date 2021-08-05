@@ -26,39 +26,6 @@ from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
 
 
-def print_mismatch(output_data_cpu, bufReordered_host):
-    """Debug methos for printing differences betwen arrays with index positions."""
-    if len(output_data_cpu) != len(bufReordered_host):
-        print(f"output_data_cpu is {output_data_cpu} and bufReordered_host is {bufReordered_host}")
-    else:
-        shape = np.shape(output_data_cpu)
-        batches = shape[0]
-        pols = shape[1]
-        n_channel = shape[2]
-        samples_chan = shape[3]
-        n_blocks = shape[4]
-        ants = shape[5]
-        count = 0
-
-        for batch in range(batches):
-            for pol in range(pols):
-                for chan in range(n_channel):
-                    for tbs in range(n_blocks):
-                        for sample in range(samples_chan):
-                            for ant in range(ants):
-                                count = count + 1
-                                if (
-                                    output_data_cpu[batch][pol][chan][tbs][sample][ant]
-                                    != bufReordered_host[batch][pol][chan][tbs][sample][ant]
-                                ):
-                                    print(
-                                        f"output_data_cpu is {output_data_cpu[batch][pol][chan][tbs][sample][ant]}"
-                                        "and bufReordered_host {bufReordered_host[batch][pol][chan][tbs][sample][ant]}:"
-                                        "batch:{batch} pol:{pol} chan:{chan} tbs:{tbs} sample:{sample} ant:{ant}"
-                                    )
-    print(f"Count is: {count}")
-
-
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("num_ants", test_parameters.array_size)
 @pytest.mark.parametrize("num_channels", test_parameters.num_channels)
@@ -125,17 +92,6 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # 3. Generate random input data - need to modify the dtype and shape of the array as numpy does not have a packet
     # 8-bit int complex type.
 
-    # DEBUG: Inject sample to trace
-    # bufSamples_host.dtype = np.uint8
-    # bufSamples_host[:] = np.zeros(bufSamplesInt8Shape, dtype=np.uint8)
-    # bufSamples_host[0][0][0][0][0] = 1 #Pol0 Sample0 Real
-    # bufSamples_host[0][0][0][0][1] = 55 #Pol0 Sample0 Imag
-
-    # bufSamples_host[0][0][0][1][0] = 77 #Pol0 Sample1 Real
-    # bufSamples_host[0][0][0][1][1] = 33 #Pol0 Sample1 Imag
-
-    # OR
-
     # Inject random data for test.
     rng = np.random.default_rng(seed=2021)
 
@@ -155,16 +111,8 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
         output_data_shape=bufReordered_host.shape,
     )
 
-    # DEBUG: Print out differences (with location)
-    # print_mismatch(output_data_cpu, bufReordered_host)
-
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-
-    # DEBUG: Force failure.
-    # output_data_cpu[0][0][0][0][0][0] = 9
-
-    # 7. Check if both arrays are identical.
     np.testing.assert_array_equal(output_data_cpu, bufReordered_host)
 
 
