@@ -20,8 +20,13 @@ class MultCombined(katsdpsigproc.accel.OperationSequence):
             ('Mult1', self.Mult1),
             ('Mult2', self.Mult2)
         ]
+        # operations = [
+        #     ('Mult1', self.Mult1)
+        # ]
         compounds = {
-            'bufin': ['Mult1:data', 'Mult2:data']
+            'bufin': ['Mult1:inData'],
+            'bufint': ['Mult2:inData', 'Mult1:outData'],
+            'bufout': ['Mult2:outData']
         }
         super().__init__(queue, operations, compounds)
         self.template = template
@@ -33,17 +38,23 @@ class MultCombined(katsdpsigproc.accel.OperationSequence):
 ctx = katsdpsigproc.accel.create_some_context()
 queue = ctx.create_command_queue()
 op_template = MultSeqTemplate(ctx, queue)
-op = op_template.instantiate(queue, 50, 3.0)
+op = op_template.instantiate(queue, 64, 3)
 op.ensure_all_bound()
-buf = op.Mult1.buffer('data')
-host = buf.empty_like()
-host[:] = np.random.uniform(size=host.shape)
-#host[:] = np.ones(shape=host.shape)
-print(host)
-buf.set(queue, host)
+
+bufin_device = op.Mult1.buffer("inData")
+host_in = bufin_device.empty_like()
+
+bufout_device = op.Mult2.buffer("outData")
+host_out = bufout_device.empty_like()
+
+#host[:] = np.random.uniform(size=host_in.shape)
+host_in[:] = np.ones(shape=host_in.shape)
+print(host_in)
+
+bufin_device.set(queue, host_in)
 op()
-buf.get(queue, host)
-print(host)
+bufout_device.get(queue, host_out)
+print(host_out)
 a = 1
 # Visualise the operation
 katsdpsigproc.accel.visualize_operation(op,'test_op_vis')

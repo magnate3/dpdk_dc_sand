@@ -1,14 +1,15 @@
 import numpy as np
+import pkg_resources
 import katsdpsigproc.accel
 from katsdpsigproc.accel import Operation, IOSlot, Dimension, build, roundup
 
-SOURCE = """
-<%include file="/port.mako"/>
+# SOURCE = """
+# <%include file="/port.mako"/>
 
-KERNEL void multiply(GLOBAL float *data, float scale) {
-    data[get_global_id(0)] *= scale;
-}
-"""
+# KERNEL void multiply(GLOBAL float *data, float scale) {
+#     data[get_global_id(0)] *= scale;
+# }
+# """
 class MultiplyTemplate:
     def __init__(self, context, queue):
         self.context = context
@@ -21,16 +22,30 @@ class Multiply(Operation):
 
     def __init__(self, queue, size, scale):
         super().__init__(queue)
-        program = build(queue.context, '', source=SOURCE)
-        self.kernel = program.get_kernel('multiply')
-        self.scale = np.float32(scale)
-        self.slots['data'] = IOSlot((Dimension(size, self.WGS),), np.float32)
+        # program = build(queue.context, '', source=SOURCE)
+        # self.kernel = program.get_kernel('multiply')
+
+        program = build(
+            queue.context,
+            "kernels/multiply.mako",
+            {
+                "scale": scale,
+            },
+            extra_dirs=[pkg_resources.resource_filename(__name__, "")],
+        )
+        
+        self.kernel = program.get_kernel("multiply")
+
+        self.scale = np.uint16(scale)
+        self.slots["inData"] = IOSlot((Dimension(size, self.WGS),), np.uint16)
+        self.slots["outData"] = IOSlot((Dimension(size, self.WGS),), np.uint16)
 
     def _run(self):
-        data = self.buffer('data')
+        inData_buffer = self.buffer("inData")
+        outData_buffer = self.buffer("outData")
         self.command_queue.enqueue_kernel(
             self.kernel,
-            [data.buffer, self.scale],
-            global_size=(roundup(data.shape[0], self.WGS),),
+            [inData_buffer.buffer, outData_buffer.buffer, self.scale],
+            global_size=(roundup(inData_buffer.shape[0], self.WGS),),
             local_size=(self.WGS,)
         )
