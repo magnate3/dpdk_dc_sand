@@ -31,7 +31,7 @@ void multiply(uint16_t *pu16Array, uint16_t *pu16ArrayScaled, uint16_t scale)
     u16InputSample = *(pu16Array + iThreadIndex_x + iMatrixStride_y);
         
     // 3.2. Store at its reordered index
-    *(pu16ArrayScaled + iMatrixStride_y) = u16InputSample * scale;
+    *(pu16ArrayScaled + iThreadIndex_x + iMatrixStride_y) = u16InputSample * scale;
     u16SampleScaled = *(pu16ArrayScaled + iMatrixStride_y);
 
     printf("Mult: iThreadIndex_x: %d blockIdx.x: %d blockDim.x: %d threadIdx.x: %d   InputSample:%d  Scale: %d  ScaledSample:%d\n", iThreadIndex_x, blockIdx.x, blockDim.x, threadIdx.x, u16InputSample, scale, u16SampleScaled);

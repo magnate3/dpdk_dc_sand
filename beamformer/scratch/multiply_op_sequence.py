@@ -14,8 +14,8 @@ class MultSeqTemplate:
 
 class MultCombined(katsdpsigproc.accel.OperationSequence):
     def __init__(self, template, queue, size, scale):
-        self.Mult1 = template.Mult1.instantiate(queue, size, scale)
-        self.Mult2 = template.Mult2.instantiate(queue, size, scale)
+        self.Mult1 = template.Mult1.instantiate(queue, size, 3)
+        self.Mult2 = template.Mult2.instantiate(queue, size, 7)
         operations = [
             ('Mult1', self.Mult1),
             ('Mult2', self.Mult2)
@@ -24,8 +24,8 @@ class MultCombined(katsdpsigproc.accel.OperationSequence):
         #     ('Mult1', self.Mult1)
         # ]
         compounds = {
-            'bufin': ['Mult1:inData'],
-            'bufint': ['Mult2:inData', 'Mult1:outData'],
+            'bufin': ['Mult1:inData' ],
+            'bufint': ['Mult1:outData', 'Mult2:inData'],
             'bufout': ['Mult2:outData']
         }
         super().__init__(queue, operations, compounds)
