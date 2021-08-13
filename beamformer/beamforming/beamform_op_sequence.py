@@ -58,8 +58,22 @@ host_in = bufin_device.empty_like()
 bufout_device = op.beamformMult.buffer("outData")
 host_out = bufout_device.empty_like()
 
-#host[:] = np.random.uniform(size=host_in.shape)
-host_in[:] = np.ones(shape=host_in.shape, dtype=host_in.dtype)
+# host_in[:] = np.ones(shape=host_in.shape, dtype=host_in.dtype)
+
+# Inject random data for test.
+# rng = np.random.default_rng(seed=2021)
+# host_in[:] = rng.uniform(
+#     np.iinfo(host_in.dtype).min, np.iinfo(host_in.dtype).max, host_in.shape
+# ).astype(host_in.dtype)
+
+host_in[0][0][0][0][0][0] = 1
+host_in[0][0][0][1][0][0] = 2
+host_in[0][0][0][2][0][0] = 3
+host_in[0][0][0][3][0][0] = 4
+host_in[0][0][0][4][0][0] = 5
+host_in[0][0][0][5][0][0] = 6
+host_in[0][0][0][6][0][0] = 7
+host_in[0][0][0][7][0][0] = 8
 #print(host_in)
 
 bufin_device.set(queue, host_in)
