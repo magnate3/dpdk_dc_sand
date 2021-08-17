@@ -4,12 +4,13 @@ from katsdpsigproc import cuda
 from katsdpsigproc.accel import Operation, IOSlot, Dimension, build, roundup
 from katsdpsigproc.accel import visualize_operation
 import beamform
+
 from beamform_reorder import prebeamform_reorder
 
 class BeamformSeqTemplate:
     def __init__(self, context: cuda.Context, queue: accel.AbstractCommandQueue, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int):
         self.preBeamformReorder = prebeamform_reorder.PreBeamformReorderTemplate(context, n_ants, n_channels, n_samples_per_channel, n_batches)
-        self.beamformMult = beamform.MultiplyTemplate(context, queue)
+        self.beamformMult = beamform.MultiplyTemplate(context)
 
     def instantiate(self, queue, scale):
         return OpSequence(self, queue, scale)
@@ -17,16 +18,11 @@ class BeamformSeqTemplate:
 class OpSequence(accel.OperationSequence):
     def __init__(self, template, queue, scale):
         self.prebeamformReorder = template.preBeamformReorder.instantiate(queue)
-        self.beamformMult = template.beamformMult.instantiate(queue, template.preBeamformReorder.outputDataShape, scale)
+        self.beamformMult = template.beamformMult.instantiate(queue, template.preBeamformReorder.outputDataShape, template.preBeamformReorder.outputDataShape)
         operations = [
             ('reorder', self.prebeamformReorder),
             ('beamformMult', self.beamformMult)
         ]
-        # compounds = {
-        #     'bufin': ['reorder:inSamples' ],
-        #     'bufint': ['reorder:outReordered', 'beamformMult:inData'],
-        #     'bufout': ['beamformMult:outData']
-        # }
         compounds = {
             'bufin': ['reorder:inSamples' ],
             'bufint': ['reorder:outReordered','beamformMult:inData'],
@@ -79,7 +75,7 @@ host_in[0][0][0][7][0][0] = 8
 bufin_device.set(queue, host_in)
 op()
 bufout_device.get(queue, host_out)
-#print(host_out)
+print(host_out)
 a = 1
 # Visualise the operation
 accel.visualize_operation(op,'test_op_vis')
