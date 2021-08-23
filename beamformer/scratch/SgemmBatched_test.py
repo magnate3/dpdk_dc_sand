@@ -19,7 +19,8 @@ def bptrs(a):
 # matrix -matrix multiplication: c=alpha*a*b+beta*c
 h = cublasCreate() # initialize cublas context 
 
-l, m, n, k = 2, 6, 4, 5
+# l, m, n, k = 2, 6, 4, 5
+l, m, n, k = 16, 1, 2, 64 * 2
 
 a = np.arange(1,(k*m*l+1),1,np.float32).reshape(l,k,m)
 b = np.arange(1,(k*n*l+1),1,np.float32).reshape(l,n,k)
