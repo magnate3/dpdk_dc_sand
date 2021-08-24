@@ -41,7 +41,11 @@ batches = 3
 ants = 64
 num_chan = 1024
 n_samples_per_channel = 256
-l = 1
+n_blocks = 16
+samples_per_block = 16
+pols = 2
+# l = 16
+l = batches * pols * num_chan * n_blocks * samples_per_block
 coeffs = np.arange(1,((ants*2)*2*l+1),1,np.float32).reshape(l,2,ants * 2)
 
 ctx = accel.create_some_context()
@@ -59,10 +63,10 @@ host_out = bufout_device.empty_like()
 # host_in[:] = np.ones(shape=host_in.shape, dtype=host_in.dtype)
 
 # Inject random data for test.
-# rng = np.random.default_rng(seed=2021)
-# host_in[:] = rng.uniform(
-#     np.iinfo(host_in.dtype).min, np.iinfo(host_in.dtype).max, host_in.shape
-# ).astype(host_in.dtype)
+rng = np.random.default_rng(seed=2021)
+host_in[:] = rng.uniform(
+    np.iinfo(host_in.dtype).min, np.iinfo(host_in.dtype).max, host_in.shape
+).astype(host_in.dtype)
 
 # host_in[0][0][0][0][0][0] = 1
 # host_in[0][0][0][1][0][0] = 2
