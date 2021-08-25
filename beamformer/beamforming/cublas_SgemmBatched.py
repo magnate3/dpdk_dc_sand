@@ -17,11 +17,9 @@ def _bptrs(a):
 
 class cublas_SgemmBatched:
     def cublas_SgemmBatched(self, data_matrix, coeff_matrix, out=None, stream=None):
-        # matrix -matrix multiplication: c=alpha*a*b+beta*c
-        h = cublasCreate() # initialize cublas context 
+        # matrix - matrix multiplication: c=alpha*a*b+beta*c
 
-        # l, m, n, k = 2, 6, 4, 5
-        # l, m, n, k = 16, 1, 2, 64 * 2
+        h = cublasCreate() # initialize cublas context 
 
         batches = data_matrix.shape[0]
         pols = data_matrix.shape[1]
@@ -31,44 +29,24 @@ class cublas_SgemmBatched:
         ants = data_matrix.shape[5]
         complexity = 2 # always
 
-        # a = np.arange(1,(k*m*l+1),1,np.float32).reshape(l,k,m)
-        # b = np.arange(1,(k*n*l+1),1,np.float32).reshape(l,n,k)
-        # c = np.arange(1,(n*m*l+1),1,np.float32).reshape(l,n,m)
-        # a_gpu = gpuarray.to_gpu(a.copy())
-        coeff_matrix_gpu = gpuarray.to_gpu(coeff_matrix.copy())
-        # c_gpu = gpuarray.to_gpu(c.copy())
-
-        m, n, k = 1, 2, ants * 2
-        l = batches * pols * n_channel * blocks * samples_per_block
-        # l= 16
-        lda = data_matrix.shape[5]
-        ldb = coeff_matrix.shape[2]
-
-        ldout = out.shape[5]
-        c = np.zeros(l*2,np.float32).reshape(l,n,m)
-        c_gpu = gpuarray.to_gpu(c.copy())
-
         alpha = np.float32(1.0)
         beta = np.float32(0.0)
 
-        # data_matrix.dtype=np.float32
+        m, n, k = 1, 2, ants * 2
+        l = batches * pols * n_channel * blocks * samples_per_block
+
+        # dm_test = data_matrix.reshape(l,ants*2,1).astype(np.float32)
+        coeff_matrix_gpu = gpuarray.to_gpu(coeff_matrix.copy())
+
+        # Setup leading dimensions. Note: The leading dimension refers to the length of the first dimension in the array.
+        # For this, the first dimension is rows as it is stored in row-major order.
+        lda = data_matrix.reshape(l,ants*2,1).astype(np.float32).shape[2]
+        ldb = coeff_matrix.shape[2]
+        ldout = out.reshape(l,n,m).shape[2]
+
         a_arr = _bptrs(data_matrix.reshape(l,ants*2,1).astype(np.float32))
         b_arr = _bptrs(coeff_matrix_gpu)
-        c_arr = _bptrs(c_gpu)
-        # c_arr = _bptrs(out)
-        
-        # a = np.arange(1,(k*m*l+1),1,np.float32).reshape(l,k,m)
-        # a_gpu = gpuarray.to_gpu(a.copy())
-        # a_arr = _bptrs(a_gpu)
+        c_arr = _bptrs(out.reshape(l,n,m))
 
         cublas.cublasSgemmBatched(h, 'n','n', m, n, k, alpha, a_arr.gpudata, lda, b_arr.gpudata, ldb, beta, c_arr.gpudata, ldout, l)
-        # print(c_gpu.get())
         # print(out.get())
-
-        out = c_gpu.reshape(batches, pols, n_channel, blocks, samples_per_block, 2).astype(np.uint8)
-        print(out.get())
-        # TODO: Check data at this point
-
-        # cublas.cublasSgemmBatched(h, 'n','n', m, n, k, alpha, a_arr.gpudata, lda, b_arr.gpudata, ldb, beta, c_arr.gpudata, ldout, l)
-        
-        # print(c_gpu.get())

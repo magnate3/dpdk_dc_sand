@@ -20,7 +20,8 @@ def bptrs(a):
 h = cublasCreate() # initialize cublas context 
 
 # l, m, n, k = 2, 6, 4, 5
-l, m, n, k = 16, 1, 2, 64 * 2
+m, n, k = 1, 2, 64 * 2
+l = 16
 
 a = np.arange(1,(k*m*l+1),1,np.float32).reshape(l,k,m)
 b = np.arange(1,(k*n*l+1),1,np.float32).reshape(l,n,k)
@@ -42,7 +43,5 @@ a_arr = bptrs(a_gpu)
 b_arr = bptrs(b_gpu)
 c_arr = bptrs(c_gpu)
 
-# TODO: fix for l > 1 
 cublas.cublasSgemmBatched(h, 'n','n', m, n, k, alpha, a_arr.gpudata, lda, b_arr.gpudata, ldb, beta, c_arr.gpudata, ldout, l)
-
 print(c_gpu.get())
