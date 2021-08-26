@@ -1,5 +1,9 @@
+# https://developer.nvidia.com/blog/cublas-strided-batched-matrix-multiply/
+# https://docs.nvidia.com/cuda/cublas/index.html#cublas-lt-t-gt-gemm
+# https://scikit-cuda.readthedocs.io/en/latest/generated/skcuda.cublas.cublasSgemmBatched.html#skcuda.cublas.cublasSgemmBatched
 # https://python.hotexamples.com/site/file?hash=0x81b426ed3764536b43c0a4d0f978ba9722ea0d0cc098838d185452c4d7c597ab&fullName=scikits.cuda-master/test_cublas.py&project=alemagnani/scikits.cuda
 # sgemm based on https://docs.nvidia.com/cuda/cublas/index.html#cublas-lt-t-gt-gemm  ->  2.7.1. cublas<t>gemm()
+# https://stackoverflow.com/questions/16376804/clarification-of-the-leading-dimension-in-cublas-when-transposing
 
 import pycuda.autoinit
 import pycuda.gpuarray as gpuarray

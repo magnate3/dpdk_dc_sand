@@ -16,10 +16,10 @@ class CoeffGenerator:
         self.ants = ants
     
     def Coeffs(self):
-        l = batches * pols * num_chan * n_blocks * samples_per_block
+        l = self.batches * self.pols * self.num_chan * self.n_blocks * self.samples_per_block
 
         # coeffs = np.arange(1,((ants*2)*2*l+1),1,np.float32).reshape(l,2,ants * 2)
-        coeffs = np.ones(((ants*2)*2*l),np.float32).reshape(l,2,ants * 2)
+        coeffs = np.ones(((self.ants*2)*2*l),np.float32).reshape(l,2,self.ants * 2)
         for i in range(coeffs.shape[0]):
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
@@ -46,7 +46,7 @@ class BeamformSeqTemplate:
 class OpSequence(accel.OperationSequence):
     def __init__(self, template, queue, coeffs):
         self.prebeamformReorder = template.preBeamformReorder.instantiate(queue)
-        self.beamformMult = template.beamformMult.instantiate(queue, template.preBeamformReorder.outputDataShape, template.beamformMult.outputDataShape, coeffs)
+        self.beamformMult = template.beamformMult.instantiate(queue, coeffs)
         operations = [
             ('reorder', self.prebeamformReorder),
             ('beamformMult', self.beamformMult)
