@@ -11,7 +11,6 @@ import numpy as np
 from skcuda.cublas import *
 from skcuda import cublas
 
-
 def _bptrs(a):
     """
     Pointer array when input represents a batch of matrices.
@@ -48,7 +47,9 @@ class cublas_SgemmBatched:
         ldb = coeff_matrix.shape[2]
         ldout = out.reshape(l,n,m).shape[2]
 
-        a_arr = _bptrs(data_matrix.reshape(l,ants*2,1).astype(np.float32))
+        data_reshape = data_matrix.reshape(l,ants*2,1).astype(np.float32)
+        # a_arr = _bptrs(data_matrix.reshape(l,ants*2,1).astype(np.float32))
+        a_arr = _bptrs(data_reshape)
         b_arr = _bptrs(coeff_matrix_gpu)
         c_arr = _bptrs(out.reshape(l,n,m))
 

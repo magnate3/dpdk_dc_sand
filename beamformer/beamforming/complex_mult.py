@@ -1,9 +1,9 @@
 """Reorder implementation for unit test."""
 import numpy as np
-from numba import njit
+from numba import jit
 
 
-# @njit
+# @jit
 def run_complex_mult(
     input_data: np.ndarray,
     output_data: np.ndarray,
@@ -48,12 +48,19 @@ def run_complex_mult(
             for c in range(n_channel):
                 for block in range(blocks):
                     for s in range(n_samples_per_block):
+                        data_cmplx = []
+                        coeff_cmplx = []
                         for a in range(ants):
-                            data_cmplx = [input_data[b, p, c, block, s, a, 0], input_data[b, p, c, block, s, a, 1]]
-                          
+                            dtmp_cmplx = complex(input_data[b, p, c, block, s, a, 0], input_data[b, p, c, block, s, a, 1])
+                            data_cmplx.append(dtmp_cmplx)
 
-                        output_data[b, p, c, block, s] = input_data[b, p, c, s, p, cmplx]
+                            ctmp_cmplx = complex(coeffs[b, p, c, block, s, a, 0], coeffs[b, p, c, block, s, a, 1])
+                            coeff_cmplx.append(ctmp_cmplx)
 
+                        cmplx_prod = np.vdot(data_cmplx,coeff_cmplx)
+                        output_data[b, p, c, block, s, 1] = np.real(cmplx_prod)
+                        output_data[b, p, c, block, s, 0] = np.imag(cmplx_prod)
+                        # output_data[b, p, c, block, s] = input_data[b, p, c, s, p, cmplx]
 
     return output_data
 
@@ -83,7 +90,7 @@ def complex_mult(input_data: np.ndarray, coeffs: np.ndarray, output_data_shape: 
     blocks = np.shape(input_data)[3]
     n_samples_per_block = np.shape(input_data)[4]
     ants = np.shape(input_data)[5]
-    complexity = np.shape(input_data)[6]
+    # complexity = np.shape(input_data)[6]
 
-    run_complex_mult(input_data, output_data, coeffs, batches, pols, n_channel, blocks, n_samples_per_block, ants, complexity)
+    run_complex_mult(input_data, output_data, coeffs, batches, pols, n_channel, blocks, n_samples_per_block, ants, 2)
     return output_data

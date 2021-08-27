@@ -65,7 +65,7 @@ class OpSequence(accel.OperationSequence):
 
 # Reorder Specs
 
-batches = 1
+batches = 3
 ants = 4
 num_chan = 32
 n_samples_per_channel = 16
