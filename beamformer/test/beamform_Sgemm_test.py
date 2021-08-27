@@ -65,7 +65,7 @@ class CoeffGenerator:
                         coeffs[i,j,k] = real_value
                     else:
                         coeffs[i,j,k] = imag_value
-        return coeffs
+        return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.ants, 2)
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("num_ants", test_parameters.array_size)
@@ -112,7 +112,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     pols = 2
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
-    coeff_gen = CoeffGenerator(batches, pols, num_channels, n_blocks, samples_per_block, num_ants)
+    coeff_gen = CoeffGenerator(batches, pols, n_channels_per_stream, n_blocks, samples_per_block, num_ants)
     gpu_coeffs = coeff_gen.GPU_Coeffs()
 
     # 2. Initialise GPU kernels and buffers.
@@ -141,13 +141,13 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # 8-bit int complex type.
 
     # Inject random data for test.
-    # rng = np.random.default_rng(seed=2021)
+    rng = np.random.default_rng(seed=2021)
 
-    # bufSamples_host[:] = rng.uniform(
-    #     np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
-    # ).astype(bufSamples_host.dtype)
+    bufSamples_host[:] = rng.uniform(
+        np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
+    ).astype(bufSamples_host.dtype)
 
-    bufSamples_host[:] = np.ones(bufSamples_host.shape,np.float32)
+    # bufSamples_host[:] = np.ones(bufSamples_host.shape,np.float32)
 
     # 4. Reorder: Transfer input sample array to the GPU, run reorder kernel, transfer output Reordered array to the CPU.
     bufSamples_device.set(queue, bufSamples_host)
@@ -157,6 +157,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # 5. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeffs = coeff_gen.CPU_Coeffs()
     output_data_cpu = complex_mult.complex_mult(
+        # input_data=bufSamples_host.reshape(batches, pols, n_channels_per_stream, n_blocks, samples_per_block, num_ants*2),
         input_data=bufSamples_host,
         coeffs=cpu_coeffs,
         output_data_shape=bufBeamform_host.shape,
@@ -164,8 +165,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-    np.testing.assert_array_equal(output_data_cpu, bufReordered_host)
-
+    np.testing.assert_array_equal(output_data_cpu, bufBeamform_host)
 
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):
