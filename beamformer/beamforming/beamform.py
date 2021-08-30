@@ -4,7 +4,7 @@ from skcuda.cublas import *
 from katsdpsigproc import accel, cuda
 import pycuda.gpuarray as gpuarray
 from katsdpsigproc.accel import Operation, IOSlot, Dimension, build, roundup
-# from cublas_mult import cublas_gemm
+from beamforming.complex_mult_kernel import complex_mult_kernel
 from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
 
 class MultiplyTemplate:
@@ -59,4 +59,5 @@ class Multiply(Operation):
 
     def _run(self):
         with self.command_queue.context:
-            cublas_SgemmBatched.cublas_SgemmBatched(self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer)
+            # cublas_SgemmBatched.cublas_SgemmBatched(self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer)
+            complex_mult_kernel.complex_mult(self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer)

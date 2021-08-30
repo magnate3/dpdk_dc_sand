@@ -16,7 +16,7 @@ from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 # from beamforming.beamform import MultiplyTemplate
 from katsdpsigproc import accel
 from beamforming import beamform
-from beamforming import complex_mult
+from beamforming import complex_mult_cpu
 from numba import jit
 
 class CoeffGenerator:
@@ -156,7 +156,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
 
     # 5. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeffs = coeff_gen.CPU_Coeffs()
-    output_data_cpu = complex_mult.complex_mult(
+    output_data_cpu = complex_mult_cpu.complex_mult(
         # input_data=bufSamples_host.reshape(batches, pols, n_channels_per_stream, n_blocks, samples_per_block, num_ants*2),
         input_data=bufSamples_host,
         coeffs=cpu_coeffs,
