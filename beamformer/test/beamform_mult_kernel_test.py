@@ -26,6 +26,7 @@ class CoeffGenerator:
         self.n_blocks = n_blocks
         self.samples_per_block = samples_per_block
         self.ants = ants
+        self.complexity = 2
         self.total_length = self.batches * self.pols * self.num_chan * self.n_blocks * self.samples_per_block
     
     @jit
@@ -46,7 +47,7 @@ class CoeffGenerator:
                             coeffs[i,j,k] = imag_value
                         else:
                             coeffs[i,j,k] = real_value
-        return coeffs
+        return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, 2, self.ants, self.complexity)
 
     @jit
     def CPU_Coeffs(self):
