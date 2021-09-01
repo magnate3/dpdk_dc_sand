@@ -39,15 +39,15 @@ class CoeffGenerator:
                 for k in range(coeffs.shape[2]):
                     if j == 0:
                         if k % 2:
-                            coeffs[i,j,k] = -1 * real_value
-                        else:
-                            coeffs[i,j,k] = imag_value
-                    else:
-                        if k % 2:
-                            coeffs[i,j,k] = imag_value
+                            coeffs[i,j,k] = -1 * imag_value
                         else:
                             coeffs[i,j,k] = real_value
-        return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, 2, self.ants, self.complexity)
+                    else:
+                        if k % 2:
+                            coeffs[i,j,k] = real_value
+                        else:
+                            coeffs[i,j,k] = imag_value
+        return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, 2, self.ants * self.complexity)
 
     @jit
     def CPU_Coeffs(self):
@@ -59,9 +59,9 @@ class CoeffGenerator:
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
                     if k == 0:
-                        coeffs[i,j,k] = real_value
-                    else:
                         coeffs[i,j,k] = imag_value
+                    else:
+                        coeffs[i,j,k] = real_value
         return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.ants, 2)
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
@@ -125,7 +125,9 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
         n_batches=batches,
     )
 
-    BeamformMult = beamform_mult_template.instantiate(queue, gpu_coeffs)
+    # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
+    test_id = 'kernel'
+    BeamformMult = beamform_mult_template.instantiate(queue, gpu_coeffs, test_id)
     BeamformMult.ensure_all_bound()
 
     bufSamples_device = BeamformMult.buffer("inData")
@@ -154,7 +156,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # 5. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeffs = coeff_gen.CPU_Coeffs()
     output_data_cpu = complex_mult_cpu.complex_mult(
-        # input_data=bufSamples_host.reshape(batches, pols, n_channels_per_stream, n_blocks, samples_per_block, num_ants*2),
+        # input_data=bufSamples_host.reshape(batches, pols, n_channels_per_stream, n_blocks, samples_per_block, num_ants, 2),
         input_data=bufSamples_host,
         coeffs=cpu_coeffs,
         output_data_shape=bufBeamform_host.shape,

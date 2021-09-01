@@ -4,14 +4,15 @@ from numba import cuda, float32
 
 # Controls threads per block and shared memory usage.
 # The computation will be done on blocks of TPBxTPB elements.
-TPB = 16
+# TPB = 16
 
-# def run_complex_mult(self, data_matrix, coeff_matrix, out=None):
 @cuda.jit
 def run_complex_mult(data_matrix, coeff_matrix, out):
     """
     Code for kernel.
     """
+    dbg_trig = 98303
+
     # # Compute flattened index inside the array
     iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
     
@@ -23,14 +24,10 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     ants = data_matrix.shape[5]
     complexity = 2 # always
 
-    # iBatchCounter = cuda.blockIdx.y
-
-    # iMatrixStride_y = iBatchCounter * pols * n_channel * blocks * samples_per_block * ants
-
     iBatchIndex = int(iThreadIndex_x / (pols * n_channel * blocks * samples_per_block))
     iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block)
 
-    if iThreadIndex_x >= 98303:
+    if iThreadIndex_x >= dbg_trig:
         print('iThreadIndex_x is:', iThreadIndex_x)
         print('iBatchIndex is:',iBatchIndex)
         print('iRemIndex is:',iRemIndex)
@@ -38,37 +35,48 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     iPolIndex = int(iRemIndex / (n_channel * blocks * samples_per_block))
     iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block)
 
-    if iThreadIndex_x >= 98303:
+    if iThreadIndex_x >= dbg_trig:
         print('iPolIndex is:', iPolIndex)
         print('iRemIndex is:',iRemIndex)
 
     iChanIndex = int(iRemIndex / (blocks * samples_per_block))
     iRemIndex = iRemIndex % (blocks * samples_per_block)
 
-    if iThreadIndex_x >= 98303:
+    if iThreadIndex_x >= dbg_trig:
         print('iChanIndex is:', iChanIndex)
         print('iRemIndex is:',iRemIndex)
 
     iBlockIndex = int(iRemIndex / (samples_per_block))
     iRemIndex = iRemIndex % (samples_per_block)
 
-    if iThreadIndex_x >= 98303:
+    if iThreadIndex_x >= dbg_trig:
         print('iBlockIndex is:', iBlockIndex)
         print('iRemIndex is:',iRemIndex)
 
     iSamplePerBlockIndex = iRemIndex
 
-    if iThreadIndex_x >= 98303:
+    if iThreadIndex_x >= dbg_trig:
         print('iSamplePerBlockIndex is:', iSamplePerBlockIndex)
 
-    tmp = data_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex]
-
-    if iThreadIndex_x >= 98303:
+    for col in range(2):    
+        tmp = float32(0)
         for ant in range(ants):
-            print(ant)
-            print(tmp[ant][0])
-            print(tmp[ant][1])
+            coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col][ant]
+            data = data_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][ant]
 
+            tmp += data * coeff
+
+            if iThreadIndex_x >= dbg_trig:
+                print('iThreadIndex_x:', iThreadIndex_x, 'ant:', ant, 'tmp:', tmp)
+                print('iThreadIndex_x:', iThreadIndex_x, 'ant:', ant, 'col:', col,'coeff:', coeff)
+        
+        # Copy computed weighted and summed ant samples to output
+        if col == 0:
+            # Computed sample is real component
+            out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][0] = tmp
+        else:
+            # Computed sample is imaginary component
+             out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][1] = tmp    
 
     # # Define an array in the shared memory
     # # The size and type of the arrays must be known at compile time
@@ -90,13 +98,6 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     #     cuda.syncthreads()
 
 
-
-
-
-    # if pos < io_array.size:  # Check array boundaries
-    #     io_array[pos] *= 2 # do the computation
-    # code here
-
 class complex_mult_kernel:
     def complex_mult(self, data_matrix, coeff_matrix, out=None, stream=None):
         batches = data_matrix.shape[0]
@@ -107,6 +108,9 @@ class complex_mult_kernel:
         ants = data_matrix.shape[5]
         complexity = 2 # always
 
+        # Reshape data to have ant real and imag data in one dimension
+        data_matrix = data_matrix.reshape(batches, pols, n_channel, blocks, samples_per_block, (ants * complexity))
+
         # Create the data array - usually initialized some other way
         # data = np.ones(256)
 
@@ -114,7 +118,7 @@ class complex_mult_kernel:
         threadsperblock = 512 
 
         # Calculate the number of thread blocks in the grid
-        ant_sample_blocks = data_matrix.size / (ants*complexity)
+        ant_sample_blocks = data_matrix.size / (ants * complexity)
         blockspergrid = int(ant_sample_blocks // threadsperblock)
 
         # Make the context associated with device device_id the current context.
@@ -124,7 +128,3 @@ class complex_mult_kernel:
 
         # Now start the kernel
         run_complex_mult[blockspergrid, threadsperblock](data_matrix, coeff_matrix, out)
-
-        a = 2
-        # Print the result
-        # print(data)

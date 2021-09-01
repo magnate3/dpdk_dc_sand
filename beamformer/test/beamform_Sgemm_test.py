@@ -40,14 +40,14 @@ class CoeffGenerator:
                 for k in range(coeffs.shape[2]):
                     if j == 0:
                         if k % 2:
-                            coeffs[i,j,k] = -1 * real_value
-                        else:
-                            coeffs[i,j,k] = imag_value
-                    else:
-                        if k % 2:
-                            coeffs[i,j,k] = imag_value
+                            coeffs[i,j,k] = -1 * imag_value
                         else:
                             coeffs[i,j,k] = real_value
+                    else:
+                        if k % 2:
+                            coeffs[i,j,k] = real_value
+                        else:
+                            coeffs[i,j,k] = imag_value
         return coeffs
 
     @jit
@@ -62,9 +62,9 @@ class CoeffGenerator:
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
                     if k == 0:
-                        coeffs[i,j,k] = real_value
-                    else:
                         coeffs[i,j,k] = imag_value
+                    else:
+                        coeffs[i,j,k] = real_value
         return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.ants, 2)
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
@@ -128,7 +128,9 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
         n_batches=batches,
     )
 
-    BeamformMult = beamform_mult_template.instantiate(queue, gpu_coeffs)
+    # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
+    test_id = 'sgemm'
+    BeamformMult = beamform_mult_template.instantiate(queue, gpu_coeffs, test_id)
     BeamformMult.ensure_all_bound()
 
     bufSamples_device = BeamformMult.buffer("inData")

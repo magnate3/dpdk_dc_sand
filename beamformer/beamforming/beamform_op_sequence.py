@@ -14,39 +14,45 @@ class CoeffGenerator:
         self.n_blocks = n_blocks
         self.samples_per_block = samples_per_block
         self.ants = ants
+        self.complexity = 2
     
-    def Coeffs(self):
+    def Coeffs(self, test_id):
         l = self.batches * self.pols * self.num_chan * self.n_blocks * self.samples_per_block
 
-        # coeffs = np.arange(1,((ants*2)*2*l+1),1,np.float32).reshape(l,2,ants * 2)
         coeffs = np.ones(((self.ants*2)*2*l),np.float32).reshape(l,2,self.ants * 2)
+        real_value = 4
+        imag_value = 1
         for i in range(coeffs.shape[0]):
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
                     if j == 0:
                         if k % 2:
-                            coeffs[i][j][k] = -4
+                            coeffs[i,j,k] = -1 * imag_value
                         else:
-                            coeffs[i][j][k] = 1
+                            coeffs[i,j,k] = real_value
                     else:
                         if k % 2:
-                            coeffs[i][j][k] = 1
+                            coeffs[i,j,k] = real_value
                         else:
-                            coeffs[i][j][k] = 4
-        return coeffs
+                            coeffs[i,j,k] = imag_value
+
+        if test_id == 'kernel':
+            return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, 2, self.ants * self.complexity)
+        else:
+            return coeffs
 
 class BeamformSeqTemplate:
     def __init__(self, context: cuda.Context, queue: accel.AbstractCommandQueue, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int):
         self.preBeamformReorder = prebeamform_reorder.PreBeamformReorderTemplate(context, n_ants, n_channels, n_samples_per_channel, n_batches)
         self.beamformMult = beamform.MultiplyTemplate(context, n_ants, n_channels, n_samples_per_channel, n_batches)
 
-    def instantiate(self, queue, coeffs):
-        return OpSequence(self, queue, coeffs)
+    def instantiate(self, queue, coeffs, test_id):
+        return OpSequence(self, queue, coeffs, test_id)
 
 class OpSequence(accel.OperationSequence):
-    def __init__(self, template, queue, coeffs):
+    def __init__(self, template, queue, coeffs, test_id):
         self.prebeamformReorder = template.preBeamformReorder.instantiate(queue)
-        self.beamformMult = template.beamformMult.instantiate(queue, coeffs)
+        self.beamformMult = template.beamformMult.instantiate(queue, coeffs, test_id)
         operations = [
             ('reorder', self.prebeamformReorder),
             ('beamformMult', self.beamformMult)
@@ -64,39 +70,27 @@ class OpSequence(accel.OperationSequence):
 
 
 # Reorder Specs
-
 batches = 3
 ants = 4
-num_chan = 32
-n_samples_per_channel = 16
+num_chan = 64
+n_samples_per_channel = 256
 samples_per_block = 16
 n_blocks = n_samples_per_channel // samples_per_block
 pols = 2
-# l = batches * pols * num_chan * n_blocks * samples_per_block
 
+# NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
+# Options:  'sgemm' for cublas matrix mult
+#           'kernel' for numba-based complex multiplication kernel
+test_id = 'kernel' 
+
+# Generate coefficients
 coeff_gen = CoeffGenerator(batches, pols, num_chan, n_blocks, samples_per_block, ants)
-coeffs = coeff_gen.Coeffs()
-
-# coeffs = np.arange(1,((ants*2)*2*l+1),1,np.float32).reshape(l,2,ants * 2)
-# coeffs = np.ones(((ants*2)*2*l),np.float32).reshape(l,2,ants * 2)
-# for i in range(coeffs.shape[0]):
-#     for j in range(coeffs.shape[1]):
-#         for k in range(coeffs.shape[2]):
-#             if j == 0:
-#                 if k % 2:
-#                     coeffs[i][j][k] = -4
-#                 else:
-#                     coeffs[i][j][k] = 1
-#             else:
-#                 if k % 2:
-#                     coeffs[i][j][k] = 1
-#                 else:
-#                     coeffs[i][j][k] = 4
+coeffs = coeff_gen.Coeffs(test_id)
 
 ctx = accel.create_some_context()
 queue = ctx.create_command_queue()
 op_template = BeamformSeqTemplate(ctx, queue, ants, num_chan, n_samples_per_channel, batches)
-op = op_template.instantiate(queue, coeffs)
+op = op_template.instantiate(queue, coeffs, test_id)
 op.ensure_all_bound()
 
 bufin_device = op.prebeamformReorder.buffer("inSamples")
