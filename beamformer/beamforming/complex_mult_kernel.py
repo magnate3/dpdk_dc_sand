@@ -11,7 +11,7 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     """
     Code for kernel.
     """
-    dbg_trig = 98303
+    dbg_trig = 98303 * 4
 
     # # Compute flattened index inside the array
     iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
@@ -27,36 +27,36 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     iBatchIndex = int(iThreadIndex_x / (pols * n_channel * blocks * samples_per_block))
     iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block)
 
-    if iThreadIndex_x >= dbg_trig:
-        print('iThreadIndex_x is:', iThreadIndex_x)
-        print('iBatchIndex is:',iBatchIndex)
-        print('iRemIndex is:',iRemIndex)
+    # if iThreadIndex_x >= dbg_trig:
+    #     print('iThreadIndex_x is:', iThreadIndex_x)
+    #     print('iBatchIndex is:',iBatchIndex)
+    #     print('iRemIndex is:',iRemIndex)
 
     iPolIndex = int(iRemIndex / (n_channel * blocks * samples_per_block))
     iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block)
 
-    if iThreadIndex_x >= dbg_trig:
-        print('iPolIndex is:', iPolIndex)
-        print('iRemIndex is:',iRemIndex)
+    # if iThreadIndex_x >= dbg_trig:
+    #     print('iPolIndex is:', iPolIndex)
+    #     print('iRemIndex is:',iRemIndex)
 
     iChanIndex = int(iRemIndex / (blocks * samples_per_block))
     iRemIndex = iRemIndex % (blocks * samples_per_block)
 
-    if iThreadIndex_x >= dbg_trig:
-        print('iChanIndex is:', iChanIndex)
-        print('iRemIndex is:',iRemIndex)
+    # if iThreadIndex_x >= dbg_trig:
+    #     print('iChanIndex is:', iChanIndex)
+    #     print('iRemIndex is:',iRemIndex)
 
     iBlockIndex = int(iRemIndex / (samples_per_block))
     iRemIndex = iRemIndex % (samples_per_block)
 
-    if iThreadIndex_x >= dbg_trig:
-        print('iBlockIndex is:', iBlockIndex)
-        print('iRemIndex is:',iRemIndex)
+    # if iThreadIndex_x >= dbg_trig:
+    #     print('iBlockIndex is:', iBlockIndex)
+    #     print('iRemIndex is:',iRemIndex)
 
     iSamplePerBlockIndex = iRemIndex
 
-    if iThreadIndex_x >= dbg_trig:
-        print('iSamplePerBlockIndex is:', iSamplePerBlockIndex)
+    # if iThreadIndex_x >= dbg_trig:
+    #     print('iSamplePerBlockIndex is:', iSamplePerBlockIndex)
 
     for col in range(2):    
         tmp = float32(0)
@@ -66,9 +66,9 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
 
             tmp += data * coeff
 
-            if iThreadIndex_x >= dbg_trig:
-                print('iThreadIndex_x:', iThreadIndex_x, 'ant:', ant, 'tmp:', tmp)
-                print('iThreadIndex_x:', iThreadIndex_x, 'ant:', ant, 'col:', col,'coeff:', coeff)
+            # if iThreadIndex_x >= dbg_trig:
+            #     print('iThreadIndex_x:', iThreadIndex_x, 'ant:', ant, 'tmp:', tmp)
+            #     print('iThreadIndex_x:', iThreadIndex_x, 'ant:', ant, 'col:', col,'coeff:', coeff)
         
         # Copy computed weighted and summed ant samples to output
         if col == 0:
