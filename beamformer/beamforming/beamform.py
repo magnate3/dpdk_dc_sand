@@ -33,14 +33,6 @@ class MultiplyTemplate:
             accel.Dimension(self.n_ants, exact=True),
             accel.Dimension(self.complexity, exact=True),
         )
-        # self.inputShape = (
-        #     accel.Dimension(self.n_batches, exact=True),
-        #     accel.Dimension(self.n_polarisations, exact=True),
-        #     accel.Dimension(self.n_channels, exact=True),
-        #     accel.Dimension(self.n_blocks, exact=True),
-        #     accel.Dimension(self.n_samples_per_block, exact=True),
-        #     accel.Dimension(self.n_ants * self.complexity, exact=True),
-        # )
 
         self.outputDataShape = (
             accel.Dimension(self.n_batches, exact=True),
@@ -55,7 +47,7 @@ class MultiplyTemplate:
         return Multiply(self, command_queue, coeffs, test_id)
 
 class Multiply(Operation):
-    WGS = 32
+    # WGS = 32
 
     def __init__(self, template: MultiplyTemplate, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
         super().__init__(command_queue)

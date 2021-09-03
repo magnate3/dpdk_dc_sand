@@ -18,6 +18,7 @@ from katsdpsigproc import accel
 from beamforming import beamform
 from beamforming import complex_mult_cpu
 from numba import jit
+import gc
 
 class CoeffGenerator:
     def __init__(self, batches, pols, num_chan, n_blocks, samples_per_block, ants):
@@ -168,6 +169,19 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
     np.testing.assert_array_equal(output_data_cpu, bufBeamform_host)
+
+    del ctx
+    del queue
+    del cpu_coeffs
+    del gpu_coeffs
+    del coeff_gen
+    del beamform_mult_template
+    del bufSamples_host
+    del output_data_cpu
+    del bufBeamform_host
+    del bufBeamform_device
+    del bufSamples_device
+    gc.collect()
 
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):

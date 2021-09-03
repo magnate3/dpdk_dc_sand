@@ -69,6 +69,16 @@ class OpSequence(accel.OperationSequence):
         super().__call__()
 
 
+def print_debug(host_out):
+    # Debug: Print out all the entries to verify values
+    for b in range(host_out.shape[0]):
+        for p in range(host_out.shape[1]):
+            for c in range(host_out.shape[2]):
+                for bl in range(host_out.shape[3]):
+                    for s in range(host_out.shape[4]):
+                        for cmplx in range(host_out.shape[5]):
+                            print(host_out[b][p][c][bl][s][cmplx])
+
 # Reorder Specs
 batches = 3
 ants = 4
@@ -99,10 +109,11 @@ host_in = bufin_device.empty_like()
 bufout_device = op.beamformMult.buffer("outData")
 host_out = bufout_device.empty_like()
 
-# host_in[:] = np.ones(shape=host_in.shape, dtype=host_in.dtype)
-host_in[:] = np.ones(host_in.shape,np.float32)
+# --- Inject ones data for test ---
+host_in[:] = np.ones(shape=host_in.shape, dtype=host_in.dtype)
+# host_in[:] = np.ones(host_in.shape,np.float32)
 
-# Inject random data for test.
+# --- Inject random data for test ---
 # rng = np.random.default_rng(seed=2021)
 # host_in[:] = rng.uniform(
 #     np.iinfo(host_in.dtype).min, np.iinfo(host_in.dtype).max, host_in.shape
@@ -122,16 +133,9 @@ host_in[:] = np.ones(host_in.shape,np.float32)
 bufin_device.set(queue, host_in)
 op()
 bufout_device.get(queue, host_out)
-print(host_out)
 
 # Debug: Print out all the entries to verify values
-for b in range(host_out.shape[0]):
-    for p in range(host_out.shape[1]):
-        for c in range(host_out.shape[2]):
-            for bl in range(host_out.shape[3]):
-                for s in range(host_out.shape[4]):
-                    for cmplx in range(host_out.shape[5]):
-                        print(host_out[b][p][c][bl][s][cmplx])
+print_debug(host_out)
 
-# Visualise the operation
+# Visualise the operation (Just for interest)
 accel.visualize_operation(op,'test_op_vis')

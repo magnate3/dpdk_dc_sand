@@ -78,26 +78,6 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
             # Computed sample is imaginary component
              out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][1] = tmp    
 
-    # # Define an array in the shared memory
-    # # The size and type of the arrays must be known at compile time
-    # sdata_matrix = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
-    # scoeff_matrix = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
-
-    # x, y = cuda.grid(2)
-    
-    # tx = cuda.threadIdx.x
-    # ty = cuda.threadIdx.y
-
-    # tmp = 0.
-    # for i in range(int(data_matrix.shape[1] / TPB)):
-    #     # Preload data into shared memory
-    #     sdata_matrix[tx, ty] = data_matrix[x, ty + i * TPB]
-    #     scoeff_matrix[tx, ty] = coeff_matrix[tx + i * TPB, y]
-
-    #     # Wait until all threads finish preloading
-    #     cuda.syncthreads()
-
-
 class complex_mult_kernel:
     def complex_mult(self, data_matrix, coeff_matrix, out=None, stream=None):
         batches = data_matrix.shape[0]
