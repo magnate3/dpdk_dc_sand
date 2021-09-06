@@ -17,17 +17,18 @@ Contains one test (parametrised):
         kernel through a range of value combinations.
 """
 
+import test_parameters
 import numpy as np
 import pytest
-import test_parameters
+from beamforming import beamform, complex_mult_cpu
 # from beamform_reorder import reorder
 # from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 # from beamforming.beamform import MultiplyTemplate
 from katsdpsigproc import accel
-from beamforming import beamform
-from beamforming import complex_mult_cpu
 from numba import jit
+
 # import gc
+
 
 class CoeffGenerator:
     """Class for generating coefficients for testing purposes.
@@ -60,7 +61,7 @@ class CoeffGenerator:
         self.samples_per_block = samples_per_block
         self.ants = ants
         self.total_length = self.batches * self.pols * self.num_chan * self.n_blocks * self.samples_per_block
-    
+
     @jit
     def GPU_Coeffs(self):
         """Generate coefficients for complex multiplication.
@@ -85,7 +86,9 @@ class CoeffGenerator:
         Output array of test coefficients.
         """
         # coeffs = np.arange(1,((ants*2)*2*l+1),1,np.float32).reshape(l,2,ants * 2)
-        coeffs = np.ones(((self.ants*2)*2*self.total_length),np.float32).reshape(self.total_length,2,self.ants * 2)
+        coeffs = np.ones(((self.ants * 2) * 2 * self.total_length), np.float32).reshape(
+            self.total_length, 2, self.ants * 2
+        )
         real_value = 4
         imag_value = 1
         for i in range(coeffs.shape[0]):
@@ -93,20 +96,20 @@ class CoeffGenerator:
                 for k in range(coeffs.shape[2]):
                     if j == 0:
                         if k % 2:
-                            coeffs[i,j,k] = -1 * imag_value
+                            coeffs[i, j, k] = -1 * imag_value
                         else:
-                            coeffs[i,j,k] = real_value
+                            coeffs[i, j, k] = real_value
                     else:
                         if k % 2:
-                            coeffs[i,j,k] = real_value
+                            coeffs[i, j, k] = real_value
                         else:
-                            coeffs[i,j,k] = imag_value
+                            coeffs[i, j, k] = imag_value
         return coeffs
 
     @jit
     def CPU_Coeffs(self):
         """Generate coefficients for complex multiplication.
-        
+
         Note: This is for use in complex multiplication using two
         real-valued arrays. For this reason the coefficients need to be
         arranged as follows.
@@ -126,7 +129,7 @@ class CoeffGenerator:
         np.ndarray of type float.
         Output array of test coefficients.
         """
-        coeffs = np.ones(self.ants*2*self.total_length,np.float32).reshape(self.total_length,self.ants, 2)
+        coeffs = np.ones(self.ants * 2 * self.total_length, np.float32).reshape(self.total_length, self.ants, 2)
 
         real_value = 4
         imag_value = 1
@@ -134,10 +137,13 @@ class CoeffGenerator:
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
                     if k == 0:
-                        coeffs[i,j,k] = imag_value
+                        coeffs[i, j, k] = imag_value
                     else:
-                        coeffs[i,j,k] = real_value
-        return coeffs.reshape(self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.ants, 2)
+                        coeffs[i, j, k] = real_value
+        return coeffs.reshape(
+            self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.ants, 2
+        )
+
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("num_ants", test_parameters.array_size)
@@ -192,7 +198,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     )
 
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
-    test_id = 'sgemm'
+    test_id = "sgemm"
     BeamformMult = beamform_mult_template.instantiate(queue, gpu_coeffs, test_id)
     BeamformMult.ensure_all_bound()
 
@@ -230,6 +236,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
     np.testing.assert_array_equal(output_data_cpu, bufBeamform_host)
+
 
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):

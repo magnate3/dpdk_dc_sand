@@ -7,10 +7,11 @@ per the shape descibed. Provision for batched operations is included, i.e. reord
 passed to the kernel in a single array.
 """
 
-import beamform
+from katsdpsigproc.abc import AbstractContext
 import numpy as np
 from beamform_reorder import prebeamform_reorder
-from katsdpsigproc import accel, cuda
+from beamforming import beamform
+from katsdpsigproc import accel
 
 
 class CoeffGenerator:
@@ -150,7 +151,7 @@ class BeamformSeqTemplate:
 
     def __init__(
         self,
-        context: cuda.Context,
+        context: AbstractContext,
         n_ants: int,
         n_channels: int,
         n_samples_per_channel: int,

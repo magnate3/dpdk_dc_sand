@@ -17,9 +17,9 @@ Contains one test (parametrised):
         kernel through a range of value combinations.
 """
 
+import test_parameters
 import numpy as np
 import pytest
-import test_parameters
 # from beamform_reorder import reorder
 # from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from beamforming import beamform, complex_mult_cpu

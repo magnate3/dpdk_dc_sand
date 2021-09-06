@@ -5,7 +5,7 @@ The pre-correlation reorder kernel operates on a set of data with dimensions exp
 It makes provision for batched operations, i.e. reordering multiple sets of data (matrices) passed to the kernel
 in a single array.
 """
-
+from katsdpsigproc.abc import AbstractContext
 import numpy as np
 import pkg_resources
 from katsdpsigproc import accel, cuda
@@ -23,7 +23,7 @@ class PreBeamformReorderTemplate:
 
     Parameters
     ----------
-    context: cuda.Context
+    context: AbstractContext
     The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
     A context is associated with a single device and 'owns' all memory allocations.
     For the purposes of this python module the CUDA context is required.
@@ -38,7 +38,7 @@ class PreBeamformReorderTemplate:
     """
 
     def __init__(
-        self, context: cuda.Context, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
+        self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
     ) -> None:
         """Initialise the PreBeamformReorderTemplate class and compile the pre-beamform reorder kernel."""
         # 1. Set member variables that are used to calculate indices for the input and output buffers
