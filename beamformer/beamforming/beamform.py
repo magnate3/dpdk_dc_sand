@@ -7,13 +7,12 @@ Provision for batched operations is included, i.e. reordering multiple sets of d
 in a single array.
 """
 import numpy as np
-# import pkg_resources
-# from skcuda.cublas import *
-from katsdpsigproc import accel
-from katsdpsigproc.abc import AbstractContext
-from katsdpsigproc.accel import Operation, IOSlot
 from beamforming.complex_mult_kernel import complex_mult_kernel
 from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
+from katsdpsigproc import accel
+from katsdpsigproc.abc import AbstractContext
+from katsdpsigproc.accel import IOSlot, Operation
+
 
 class MultiplyTemplate:
     """
@@ -31,14 +30,14 @@ class MultiplyTemplate:
     [batch][polarizations][n_channels][n_blocks][samples_per_block][complexity]
 
     The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
-    the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block). 
+    the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block).
 
     Each input element is a complex 8-bit integer sample.
     Each output sample is a complex 32b float.
 
     Parameters
     ----------
-    context: cuda.Context
+    context: AbstractContext
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
@@ -55,7 +54,7 @@ class MultiplyTemplate:
     n_ants: int
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
     """
-    
+
     def __init__(
         self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
     ) -> None:
@@ -96,6 +95,7 @@ class MultiplyTemplate:
         """Initialise the complex multiplication class."""
         return Multiply(self, command_queue, coeffs, test_id)
 
+
 class Multiply(Operation):
     """Class for beamform complex multiplication.
 
@@ -122,7 +122,11 @@ class Multiply(Operation):
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
-            if self.test_id == 'sgemm':
-                cublas_SgemmBatched.cublas_SgemmBatched(self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer)
-            if self.test_id == 'kernel':
-                complex_mult_kernel.complex_mult(self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer)
+            if self.test_id == "sgemm":
+                cublas_SgemmBatched.cublas_SgemmBatched(
+                    self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer
+                )
+            if self.test_id == "kernel":
+                complex_mult_kernel.complex_mult(
+                    self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer
+                )
