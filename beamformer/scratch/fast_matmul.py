@@ -1,5 +1,4 @@
 # Source: https://nyu-cds.github.io/python-numba/05-cuda/
-from __future__ import division
 from numba import cuda, float32
 import numpy
 import math

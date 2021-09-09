@@ -1,6 +1,10 @@
+"""
+Simple example to use katsdpsigprocs framework for multiplication. Purely for 
+investigative purposes.
+"""
 import numpy as np
 import pkg_resources
-import katsdpsigproc.accel
+
 from katsdpsigproc.accel import Operation, IOSlot, Dimension, build, roundup
 
 # SOURCE = """
@@ -22,8 +26,6 @@ class Multiply(Operation):
 
     def __init__(self, queue, size, scale):
         super().__init__(queue)
-        # program = build(queue.context, '', source=SOURCE)
-        # self.kernel = program.get_kernel('multiply')
 
         program = build(
             queue.context,
