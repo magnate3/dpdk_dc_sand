@@ -17,10 +17,11 @@ Contains one test (parametrised):
         kernel through a range of value combinations.
 """
 
+import complex_mult_cpu
 import numpy as np
 import pytest
 import test_parameters
-from beamforming import beamform, complex_mult_cpu
+from beamforming import matrix_multiply
 from katsdpsigproc import accel
 from numba import jit
 
@@ -35,8 +36,6 @@ class CoeffGenerator:
     ----------
     n_batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
-    pols: int
-        Number of polarisations. Always 2.
     n_channels: int
         The number of frequency channels to be processed.
     n_blocks: int
@@ -47,15 +46,17 @@ class CoeffGenerator:
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
     """
 
-    def __init__(self, batches, pols, n_channels, n_blocks, samples_per_block, ants):
+    def __init__(self, batches, n_channels, n_blocks, samples_per_block, ants):
         """Initialise the coefficient generation class."""
         self.batches = batches
-        self.pols = pols
+        self.pols = 2  # Always
         self.num_chan = n_channels
         self.n_blocks = n_blocks
         self.samples_per_block = samples_per_block
         self.ants = ants
         self.total_length = self.batches * self.pols * self.num_chan * self.n_blocks * self.samples_per_block
+        self.real_coeff_value = 4
+        self.imag_coeff_value = 1
 
     @jit
     def GPU_Coeffs(self):
@@ -77,27 +78,25 @@ class CoeffGenerator:
 
         Returns
         -------
-        np.ndarray of type float.
-        Output array of test coefficients.
+        coeffs: np.ndarray[np.float].
+            Output array of test coefficients.
         """
-        coeffs = np.ones(((self.ants * 2) * 2 * self.total_length), np.float32).reshape(
+        coeffs = np.empty(((self.ants * 2) * 2 * self.total_length), np.float32).reshape(
             self.total_length, 2, self.ants * 2
         )
-        real_value = 4
-        imag_value = 1
         for i in range(coeffs.shape[0]):
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
                     if j == 0:
                         if k % 2:
-                            coeffs[i, j, k] = -1 * imag_value
+                            coeffs[i, j, k] = -1 * self.imag_coeff_value
                         else:
-                            coeffs[i, j, k] = real_value
+                            coeffs[i, j, k] = self.real_coeff_value
                     else:
                         if k % 2:
-                            coeffs[i, j, k] = real_value
+                            coeffs[i, j, k] = self.real_coeff_value
                         else:
-                            coeffs[i, j, k] = imag_value
+                            coeffs[i, j, k] = self.imag_coeff_value
         return coeffs
 
     @jit
@@ -120,20 +119,18 @@ class CoeffGenerator:
 
         Returns
         -------
-        np.ndarray of type float.
-        Output array of test coefficients.
+        coeffs: np.ndarray[np.float].
+            Output array of test coefficients.
         """
-        coeffs = np.ones(self.ants * 2 * self.total_length, np.float32).reshape(self.total_length, self.ants, 2)
+        coeffs = np.empty(self.ants * 2 * self.total_length, np.float32).reshape(self.total_length, self.ants, 2)
 
-        real_value = 4
-        imag_value = 1
         for i in range(coeffs.shape[0]):
             for j in range(coeffs.shape[1]):
                 for k in range(coeffs.shape[2]):
                     if k == 0:
-                        coeffs[i, j, k] = imag_value
+                        coeffs[i, j, k] = self.imag_coeff_value
                     else:
-                        coeffs[i, j, k] = real_value
+                        coeffs[i, j, k] = self.real_coeff_value
         return coeffs.reshape(
             self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.ants, 2
         )
@@ -172,10 +169,9 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     """
     # 1. Array parameters
     n_channels_per_stream = num_channels // num_ants // 4
-    pols = 2
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
-    coeff_gen = CoeffGenerator(batches, pols, n_channels_per_stream, n_blocks, samples_per_block, num_ants)
+    coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, num_ants)
     gpu_coeffs = coeff_gen.GPU_Coeffs()
 
     # 2. Initialise GPU kernels and buffers.
@@ -183,12 +179,12 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     queue = ctx.create_command_queue()
 
     # Create BeamformMultiplyTemplate and link to buffer slots
-    beamform_mult_template = beamform.MultiplyTemplate(
+    beamform_mult_template = matrix_multiply.MatrixMultiplyTemplate(
         ctx,
         n_ants=num_ants,
         n_channels=n_channels_per_stream,
         n_samples_per_channel=num_samples_per_channel,
-        n_batches=batches,
+        batches=batches,
     )
 
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
@@ -212,9 +208,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
         np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
     ).astype(bufSamples_host.dtype)
 
-    # bufSamples_host[:] = np.ones(bufSamples_host.shape,np.float32)
-
-    # 4. Reorder: Transfer input sample array to GPU, run reorder kernel, transfer output Reordered array to the CPU.
+    # 4. Matrix Multiply: Transfer input sample array to GPU, run complex multiply kernel, transfer output array to CPU.
     bufSamples_device.set(queue, bufSamples_host)
     BeamformMult()
     bufBeamform_device.get(queue, bufBeamform_host)

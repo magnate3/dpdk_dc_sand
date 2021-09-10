@@ -34,8 +34,6 @@
 #define NR_POLARISATIONS ${n_polarisations}
 #define NR_SAMPLES_PER_BLOCK ${n_samples_per_block}
 
-#define iThreadDBG 0
-
 __global__
 void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
 {
@@ -88,12 +86,6 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
     {
         // 3.1. Read out from the original arrayNo 
         u16InputSample = *(pu16Array + iThreadIndex_x + iMatrixStride_y);
-        
-        if((iThreadIndex_x <= iThreadDBG)&(blockIdx.y == 0)){
-            uint16_t u16InputSample_test;
-            u16InputSample_test = *(pu16Array + iThreadIndex_x);
-            printf("Reorder: iThreadIndex_x: %d InputSample:%d\n", iThreadIndex_x, u16InputSample);         
-        }
 
         // 3.2. Store at its reordered index
         *(pu16ArrayReordered + bfNewIdx + iMatrixStride_y) = u16InputSample;

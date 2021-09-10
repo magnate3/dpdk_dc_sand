@@ -14,7 +14,7 @@ from katsdpsigproc.abc import AbstractContext
 from katsdpsigproc.accel import IOSlot, Operation
 
 
-class MultiplyTemplate:
+class MatrixMultiplyTemplate:
     """
     Template class for beamform multiplication.
 
@@ -41,7 +41,7 @@ class MultiplyTemplate:
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
-    n_batches: int
+    batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
     pols: int
         Number of polarisations. Always 2.
@@ -56,24 +56,25 @@ class MultiplyTemplate:
     """
 
     def __init__(
-        self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
+        self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, batches: int
     ) -> None:
         """Initialise the MultiplyTemplate class."""
         self.context = context
         self.n_channels = n_channels
         self.n_samples_per_channel = n_samples_per_channel
         self.n_polarisations = 2  # Hardcoded to 2. No other values are supported
-        self.n_batches = n_batches
+        self.batches = batches
         self.n_ants = n_ants
         self._sample_bitwidth = 8
         self.complexity = 2
 
-        # This 128 is hardcoded in the original tensor core kernel. The reason it is set to this needs to be determined.
+        # This 128 is hardcoded in the original tensor core kernel. Likely to do with optimum thread-block size.
+        # i.e. 4 warps totalling 128 threads per block.
         self.n_samples_per_block = 128 // self._sample_bitwidth
         self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
 
-        self.inputShape = (
-            accel.Dimension(self.n_batches, exact=True),
+        self.input_data_dimensions = (
+            accel.Dimension(self.batches, exact=True),
             accel.Dimension(self.n_polarisations, exact=True),
             accel.Dimension(self.n_channels, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
@@ -82,8 +83,8 @@ class MultiplyTemplate:
             accel.Dimension(self.complexity, exact=True),
         )
 
-        self.outputDataShape = (
-            accel.Dimension(self.n_batches, exact=True),
+        self.output_data_dimensions = (
+            accel.Dimension(self.batches, exact=True),
             accel.Dimension(self.n_polarisations, exact=True),
             accel.Dimension(self.n_channels, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
@@ -93,31 +94,33 @@ class MultiplyTemplate:
 
     def instantiate(self, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
         """Initialise the complex multiplication class."""
-        return Multiply(self, command_queue, coeffs, test_id)
+        return MatrixMultiply(self, command_queue, coeffs, test_id)
 
 
-class Multiply(Operation):
+class MatrixMultiply(Operation):
     """Class for beamform complex multiplication.
 
     Parameters
     ----------
     template: MultiplyTemplate
         Template for multiplication class
-    coeffs: nd.array of type float
+    command_queue: accel.AbstractCommandQueue
+        CUDA command queue
+    coeffs: nd.array[np.float32]
         Coefficianets for beamforming computation.
     test_id: string
         ID of the computation to run. This will be removed and is only for testing.
     """
 
-    def __init__(self, template: MultiplyTemplate, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
+    def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
         """Initialise the Multiply class."""
         super().__init__(command_queue)
         self.template = template
         self.coeffs = coeffs
         self.test_id = test_id
 
-        self.slots["inData"] = IOSlot(dimensions=self.template.inputShape, dtype=np.uint8)
-        self.slots["outData"] = IOSlot(dimensions=self.template.outputDataShape, dtype=np.float32)
+        self.slots["inData"] = IOSlot(dimensions=self.template.input_data_dimensions, dtype=np.uint8)
+        self.slots["outData"] = IOSlot(dimensions=self.template.output_data_dimensions, dtype=np.float32)
 
     def _run(self):
         """Run the beamform computation."""

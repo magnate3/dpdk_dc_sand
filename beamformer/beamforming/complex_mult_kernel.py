@@ -4,8 +4,6 @@ Module for beamformer complex multiplication.
 The beamform multiplication kernel ingests data from the pre-beamform reorder and produces a beamformed product
 as per the shape descibed.
 """
-from __future__ import division
-
 from numba import cuda, float32
 
 
@@ -15,11 +13,11 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
 
     Parameters
     ----------
-    data_matrix: nd.array of type uint8
+    data_matrix: nd.array[np.uint8]
         Data matrix on reordered data
-    coeff_matrix: nd.array of type float
+    coeff_matrix: nd.array[np.float32]
         Coefficients for beamforming computation.
-    out: nd.array of type float
+    out: nd.array[np.float32]
         Complex multipication product for beamforming computation.
 
     Note: This is for use in complex multiplication using two
@@ -50,16 +48,16 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     samples_per_block = data_matrix.shape[4]
     ants = data_matrix.shape[5]
 
-    iBatchIndex = int(iThreadIndex_x / (pols * n_channel * blocks * samples_per_block))
+    iBatchIndex = iThreadIndex_x // (pols * n_channel * blocks * samples_per_block)
     iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block)
 
-    iPolIndex = int(iRemIndex / (n_channel * blocks * samples_per_block))
+    iPolIndex = iRemIndex // (n_channel * blocks * samples_per_block)
     iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block)
 
-    iChanIndex = int(iRemIndex / (blocks * samples_per_block))
+    iChanIndex = iRemIndex // (blocks * samples_per_block)
     iRemIndex = iRemIndex % (blocks * samples_per_block)
 
-    iBlockIndex = int(iRemIndex / (samples_per_block))
+    iBlockIndex = iRemIndex // (samples_per_block)
     iRemIndex = iRemIndex % (samples_per_block)
 
     iSamplePerBlockIndex = iRemIndex
@@ -89,11 +87,11 @@ class complex_mult_kernel:
 
         Parameters
         ----------
-        data_matrix: nd.array of type uint8
+        data_matrix: nd.array[np.uint8]
             Data matrix on reordered data
-        coeff_matrix: nd.array of type float
+        coeff_matrix: nd.array[np.float32]
             Coefficients for beamforming computation.
-        out: nd.array of type float
+        out: nd.array[np.float32]
             Complex multipication product for beamforming computation.
         """
         batches = data_matrix.shape[0]
