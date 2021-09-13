@@ -5,10 +5,8 @@ The beamform multiplication kernel ingests data from the pre-beamform reorder an
 as per the shape descibed.
 """
 import numpy as np
-from numba import jit
 
 
-@jit
 def complex_mult(
     input_data: np.ndarray,
     coeffs: np.ndarray,
@@ -68,9 +66,9 @@ def complex_mult(
                             coeff_cmplx.append(ctmp_cmplx)
 
                         # Compute
-                        cmplx_prod = np.vdot(data_cmplx, coeff_cmplx)
+                        cmplx_prod = np.dot(data_cmplx, coeff_cmplx)
 
                         # Assign real and imaginary results to repective positions
-                        output_data[b, p, c, block, s, 1] = np.real(cmplx_prod)
-                        output_data[b, p, c, block, s, 0] = np.imag(cmplx_prod)
+                        output_data[b, p, c, block, s, 0] = np.real(cmplx_prod)
+                        output_data[b, p, c, block, s, 1] = np.imag(cmplx_prod)
     return output_data

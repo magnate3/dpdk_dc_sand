@@ -6,6 +6,8 @@ as per the shape descibed.
 """
 from numba import cuda, float32
 
+# from numba import jit
+
 
 @cuda.jit
 def run_complex_mult(data_matrix, coeff_matrix, out):

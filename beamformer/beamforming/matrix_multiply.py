@@ -41,31 +41,26 @@ class MatrixMultiplyTemplate:
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
-    batches: int
-        The number of matrices to be reordered, a single data matrix = one batch.
-    pols: int
-        Number of polarisations. Always 2.
-    n_channels: int
-        The number of frequency channels to be processed.
-    n_blocks: int
-        The number of blocks that each channels set of samples are divided into.
-    samples_per_block: int
-        The number of time samples to be processed per block.
     n_ants: int
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
+    n_channels: int
+        The number of frequency channels to be processed.
+    n_samples_per_channel: int
+        The number of samples per channel.
+    batches: int
+        The number of matrices to be reordered, a single data matrix = one batch.
     """
 
     def __init__(
         self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, batches: int
     ) -> None:
-        """Initialise the MultiplyTemplate class."""
         self.context = context
+        self.n_ants = n_ants
         self.n_channels = n_channels
         self.n_samples_per_channel = n_samples_per_channel
-        self.n_polarisations = 2  # Hardcoded to 2. No other values are supported
         self.batches = batches
-        self.n_ants = n_ants
         self._sample_bitwidth = 8
+        self.n_pols = 2  # Hardcoded to 2. No other values are supported
         self.complexity = 2
 
         # This 128 is hardcoded in the original tensor core kernel. Likely to do with optimum thread-block size.
@@ -75,7 +70,7 @@ class MatrixMultiplyTemplate:
 
         self.input_data_dimensions = (
             accel.Dimension(self.batches, exact=True),
-            accel.Dimension(self.n_polarisations, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
             accel.Dimension(self.n_channels, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
@@ -85,7 +80,7 @@ class MatrixMultiplyTemplate:
 
         self.output_data_dimensions = (
             accel.Dimension(self.batches, exact=True),
-            accel.Dimension(self.n_polarisations, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
             accel.Dimension(self.n_channels, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
@@ -113,7 +108,6 @@ class MatrixMultiply(Operation):
     """
 
     def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
-        """Initialise the Multiply class."""
         super().__init__(command_queue)
         self.template = template
         self.coeffs = coeffs

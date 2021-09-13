@@ -6,6 +6,8 @@ This implementation performs the complex multiplication in batches.
 NOTE: This implemetation has a memory leak and causes the GPU to run out of memory.
 
 TODO: DEBUG!!
+TODO: Checked batched operation. Suspect batch_size parameter (currently total_length) is incorrect.
+https://python.hotexamples.com/examples/scikits.cuda.cublas/-/cublasSgemmBatched/python-cublassgemmbatched-function-examples.html
 
 Some Sources:
 https://developer.nvidia.com/blog/cublas-strided-batched-matrix-multiply/
