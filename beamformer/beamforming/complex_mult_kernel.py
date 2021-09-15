@@ -116,8 +116,12 @@ class complex_mult_kernel:
 
         # Make the context associated with device device_id the current context.
         # NOTE: Without doing this Numba will try execute kernel code on it's own context which will throw an error as
-        # the device already has a context associated to it from katsdpsigproc command queue.
+        # the device already has a context associated to it from katsdpsigproc command queue. This will make the
+        # context associated with the deivce device_id the current context.
         cuda.select_device(0)
 
         # Now start the kernel
         run_complex_mult[blockspergrid, threadsperblock](data_matrix, coeff_matrix, out)
+
+        # Wait for all commands in the stream to finish executing.
+        cuda.synchronize()

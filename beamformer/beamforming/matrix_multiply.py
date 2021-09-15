@@ -52,7 +52,13 @@ class MatrixMultiplyTemplate:
     """
 
     def __init__(
-        self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, batches: int
+        self,
+        context: AbstractContext,
+        n_ants: int,
+        n_channels: int,
+        n_samples_per_channel: int,
+        batches: int,
+        test_id,
     ) -> None:
         self.context = context
         self.n_ants = n_ants
@@ -62,11 +68,13 @@ class MatrixMultiplyTemplate:
         self._sample_bitwidth = 8
         self.n_pols = 2  # Hardcoded to 2. No other values are supported
         self.complexity = 2
+        self.test_id = test_id
 
         # This 128 is hardcoded in the original tensor core kernel. Likely to do with optimum thread-block size.
         # i.e. 4 warps totalling 128 threads per block.
         self.n_samples_per_block = 128 // self._sample_bitwidth
         self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
+        self.length = self.batches * self.n_pols * self.n_channels * self.n_blocks * self.n_samples_per_block
 
         self.input_data_dimensions = (
             accel.Dimension(self.batches, exact=True),
@@ -87,9 +95,26 @@ class MatrixMultiplyTemplate:
             accel.Dimension(self.complexity, exact=True),
         )
 
-    def instantiate(self, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
+        if test_id == "kernel":
+            self.coeff_data_dimensions = (
+                accel.Dimension(self.batches, exact=True),
+                accel.Dimension(self.n_pols, exact=True),
+                accel.Dimension(self.n_channels, exact=True),
+                accel.Dimension(self.n_blocks, exact=True),
+                accel.Dimension(self.n_samples_per_block, exact=True),
+                accel.Dimension(self.complexity, exact=True),
+                accel.Dimension(self.n_ants * self.complexity, exact=True),
+            )
+        elif test_id == "sgemm":
+            self.coeff_data_dimensions = (
+                accel.Dimension(self.length, exact=True),
+                accel.Dimension(self.complexity, exact=True),
+                accel.Dimension(self.n_ants * self.complexity, exact=True),
+            )
+
+    def instantiate(self, command_queue: accel.AbstractCommandQueue, test_id):
         """Initialise the complex multiplication class."""
-        return MatrixMultiply(self, command_queue, coeffs, test_id)
+        return MatrixMultiply(self, command_queue, test_id)
 
 
 class MatrixMultiply(Operation):
@@ -107,23 +132,23 @@ class MatrixMultiply(Operation):
         ID of the computation to run. This will be removed and is only for testing.
     """
 
-    def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue, coeffs, test_id):
+    def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue, test_id):
         super().__init__(command_queue)
         self.template = template
-        self.coeffs = coeffs
         self.test_id = test_id
 
         self.slots["inData"] = IOSlot(dimensions=self.template.input_data_dimensions, dtype=np.uint8)
         self.slots["outData"] = IOSlot(dimensions=self.template.output_data_dimensions, dtype=np.float32)
+        self.slots["inCoeffs"] = IOSlot(dimensions=self.template.coeff_data_dimensions, dtype=np.float32)
 
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
             if self.test_id == "sgemm":
                 cublas_SgemmBatched.cublas_SgemmBatched(
-                    self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer
+                    self, self.buffer("inData").buffer, self.buffer("inCoeffs").buffer, self.buffer("outData").buffer
                 )
             if self.test_id == "kernel":
                 complex_mult_kernel.complex_mult(
-                    self, self.buffer("inData").buffer, self.coeffs, self.buffer("outData").buffer
+                    self, self.buffer("inData").buffer, self.buffer("inCoeffs").buffer, self.buffer("outData").buffer
                 )

@@ -58,11 +58,13 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
         4. Verify it relative to the input array using a reference computed on the host CPU.
     """
     # 1. Array parameters
+    # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
+    test_id = "sgemm"
+
     n_channels_per_stream = num_channels // num_ants // 4
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
     coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, num_ants)
-    gpu_coeffs = coeff_gen.GPU_Coeffs_cublas()
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -75,12 +77,14 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
         n_channels=n_channels_per_stream,
         n_samples_per_channel=num_samples_per_channel,
         batches=batches,
+        test_id=test_id,
     )
 
-    # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
-    test_id = "sgemm"
-    BeamformMult = beamform_mult_template.instantiate(queue, gpu_coeffs, test_id)
+    BeamformMult = beamform_mult_template.instantiate(queue, test_id)
     BeamformMult.ensure_all_bound()
+
+    bufcoeff_device = BeamformMult.buffer("inCoeffs")
+    host_coeff = bufcoeff_device.empty_like()
 
     bufSamples_device = BeamformMult.buffer("inData")
     bufSamples_host = bufSamples_device.empty_like()
@@ -88,9 +92,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     bufBeamform_device = BeamformMult.buffer("outData")
     bufBeamform_host = bufBeamform_device.empty_like()
 
-    # 3. Generate random input data - need to modify the dtype and shape of the array as numpy does not have a packet
-    # 8-bit int complex type.
-
+    # 3.1 Generate random input data
     # Inject random data for test.
     rng = np.random.default_rng(seed=2021)
 
@@ -98,7 +100,11 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
         np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
     ).astype(bufSamples_host.dtype)
 
+    # 3.2 Generate Coeffs
+    host_coeff[:] = coeff_gen.GPU_Coeffs_cublas()
+
     # 4. Matrix Multiply: Transfer input sample array to GPU, run complex multiply kernel, transfer output array to CPU.
+    bufcoeff_device.set(queue, host_coeff)
     bufSamples_device.set(queue, bufSamples_host)
     BeamformMult()
     bufBeamform_device.get(queue, bufBeamform_host)
