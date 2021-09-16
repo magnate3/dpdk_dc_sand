@@ -20,10 +20,10 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-import test_parameters
 from beamform_reorder import reorder
 from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
+from unit_test import test_parameters
 
 
 @pytest.mark.parametrize("batches", test_parameters.batches)

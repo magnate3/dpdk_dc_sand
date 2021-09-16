@@ -17,20 +17,20 @@ Contains one test (parametrised):
         kernel through a range of value combinations.
 """
 
-import complex_mult_cpu
+
 import numpy as np
 import pytest
-import test_parameters
 from beamforming import matrix_multiply
-from coeff_generator import CoeffGenerator
 from katsdpsigproc import accel
+from unit_test import complex_mult_cpu, test_parameters
+from unit_test.coeff_generator import CoeffGenerator
 
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
-@pytest.mark.parametrize("num_ants", test_parameters.array_size)
+@pytest.mark.parametrize("n_ants", test_parameters.array_size)
 @pytest.mark.parametrize("num_channels", test_parameters.num_channels)
 @pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
-def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_channel):
+def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_channel):
     """
     Parametrised unit test of the beamform computation using cublasSgemmBatched.
 
@@ -42,7 +42,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     ----------
     batches: int
         Number of batches to process.
-    num_ants: int
+    n_ants: int
         The number of antennas from which data will be received.
     num_channels: int
         The number of frequency channels out of the FFT.
@@ -61,10 +61,10 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
     test_id = "sgemm"
 
-    n_channels_per_stream = num_channels // num_ants // 4
+    n_channels_per_stream = num_channels // n_ants // 4
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
-    coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, num_ants)
+    coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -73,7 +73,7 @@ def test_beamform_parametrised(batches, num_ants, num_channels, num_samples_per_
     # Create BeamformMultiplyTemplate and link to buffer slots
     beamform_mult_template = matrix_multiply.MatrixMultiplyTemplate(
         ctx,
-        n_ants=num_ants,
+        n_ants=n_ants,
         n_channels=n_channels_per_stream,
         n_samples_per_channel=num_samples_per_channel,
         batches=batches,

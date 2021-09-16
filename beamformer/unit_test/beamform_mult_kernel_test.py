@@ -17,13 +17,13 @@ Contains one test (parametrised):
         kernel through a range of value combinations.
 """
 
-import complex_mult_cpu
+
 import numpy as np
 import pytest
-import test_parameters
 from beamforming import matrix_multiply
-from coeff_generator import CoeffGenerator
 from katsdpsigproc import accel
+from unit_test import complex_mult_cpu, test_parameters
+from unit_test.coeff_generator import CoeffGenerator
 
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
