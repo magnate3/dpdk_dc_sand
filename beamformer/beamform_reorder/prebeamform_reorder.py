@@ -115,6 +115,12 @@ class PreBeamformReorder(accel.Operation):
     """
     Class containing a pre-beamform reorder kernel compiled from a PreBeamformReorderTemplate.
 
+    .. rubric:: Slots
+    **inSamples**: (batches, n_ants, n_channels, n_samples_per_channel, n_polarisations, complexity), uint8
+        Input channelised data.
+    **outReordered**: (n_batches, n_polarisations, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+        Output reordered data.
+
     This class specifies the shape of the input sample and output reordered buffers required by the kernel. The
     parameters specified in the PreBeamformReorderTemplate object are used to determine the shape of the buffers.
 

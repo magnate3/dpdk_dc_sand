@@ -49,6 +49,12 @@ class MatrixMultiplyTemplate:
         The number of samples per channel.
     batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
+    _sample_bitwidth: int
+        Number of bits per input sample. Fixed at 8.
+    n_pols: int
+        Number of polarisations. Always 2.
+    complexity: int
+        Constant for complex number dimensions. Always 2.
     """
 
     def __init__(
@@ -103,7 +109,7 @@ class MatrixMultiplyTemplate:
                 accel.Dimension(self.n_blocks, exact=True),
                 accel.Dimension(self.n_samples_per_block, exact=True),
                 accel.Dimension(self.complexity, exact=True),
-                accel.Dimension(self.n_ants * self.complexity, exact=True),
+                accel.Dimension(self.n_ants * 2, exact=True),
             )
         elif test_id == "sgemm":
             self.coeff_data_dimensions = (
@@ -120,14 +126,20 @@ class MatrixMultiplyTemplate:
 class MatrixMultiply(Operation):
     """Class for beamform complex multiplication.
 
+    .. rubric:: Slots
+    **inData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+        Input reordered channelised data.
+    **outData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity), float32
+        Beamformed data.
+    **inCoeffs** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
+        Beamforming coefficients.
+
     Parameters
     ----------
     template: MultiplyTemplate
         Template for multiplication class
     command_queue: accel.AbstractCommandQueue
         CUDA command queue
-    coeffs: nd.array[np.float32]
-        Coefficianets for beamforming computation.
     test_id: string
         ID of the computation to run. This will be removed and is only for testing.
     """

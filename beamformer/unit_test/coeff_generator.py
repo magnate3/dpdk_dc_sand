@@ -25,13 +25,15 @@ class CoeffGenerator:
     def __init__(self, batches, n_channels, n_blocks, samples_per_block, n_ants):
         """Initialise the coefficient generation class."""
         self.batches = batches
-        self.pols = 2  # Always
-        self.num_chan = n_channels
+        self.n_channels = n_channels
         self.n_blocks = n_blocks
         self.samples_per_block = samples_per_block
         self.n_ants = n_ants
+        self.pols = 2  # Always
         self.complexity = 2  # Always
-        self.total_length = self.batches * self.pols * self.num_chan * self.n_blocks * self.samples_per_block
+        self.total_length = self.batches * self.pols * self.n_channels * self.n_blocks * self.samples_per_block
+
+        # Static coefficient values for testing
         self.real_coeff_value = 4
         self.imag_coeff_value = 1
 
@@ -116,7 +118,7 @@ class CoeffGenerator:
         return coeffs.reshape(
             self.batches,
             self.pols,
-            self.num_chan,
+            self.n_channels,
             self.n_blocks,
             self.samples_per_block,
             2,
@@ -140,5 +142,5 @@ class CoeffGenerator:
         coeffs[:, :] = [self.real_coeff_value, self.imag_coeff_value]
 
         return coeffs.reshape(
-            self.batches, self.pols, self.num_chan, self.n_blocks, self.samples_per_block, self.n_ants, 2
+            self.batches, self.pols, self.n_channels, self.n_blocks, self.samples_per_block, self.n_ants, 2
         )

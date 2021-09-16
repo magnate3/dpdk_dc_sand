@@ -43,18 +43,14 @@ class BeamformSeqTemplate:
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
-    n_batches: int
-        The number of matrices to be reordered, a single data matrix = one batch.
-    pols: int
-        Number of polarisations. Always 2.
-    n_channels: int
-        The number of frequency channels to be processed.
-    n_blocks: int
-        The number of blocks that each channels set of samples are divided into.
-    samples_per_block: int
-        The number of time samples to be processed per block.
     n_ants: int
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
+    n_channels: int
+        The number of frequency channels to be processed.
+    n_samples_per_channel: int
+        The number of time samples to be processed per channel.
+    n_batches: int
+        The number of matrices to be reordered, a single data matrix = one batch.
     """
 
     def __init__(
