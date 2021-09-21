@@ -5,10 +5,10 @@ The pre-correlation reorder kernel operates on a set of data with dimensions exp
 It makes provision for batched operations, i.e. reordering multiple sets of data (matrices) passed to the kernel
 in a single array.
 """
-
 import numpy as np
 import pkg_resources
-from katsdpsigproc import accel, cuda
+from katsdpsigproc import accel
+from katsdpsigproc.abc import AbstractContext
 from typing_extensions import Final
 
 
@@ -23,7 +23,7 @@ class PreBeamformReorderTemplate:
 
     Parameters
     ----------
-    context: cuda.Context
+    context: AbstractContext
     The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
     A context is associated with a single device and 'owns' all memory allocations.
     For the purposes of this python module the CUDA context is required.
@@ -38,7 +38,7 @@ class PreBeamformReorderTemplate:
     """
 
     def __init__(
-        self, context: cuda.Context, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
+        self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
     ) -> None:
         """Initialise the PreBeamformReorderTemplate class and compile the pre-beamform reorder kernel."""
         # 1. Set member variables that are used to calculate indices for the input and output buffers
@@ -114,6 +114,12 @@ class PreBeamformReorderTemplate:
 class PreBeamformReorder(accel.Operation):
     """
     Class containing a pre-beamform reorder kernel compiled from a PreBeamformReorderTemplate.
+
+    .. rubric:: Slots
+    **inSamples**: (batches, n_ants, n_channels, n_samples_per_channel, n_polarisations, complexity), uint8
+        Input channelised data.
+    **outReordered**: (n_batches, n_polarisations, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+        Output reordered data.
 
     This class specifies the shape of the input sample and output reordered buffers required by the kernel. The
     parameters specified in the PreBeamformReorderTemplate object are used to determine the shape of the buffers.
