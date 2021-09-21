@@ -51,6 +51,10 @@ class BeamformSeqTemplate:
         The number of time samples to be processed per channel.
     n_batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
+    test_id: string
+        Temporary parameter used to specify the type of matrix comute to use. Options
+        'sgemm': Use cublasSgemmBatched
+        'kernel': Use numba-based kernel
     """
 
     def __init__(
@@ -81,18 +85,15 @@ class OpSequence(accel.OperationSequence):
 
     Parameters
     ----------
-    n_batches: int
-        The number of matrices to be reordered, a single data matrix = one batch.
-    pols: int
-        Number of polarisations. Always 2.
-    n_channels: int
-        The number of frequency channels to be processed.
-    n_blocks: int
-        The number of blocks that each channels set of samples are divided into.
-    samples_per_block: int
-        The number of time samples to be processed per block.
-    n_ants: int
-        The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
+    template: PostprocTemplate
+        The template for the post-processing operation.
+    command_queue: AbstractCommandQueue
+        The GPU command queue (typically this will be a CUDA Stream) on which
+        actual processing operations are to be scheduled.
+    test_id: string
+        Temporary parameter used to specify the type of matrix comute to use. Options
+        'sgemm': Use cublasSgemmBatched
+        'kernel': Use numba-based kernel
     """
 
     def __init__(self, template, queue, test_id):
