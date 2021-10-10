@@ -91,7 +91,7 @@ class StreamAddress(object):
         self.port = port
 
     @staticmethod
-    def _parse_address_string(address_str: str) -> Tuple[int, int, int]:
+    def _parse_address_string(address_str: str) -> Tuple[str, int, int]:
         """
         Parse an IP address input as a string.
 
@@ -115,7 +115,7 @@ class StreamAddress(object):
         return address, number, port
 
     @classmethod
-    def from_address_string(cls, address_string) -> StreamAddress:  # noqa: F821
+    def from_address_string(cls, address_string: str) -> "StreamAddress":
         """
         Parse an IP address input as a string and return a StreamAddress object.
 

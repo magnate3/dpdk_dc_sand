@@ -200,13 +200,20 @@ class FpgaDsimHost(CasperFpga):
         Port on which SKARAB receives communications - defaults to 7147.
     :param fpgfilename:
         Name of fpg file to program.
-    :param config:
-        Config.ini file to parse for DSim configuration details.
+    :param config_file:
+        config.ini file to parse for DSim configuration details.
+    :param config_dict:
+        Config dict that might already be parsed - would certainly save us some time/memory.
+        - If present, will override the presence of a config_file.
     """
 
-    def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, **kwargs):
+    def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, config_dict=None, **kwargs):
         super().__init__(self, host=host, katcp_port=katcp_port, transport=SkarabTransport, **kwargs)
-        self.config_dict = parse_config_file(config_file)["dsimengine"]
+        self.config_dict = None
+        if config_dict is not None:
+            self.config_dict = config_dict
+        else:
+            self.config_dict = parse_config_file(config_file)["dsimengine"]
         # Although can't we get the fpg file from the config?
         self.fpgfilename = fpgfilename
 

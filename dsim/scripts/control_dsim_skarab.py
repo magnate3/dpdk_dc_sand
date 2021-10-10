@@ -8,17 +8,17 @@ import time
 
 from casperfpga.transport_skarab import SkarabTransport
 
-from dsim import utils
-from dsim.dsimhost_fpga import FpgaDsimHost
+from dsim.utils import parse_config_file
+from dsim.dsim_skarab import FpgaDsimHost
 
 parser = argparse.ArgumentParser(
     description="Control the dsim-engine (fake digitiser.)", formatter_class=argparse.ArgumentDefaultsHelpFormatter
 )
 parser.add_argument(
-    "-c", "--config", dest="config", type=str, action="store", help="corr2 config file. (default: Use CORR2INI env var)"
+    "-c", "--config", dest="config_filename", type=str, action="store", help="corr2 config file."
 )
 parser.add_argument(
-    "-f", "--fpg", dest="bitstream", default=None, action="store", help="Bitstream file (Optional unless debugging)"
+    "-f", "--fpg", dest="fpgfilename", default=None, action="store", help="fpg filename (Optional unless debugging)"
 )
 parser.add_argument(
     "--program", dest="program", action="store_true", default=False, help="(re)program the fake digitiser"
@@ -103,13 +103,6 @@ parser.add_argument(
 )
 parser.add_argument("--zeros-noise", action="store_true", default=False, help="Sets all  noise sources to 0 scale.")
 parser.add_argument(
-    "--pulsar-source",
-    action="append",
-    default=[],
-    nargs=3,
-    help="Choose which pulsar source, pulsar_0 or pulsar_1. " " Set Scale and Frequency",
-)
-parser.add_argument(
     "--repeat-sine",
     action="append",
     default=[],
@@ -130,20 +123,22 @@ if args.log_level != "":
     except AttributeError:
         raise RuntimeError("No such log level: {}".format(log_level))
 
-# make the fpga
-# dfpga = utils.script_get_fpga(args, host_index=0, host_type='dsimengine',
-#                               fpga_class=FpgaDsimHost)
-if "CORR2INI" in list(os.environ.keys()) and (args.config == "" or args.config is None):
-    args.config = os.environ["CORR2INI"]
-
 try:
-    config, host_detail = utils.hosts_and_bitstreams_from_config(config_file=args.config, section="dsimengine")
-    section, host_list, bitstream = host_detail[0]
-    if args.bitstream:
-        bitstream = str(args.bitstream)
-        print("Starting Digitiser with bitstream: {}".format(bitstream))
+    # config, host_detail = utils.hosts_and_fpgfilename_from_config(config_file=args.config, section="dsimengine")
+    # section, host_list, fpgfilename = host_detail[0]
+
+    if not os.path.isfile(args.config_filename):
+        # Problem
+        raise ValueError(f'Config file {args.config_filename} is not a valid config file.')
+
+    config_dict = parse_config_file(config_file=args.config_filename)
+    dsim_config_dict = config_dict.get('dsimengine')
+
+    if args.fpgfilename:
+        print("Starting Digitiser with fpgfilename: {}".format(args.fpgfilename))
+
     # Note: We have hardcoded the transport to be SkarabTransport - Might change in the future!
-    dfpga = FpgaDsimHost(host_list[0], bitstream=bitstream, config=config.get("dsimengine"), transport=SkarabTransport)
+    dfpga = FpgaDsimHost(dsim_config_dict['host'], fpgfilename=args.fpgfilename, config_dict=dsim_config_dict, transport=SkarabTransport)
     print("Connected to {}.".format(dfpga.host))
 except TypeError:
     raise RuntimeError("Config template was not parsed!!!")
@@ -156,7 +151,7 @@ if args.program:
     dfpga.initialise()
     something_happened = True
 else:
-    dfpga.get_system_information(bitstream)
+    dfpga.get_system_information(args.fpgfilename)
 
 # # TODO HACK
 # if 'gbecontrol' in dfpga.registers.names():
@@ -292,33 +287,6 @@ if args.zeros_noise:
             print("noise source {}, set to {}.".format(noise_source.name, noise_source.scale))
         except Exception as exc:
             raise RuntimeError("An error occurred: {}".format(str(exc)))
-    something_happened = True
-
-if args.pulsar_source:
-    for pulsar_source, xscale_s, yfreq_s in args.pulsar_source:
-        xscale = float(xscale_s)
-        yfreq = float(yfreq_s)
-        try:
-            pulsar_sources = getattr(dfpga.pulsar_sources, "pulsar_{}".format(pulsar_source))
-        except AttributeError:
-            print("You can only select between pulsar sources: {}".format([ss.name for ss in dfpga.pulsar_sources]))
-            sys.exit(1)
-        try:
-            pulsar_sources.set(scale=xscale, frequency=yfreq)
-        except ValueError:
-            print("\nError, verify your inputs for pulsar_{}".format(pulsar_sources.name))
-            print("Max Frequency should be {}MHz".format(pulsar_sources.max_freq / 1e6))
-            print("Scale should be between 0 and 1")
-            sys.exit(1)
-        print("\npulsar source: {}".format(pulsar_sources.name))
-        print("scale: {}".format(pulsar_sources.scale))
-        print("frequency: {}".format(pulsar_sources.frequency))
-        # print('Initialising data '
-        # pulsar_sources.initialise_data()
-        # print('Add pulsar (this takes time)'
-        # pulsar_sources.add_pulsar(duty_cycle=0.05)
-        # print('Write file'
-        # pulsar_sources.write_file('test_2', path_name=path)
     something_happened = True
 
 if args.output_type:
