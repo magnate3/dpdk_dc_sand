@@ -190,19 +190,11 @@ if args.start:
 if args.status:
     # start tx
     sys.stdout.flush()
-    if dfpga.host.startswith("skarab"):
-        errmsg = "function is broken! Missing register: forty_gbe_txctr"
-        assert hasattr(dfpga.registers, "forty_gbe_txctr"), errmsg
-        before = dfpga.registers.forty_gbe_txctr.read()["data"]["reg"]
-        time.sleep(0.5)
-        after = dfpga.registers.forty_gbe_txctr.read()["data"]["reg"]
-    else:
-        for cnt, _ in enumerate(dfpga.registers.gbecontrol.read()["data"]):
-            errmsg = "function is broken! Missing register: gbe{}_txctr".format(cnt)
-            assert hasattr(dfpga.registers, "gbe{}_txctr".format(cnt)), errmsg
-        before = dfpga.registers.gbe0_txctr.read()["data"]["reg"]
-        time.sleep(0.5)
-        after = dfpga.registers.gbe0_txctr.read()["data"]["reg"]
+    errmsg = "function is broken! Missing register: forty_gbe_txctr"
+    assert hasattr(dfpga.registers, "forty_gbe_txctr"), errmsg
+    before = dfpga.registers.forty_gbe_txctr.read()["data"]["reg"]
+    time.sleep(0.5)
+    after = dfpga.registers.forty_gbe_txctr.read()["data"]["reg"]
 
     if before == after:
         print("Digitiser tx raw data failed.")
