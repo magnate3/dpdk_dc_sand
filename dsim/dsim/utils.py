@@ -1,15 +1,10 @@
 """Utilities used for dsim operation."""
 
-import logging
 import os
 from configparser import SafeConfigParser
 from typing import Tuple
 
 from casperfpga.network import IpAddress
-
-# Just for now!
-LOGGER = logging.getLogger(__name__)
-logging.basicConfig()
 
 
 def get_prefixed_name(input_str: str, prefix: str) -> str:
@@ -48,20 +43,18 @@ def parse_config_file(config_file: str = "") -> dict:
         A dictionary containing the configuration.
     """
     if config_file == "" or config_file is None:
-        LOGGER.info("No config file given to be parsed...")
+        raise ValueError("No config file given to be parsed...")
     else:
         # File was given, check if it exists
         if not (os.path.exists(config_file) and os.path.isfile(config_file)):
             # Problem
             errmsg = f"Config file given ({config_file}) is not valid!"
-            LOGGER.error(errmsg)
             raise ValueError(errmsg)
 
     parser = SafeConfigParser()
     files = parser.read(config_file)
     if len(files) == 0:
         errmsg = f"Could not read the config file: {config_file}"
-        LOGGER.error(errmsg)
         raise IOError(errmsg)
 
     config = {}

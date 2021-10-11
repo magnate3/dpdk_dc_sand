@@ -1,7 +1,6 @@
 """Control for SKARAB-based DSim."""
 
 import re
-import time
 
 from casperfpga import CasperFpga
 from casperfpga.attribute_container import AttributeContainer
@@ -208,7 +207,7 @@ class FpgaDsimHost(CasperFpga):
     """
 
     def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, config_dict=None, **kwargs):
-        super().__init__(self, host=host, katcp_port=katcp_port, transport=SkarabTransport, **kwargs)
+        super().__init__(host=host, katcp_port=katcp_port, transport=SkarabTransport)
         self.config_dict = None
         if config_dict is not None:
             self.config_dict = config_dict
@@ -221,8 +220,10 @@ class FpgaDsimHost(CasperFpga):
         self.noise_sources = AttributeContainer()
         self.outputs = AttributeContainer()
 
-    def get_system_information(self):
+    def get_system_info(self):
         """Get system information and build D-engine sources."""
+        # Run the usual/core get_system_information to populate the Yellow Block objects
+        # - Although, this is quite likely to be done during self._program()
         self.get_system_information(self.fpgfilename)
 
         self.sine_sources.clear()
@@ -278,7 +279,7 @@ class FpgaDsimHost(CasperFpga):
         if not self.is_running():
             raise RuntimeError("D-engine {host} not running".format(**self.__dict__))
 
-        self.get_system_information(self.fpgfilename)
+        self.get_system_info()
         self.setup_gbes()
 
         # Set digitizer polarisation IDs, 0 - h, 1 - v
@@ -327,9 +328,11 @@ class FpgaDsimHost(CasperFpga):
     def _program(self) -> None:
         """Program the fpg file and ensure 40GbE core is not transmitting."""
         self.logger.info(f"Programming {self.host} with file {self.fpgfilename}")
-        stime = time.time()
-        self.upload_to_ram_and_program(self.fpgfilename)
-        self.logger.info("Programmed {} in {:.2f} seconds.".format(self.host, time.time() - stime))
+        # TODO: Replace this with an os.system or subprocess.run of progska
+        # stime = time.time()
+        # self.upload_to_ram_and_program(self.fpgfilename)
+        # self.logger.info("Programmed {} in {:.2f} seconds.".format(self.host, time.time() - stime))
+        self.get_system_information(self.fpgfilename)
 
         # Ensure data is not sent before the gbes are configured
         self.enable_data_output(False)

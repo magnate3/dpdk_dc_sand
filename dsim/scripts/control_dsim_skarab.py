@@ -6,17 +6,16 @@ import os
 import sys
 import time
 
-from casperfpga.transport_skarab import SkarabTransport
-
-from dsim.utils import parse_config_file
 from dsim.dsim_skarab import FpgaDsimHost
+from dsim.utils import parse_config_file
 
 parser = argparse.ArgumentParser(
-    description="Control the dsim-engine (fake digitiser.)", formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    description="Control the dsim-engine (fake digitiser).", formatter_class=argparse.ArgumentDefaultsHelpFormatter
 )
 parser.add_argument(
-    "-c", "--config", dest="config_filename", type=str, action="store", help="corr2 config file."
+    "-c", "--config", dest="config_filename", default=None, type=str, action="store", help="corr2 config file."
 )
+parser.add_argument("--host", dest="host", action="store", help="Host name or IP address of intended SKARAB DSim.")
 parser.add_argument(
     "-f", "--fpg", dest="fpgfilename", default=None, action="store", help="fpg filename (Optional unless debugging)"
 )
@@ -57,10 +56,10 @@ parser.add_argument(
 )
 parser.add_argument(
     "--loglevel",
-    dest="log_level",
+    dest="loglevel",
     action="store",
-    default="",
-    help="log level to use, default None, options INFO, " "DEBUG, ERROR",
+    default="DEBUG",
+    help="log level to use, default None, options: {INFO, DEBUG, ERROR}",
 )
 parser.add_argument(
     "--ipython",
@@ -114,31 +113,33 @@ parser.add_argument(
 args = parser.parse_args()
 
 
-if args.log_level != "":
-    import logging
-
-    log_level = args.log_level.strip()
-    try:
-        logging.basicConfig(level=eval("logging.{}".format(log_level)))
-    except AttributeError:
-        raise RuntimeError("No such log level: {}".format(log_level))
-
 try:
     # config, host_detail = utils.hosts_and_fpgfilename_from_config(config_file=args.config, section="dsimengine")
     # section, host_list, fpgfilename = host_detail[0]
 
+    # if args.config_filename is not None:
     if not os.path.isfile(args.config_filename):
         # Problem
-        raise ValueError(f'Config file {args.config_filename} is not a valid config file.')
+        raise ValueError(f"Config file {args.config_filename} is not a valid config file.")
 
     config_dict = parse_config_file(config_file=args.config_filename)
-    dsim_config_dict = config_dict.get('dsimengine')
+    dsim_config_dict = config_dict.get("dsimengine")
 
     if args.fpgfilename:
         print("Starting Digitiser with fpgfilename: {}".format(args.fpgfilename))
 
-    # Note: We have hardcoded the transport to be SkarabTransport - Might change in the future!
-    dfpga = FpgaDsimHost(dsim_config_dict['host'], fpgfilename=args.fpgfilename, config_dict=dsim_config_dict, transport=SkarabTransport)
+    # import IPython; IPython.embed()
+    dfpga = FpgaDsimHost(dsim_config_dict["host"], fpgfilename=args.fpgfilename, config_dict=dsim_config_dict)
+    try:
+        import logging  # noqa: F401
+
+        dfpga.logger.setLevel(level=eval(f"logging.{args.loglevel.upper()}"))
+    except AttributeError:
+        # Default to DEBUG for now
+        # IPython.embed()
+        dfpga.logger.setLevel(10)
+
+    # IPython.embed()
     print("Connected to {}.".format(dfpga.host))
 except TypeError:
     raise RuntimeError("Config template was not parsed!!!")
