@@ -42,3 +42,16 @@ def test_delay_tracking(skarab_dsim_fixture):
     detail("Captured heap 2")
     detail("Captured heap 3")
     check(2 < 1, "Phase not within spec!")
+
+
+def test_baselines(skarab_dsim_fixture):
+    """Baseline test.
+
+    Blurb.
+
+    Fulfils another requirement.
+    """
+    step("Set something.")
+    detail("Checking that something is set.")
+    detail("Confirmed, something is set properly.")
+    check(7 < 8, "Seven not less than 8.")

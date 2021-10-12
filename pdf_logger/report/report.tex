@@ -1,0 +1,157 @@
+\documentclass{article}%
+\usepackage[T1]{fontenc}%
+\usepackage[utf8]{inputenc}%
+\usepackage{lmodern}%
+\usepackage{textcomp}%
+\usepackage{lastpage}%
+%
+%
+%
+\begin{document}%
+\normalsize%
+\section{test\_channelisation}%
+\label{sec:testchannelisation}%
+Channelisation Test.\newline%
+\newline%
+    Fulfils requirement ABC.\newline%
+    %
+\subsection{Procedure}%
+\label{subsec:Procedure}%
+\begin{itemize}%
+\item%
+Setting up SKARAP Dsim for the test%
+\begin{itemize}%
+\item%
+skarab020406, firmware 0.1%
+\end{itemize}%
+\item%
+Select a random channel.%
+\begin{itemize}%
+\item%
+Random channel selected: 42%
+\end{itemize}%
+\item%
+Sweep frequencies across that channel and capture heaps.%
+\begin{itemize}%
+\item%
+Setting Dsim frequency to 1%
+\item%
+Heap captured.%
+\item%
+Setting Dsim frequency to 2%
+\item%
+Heap captured.%
+\item%
+Setting Dsim frequency to 3%
+\item%
+Heap captured.%
+\end{itemize}%
+\item%
+Check peak is in centre of the channel.%
+\begin{itemize}%
+\item%
+Peak located in centre of channel.%
+\end{itemize}%
+\item%
+Check response far away is below {-}62 dB%
+\begin{itemize}%
+\item%
+Out of channel rejection is within spec.%
+\end{itemize}%
+\item%
+Test PASSED.%
+%
+\item%
+Tearing down SKARAB dsim.%
+\begin{itemize}%
+\item%
+DSim teardown finished.%
+\end{itemize}%
+\end{itemize}
+
+%
+\section{test\_delay\_tracking}%
+\label{sec:testdelaytracking}%
+Delay tracking test.\newline%
+\newline%
+    Fulfils requirement FGD.\newline%
+    %
+\subsection{Procedure}%
+\label{subsec:Procedure}%
+\begin{itemize}%
+\item%
+Setting up SKARAP Dsim%
+\begin{itemize}%
+\item%
+skarab020406, firmware 0.1%
+\end{itemize}%
+\item%
+Set delay model on Antenna 1%
+\begin{itemize}%
+\item%
+Setting delay model on antenna 1%
+\item%
+Antenna 1 delay model confirmed as 345.%
+\end{itemize}%
+\item%
+Capture 3 heaps, compare the phase, check for within spec.%
+\begin{itemize}%
+\item%
+Captured heap 1%
+\item%
+Captured heap 2%
+\item%
+Captured heap 3%
+\item%
+Phase not within spec!%
+\end{itemize}%
+\item%
+Test FAILED.%
+%
+\item%
+Tearing down SKARAB dsim.%
+\begin{itemize}%
+\item%
+DSim teardown finished.%
+\end{itemize}%
+\end{itemize}
+
+%
+\section{test\_baselines}%
+\label{sec:testbaselines}%
+Baseline test.\newline%
+\newline%
+    Blurb.\newline%
+\newline%
+    Fulfils another requirement.\newline%
+    %
+\subsection{Procedure}%
+\label{subsec:Procedure}%
+\begin{itemize}%
+\item%
+Setting up SKARAP Dsim%
+\begin{itemize}%
+\item%
+skarab020406, firmware 0.1%
+\end{itemize}%
+\item%
+Set something.%
+\begin{itemize}%
+\item%
+Checking that something is set.%
+\item%
+Confirmed, something is set properly.%
+\end{itemize}%
+\item%
+Test PASSED.%
+%
+\item%
+Tearing down SKARAB dsim.%
+\begin{itemize}%
+\item%
+DSim teardown finished.%
+\end{itemize}%
+\end{itemize}
+
+%
+\end{document}

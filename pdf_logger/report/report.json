@@ -1,0 +1,98 @@
+[
+  {
+    "name": "test_channelisation",
+    "blurb": "Channelisation Test.\n\n    Fulfils requirement ABC.\n    ",
+    "fixture": "SKARAB DSim.",
+    "procedure": [
+      [
+        "Setting up SKARAP Dsim for the test",
+        "skarab020406, firmware 0.1"
+      ],
+      [
+        "Select a random channel.",
+        "Random channel selected: 42"
+      ],
+      [
+        "Sweep frequencies across that channel and capture heaps.",
+        "Setting Dsim frequency to 1",
+        "Heap captured.",
+        "Setting Dsim frequency to 2",
+        "Heap captured.",
+        "Setting Dsim frequency to 3",
+        "Heap captured."
+      ],
+      [
+        "Check peak is in centre of the channel.",
+        "Peak located in centre of channel."
+      ],
+      [
+        "Check response far away is below -62 dB",
+        "Out of channel rejection is within spec."
+      ],
+      [
+        "Test PASSED."
+      ],
+      [
+        "Tearing down SKARAB dsim.",
+        "DSim teardown finished."
+      ]
+    ],
+    "outcome": "passed"
+  },
+  {
+    "name": "test_delay_tracking",
+    "blurb": "Delay tracking test.\n\n    Fulfils requirement FGD.\n    ",
+    "fixture": "SKARAB DSim.",
+    "procedure": [
+      [
+        "Setting up SKARAP Dsim",
+        "skarab020406, firmware 0.1"
+      ],
+      [
+        "Set delay model on Antenna 1",
+        "Setting delay model on antenna 1",
+        "Antenna 1 delay model confirmed as 345."
+      ],
+      [
+        "Capture 3 heaps, compare the phase, check for within spec.",
+        "Captured heap 1",
+        "Captured heap 2",
+        "Captured heap 3",
+        "Phase not within spec!"
+      ],
+      [
+        "Test FAILED."
+      ],
+      [
+        "Tearing down SKARAB dsim.",
+        "DSim teardown finished."
+      ]
+    ],
+    "outcome": "failed",
+    "detailed_outcome": "skarab_dsim_fixture = 'SKARAB DSIM'\n\n    def test_delay_tracking(skarab_dsim_fixture):\n        \"\"\"Delay tracking test.\n    \n        Fulfils requirement FGD.\n        \"\"\"\n        step(\"Set delay model on Antenna 1\")\n        detail(\"Setting delay model on antenna 1\")\n        check(1 <= 1.2, \"Delay model not correctly configured.\")\n        detail(\"Antenna 1 delay model confirmed as 345.\")\n    \n        step(\"Capture 3 heaps, compare the phase, check for within spec.\")\n        detail(\"Captured heap 1\")\n        detail(\"Captured heap 2\")\n        detail(\"Captured heap 3\")\n>       check(2 < 1, \"Phase not within spec!\")\n\ntest/test_json_handler.py:44: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nexpression = False, argument = 'Phase not within spec!'\n\n    def check(expression: bool, argument: str):\n        \"\"\"Perform an assertion, log if it fails.\n    \n        This function came to be because pytest doesn't make it very easy to log the\n        argument of the assertion statements.\n    \n        This lets the argument end up in the logs as an error, but it messes up\n        pytest's cli output. Since this is intended to be run on a CI/CD server,\n        this may not be a problem, as the report is what a human will actually\n        read.\n        \"\"\"\n        try:\n>           assert expression, argument\nE           AssertionError: Phase not within spec!\n\nsrc/pdf_logger/convenience.py:25: AssertionError"
+  },
+  {
+    "name": "test_baselines",
+    "blurb": "Baseline test.\n\n    Blurb.\n\n    Fulfils another requirement.\n    ",
+    "fixture": "SKARAB DSim.",
+    "procedure": [
+      [
+        "Setting up SKARAP Dsim",
+        "skarab020406, firmware 0.1"
+      ],
+      [
+        "Set something.",
+        "Checking that something is set.",
+        "Confirmed, something is set properly."
+      ],
+      [
+        "Test PASSED."
+      ],
+      [
+        "Tearing down SKARAB dsim.",
+        "DSim teardown finished."
+      ]
+    ],
+    "outcome": "passed"
+  }
+]
