@@ -1,13 +1,19 @@
 """Control for SKARAB-based DSim."""
 
+import os
 import re
+from time import sleep, time
 
 from casperfpga import CasperFpga
 from casperfpga.attribute_container import AttributeContainer
 from casperfpga.register import Register
+from casperfpga.skarab_definitions import SkarabProgrammingError
+from casperfpga.skarab_fileops import FpgProcessor
 from casperfpga.transport_skarab import SkarabTransport
 
 from .utils import StreamAddress, get_prefixed_name, parse_config_file, remove_nones
+
+# import subprocess
 
 # for DM in [pc cm ^{ -3}] , time in [s] , and frequency in [Hz]
 alpha = 2.410e-16
@@ -208,12 +214,18 @@ class FpgaDsimHost(CasperFpga):
 
     def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, config_dict=None, **kwargs):
         super().__init__(host=host, katcp_port=katcp_port, transport=SkarabTransport)
+
+        # Just adding it to test type-hinting
+        self.transport: SkarabTransport
+
         self.config_dict = None
         if config_dict is not None:
+            # But how do we confirm this is the dsimengine section of the Config file?
             self.config_dict = config_dict
         else:
             self.config_dict = parse_config_file(config_file)["dsimengine"]
         # Although can't we get the fpg file from the config?
+        # self.fpgfilename = self.config_dict['bistream']
         self.fpgfilename = fpgfilename
 
         self.sine_sources = AttributeContainer()
@@ -272,7 +284,9 @@ class FpgaDsimHost(CasperFpga):
         if not self.is_connected():
             self.connect()
         if self.fpgfilename:
-            self._program()
+            if not self._program():
+                # TODO: Think of a better error message.
+                raise SkarabProgrammingError("Failed to program DSim.")
         else:
             self.logger.info("Not programming host {} since no fpgfilename is configured".format(self.host))
 
@@ -328,14 +342,97 @@ class FpgaDsimHost(CasperFpga):
     def _program(self) -> None:
         """Program the fpg file and ensure 40GbE core is not transmitting."""
         self.logger.info(f"Programming {self.host} with file {self.fpgfilename}")
-        # TODO: Replace this with an os.system or subprocess.run of progska
-        # stime = time.time()
-        # self.upload_to_ram_and_program(self.fpgfilename)
-        # self.logger.info("Programmed {} in {:.2f} seconds.".format(self.host, time.time() - stime))
+
+        # * File extension should really already have been checked
+
+        # Moving this up here so we can store this tmp_binfile.bin in the same directory
+        # as the programming utility.
+        cwd = os.path.dirname(__file__)
+        progska_dir = f"{cwd}/progska"
+        # The utility call wasn't working with the absolute path
+        os.chdir(progska_dir)
+
+        upload_start_time = time()
+        # binfilename = '/home/apatel/binfiles/fpgstream_' + str(os.getpid()) + '.bin'
+        binfilename = "fpgstream_" + str(os.getpid()) + ".bin"
+        fpg_processor = FpgProcessor(self.fpgfilename, bin_name=binfilename)
+        _ = fpg_processor.make_bin()
+
+        # * Clear SDRAM in preparation for programming
+        self.transport.clear_sdram()
+
+        # * progska
+        # - Need to get CWD, as we can't use relative paths to access the built-utility
+        # cwd = os.path.dirname(__file__)
+        # progska_dir = f"{cwd}/progska"
+        # # The utility call wasn't working with the absolute path
+        # os.chdir(progska_dir)
+        progska_utility = "./progska"
+        binfile_arg = f"-f {binfilename}"
+        chunk_size_arg = "-s 1988"
+
+        # - Command-line call should resemble something like (-v for verbose logging):
+        #   ./progska /path/to/prog_file.fpg -s 1988 -v <hostname_or_ipaddr>
+        progska_cmdline_call = f"{progska_utility} {binfile_arg} {chunk_size_arg} -v {self.host}"  # noqa: F541
+        # progska_cmdline_call_list = [progska_utility, binfile_arg, chunk_size_arg, "-v", self.host]
+
+        # import IPython; IPython.embed()
+        # result = subprocess.run(progska_cmdline_call, check=True)
+        # result = subprocess.run(progska_cmdline_call_list, capture_output=True, check=True)
+        # result = subprocess.run(progska_cmdline_call_list, stderr=subprocess.STDOUT)
+        result = os.system(progska_cmdline_call)
+
+        if not result:
+            # result = 0 when it runs successfully
+            # - At least the few times I tried it manually
+            if not self.finish_programming(upload_start_time):
+                return False
+            # else: Continue!
+            os.remove(binfilename)
+            return True
+        else:
+            return False
+
+    def finish_programming(self, upload_start_time: time, timeout: int = 60) -> bool:
+        """Carry out final steps once progska has uploaded the binary file.
+
+        Lifted straight from casperfpga.transport_skarab.SkarabTransport.upload_to_ram_and_program.
+
+        :param upload_start_time:
+            The time at which the upload to SDRAM was started.
+        :param timeout:
+            Timeout (seconds) to wait before calling the Time of Death on the programming process.
+
+        :return:
+            Boolean - True/False - Success/Fail.
+        """
+        self.transport._sdram_programmed = True
+        self.transport.boot_from_sdram()
+
+        upload_time_total = time() - upload_start_time
+        timeout = timeout + time()
+        reboot_start_time = time()
+
+        while timeout > time():
+            if self.is_connected(retries=1):
+                result, firmware_version = self.transport.check_running_firmware()
+                if result:
+                    reboot_time = time() - reboot_start_time
+                    self.logger.info(
+                        "Skarab is back up, in %.1f seconds (%.1f + %.1f) with FW ver "
+                        "%s" % (upload_time_total + reboot_time, upload_time_total, reboot_time, firmware_version)
+                    )
+                    break
+                else:
+                    return False
+            sleep(0.1)
+
+        # Might be better to put this inside the if-statement once the board is back online
         self.get_system_information(self.fpgfilename)
 
         # Ensure data is not sent before the gbes are configured
         self.enable_data_output(False)
+        return True
 
     def setup_gbes(self) -> None:
         """Set up the 40GbE core on a SKARAB DSim."""
