@@ -23,3 +23,9 @@ Guiding principles:
   docstring, and then rather than having a separate procedure section, interleave
   the "procedure" with the actual code using `INFO`-level log messages, while
   details are presented using `DEBUG`-level messages.
+
+
+## Requires
+- `texlive-base` at least. I have `texlive-full` installed so I'm not sure what
+  packages are required.
+- `latexmk`. This was a handy tool if ever there was one.
