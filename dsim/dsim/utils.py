@@ -7,14 +7,14 @@ from typing import Tuple
 from casperfpga.network import IpAddress
 
 
-def get_prefixed_name(input_str: str, prefix: str) -> str:
+def get_prefixed_name(prefix: str, input_str: str) -> str:
     """
     Extract the name from a string with a known prefix attached to it.
 
-    :param full_str:
-        Full string with prefix.
     :param prefix:
         Prefix to extract from full_str.
+    :param full_str:
+        Full string with prefix.
 
     :return:
         Extracted string.

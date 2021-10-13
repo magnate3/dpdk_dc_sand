@@ -114,9 +114,6 @@ args = parser.parse_args()
 
 
 try:
-    # config, host_detail = utils.hosts_and_fpgfilename_from_config(config_file=args.config, section="dsimengine")
-    # section, host_list, fpgfilename = host_detail[0]
-
     # if args.config_filename is not None:
     if not os.path.isfile(args.config_filename):
         # Problem
@@ -152,7 +149,8 @@ if args.program:
     dfpga.initialise()
     something_happened = True
 else:
-    dfpga.get_system_information(args.fpgfilename)
+    # dfpga already has access to the fpg-file
+    dfpga.get_system_info()
 
 # # TODO HACK
 # if 'gbecontrol' in dfpga.registers.names():
@@ -218,6 +216,7 @@ if args.sine_source:
         xscale = float(xscale_s)
         yfreq = float(yfreq_s)
         try:
+            # IPython.embed()
             sine_source = getattr(dfpga.sine_sources, "sin_{}".format(sine_name))
         except AttributeError:
             print("You can only select between sine sources: {}".format([ss.name for ss in dfpga.sine_sources]))

@@ -64,7 +64,7 @@ class SineSource(Source):
         self.repeat_len_field_name = repeat_len_field_name
         self.repeat_en_register = repeat_en_register
 
-        self.sample_rate_hz = float(self.parent.config["sample_rate_hz"])
+        self.sample_rate_hz = float(self.parent.config_dict["sample_rate_hz"])
         freq_field = self.freq_register.field_get_by_name("frequency")
         self.nr_freq_steps = 2 ** freq_field.width_bits
 
@@ -212,7 +212,7 @@ class FpgaDsimHost(CasperFpga):
         - If present, will override the presence of a config_file.
     """
 
-    def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, config_dict=None, **kwargs):
+    def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, config_dict=None):
         super().__init__(host=host, katcp_port=katcp_port, transport=SkarabTransport)
 
         # Just adding it to test type-hinting
@@ -232,7 +232,7 @@ class FpgaDsimHost(CasperFpga):
         self.noise_sources = AttributeContainer()
         self.outputs = AttributeContainer()
 
-    def get_system_info(self):
+    def get_system_info(self) -> None:
         """Get system information and build D-engine sources."""
         # Run the usual/core get_system_information to populate the Yellow Block objects
         # - Although, this is quite likely to be done during self._program()
@@ -339,8 +339,12 @@ class FpgaDsimHost(CasperFpga):
         reg_field_names = self.registers.pol_traffic_trigger.field_names()
         self.registers.pol_traffic_trigger.write(**{n: "pulse" for n in reg_field_names})
 
-    def _program(self) -> None:
-        """Program the fpg file and ensure 40GbE core is not transmitting."""
+    def _program(self) -> bool:
+        """Program the fpg file and ensure 40GbE core is not transmitting.
+
+        :return:
+            Boolean - True/False - Success/Fail.
+        """
         self.logger.info(f"Programming {self.host} with file {self.fpgfilename}")
 
         # * File extension should really already have been checked
@@ -376,7 +380,6 @@ class FpgaDsimHost(CasperFpga):
         progska_cmdline_call = f"{progska_utility} {binfile_arg} {chunk_size_arg} -v {self.host}"  # noqa: F541
         # progska_cmdline_call_list = [progska_utility, binfile_arg, chunk_size_arg, "-v", self.host]
 
-        # import IPython; IPython.embed()
         # result = subprocess.run(progska_cmdline_call, check=True)
         # result = subprocess.run(progska_cmdline_call_list, capture_output=True, check=True)
         # result = subprocess.run(progska_cmdline_call_list, stderr=subprocess.STDOUT)
@@ -418,6 +421,7 @@ class FpgaDsimHost(CasperFpga):
                 result, firmware_version = self.transport.check_running_firmware()
                 if result:
                     reboot_time = time() - reboot_start_time
+                    # TODO: Reformat into f-string
                     self.logger.info(
                         "Skarab is back up, in %.1f seconds (%.1f + %.1f) with FW ver "
                         "%s" % (upload_time_total + reboot_time, upload_time_total, reboot_time, firmware_version)
@@ -442,11 +446,13 @@ class FpgaDsimHost(CasperFpga):
             gbe.set_port(port)
 
         self.write_int("gbe_porttx", port)
-        for pol in [0, 1]:
-            addr = StreamAddress.from_address_string(self.config_dict["pol%1i_destination_ips" % pol].strip())
+        for pol_num in [0, 1]:
+            pol_config_key = f"pol{pol_num}_destination_ips"
+            addr = StreamAddress.from_address_string(self.config_dict[pol_config_key].strip())
             for index in range(addr.ip_range):
                 # The interleave-by-pairs of IP addresses is implemented by this formula.
-                self.write_int("gbe_iptx%1i" % (2 * index - index % 2 + 2 * pol), addr.ip_address.ip_int + index)
+                # TODO: Reformat into f-string
+                self.write_int("gbe_iptx%1i" % (2 * index - index % 2 + 2 * pol_num), addr.ip_address.ip_int + index)
 
         self.registers.control.write(gbe_rst=False)
 
