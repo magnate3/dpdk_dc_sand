@@ -28,7 +28,7 @@ def dump_latex_from_json(input_data: Union[str, list]) -> str:
     try:
         with open(input_data) as fp:
             result_list = json.load(fp)
-    except FileNotFoundError:
+    except TypeError:
         result_list = input_data
 
     doc = Document()

@@ -5,6 +5,10 @@ import logging
 from enum import Enum, auto
 from typing import Union
 
+import pkg_resources
+
+from .latex_dump import dump_latex_from_json
+
 
 class State(Enum):
     """Enumeration of states for the state machine."""
@@ -28,7 +32,7 @@ class JsonHandler(logging.Handler):
     ) -> None:
         super().__init__(level=level)
         # TODO: Check whether directory exists first, if not, create it.
-        self.output_path = f"{destination_dir}/{output_filename}.json"
+        self.output_path = f"{destination_dir}/{output_filename}"
         self.destination_dir = destination_dir
         self.result_list = []
         self.current_test = blank_test_result()
@@ -36,11 +40,25 @@ class JsonHandler(logging.Handler):
         self.state: State = State.IDLE
 
     def close(self):
-        """Finish off and safely close the output file."""
+        """Dump the result list as a json file and try to make a latex file too.
+
+        The latex part is tentative for now, the json is there so that the
+        latex process can be re-run if necessary because something is messed up.
+        """
         # TODO: maybe check that the last thing in the result list is the current result?
         # Append if not an empty dictionary.
-        with open(self.output_path, "w") as fp:
+        with open(f"{self.output_path}.json", "w") as fp:
             json.dump(self.result_list, fp, indent=2)
+
+        # TODO: I'm sure there's a better way to do this context manager.
+        # It may also end up getting replaced with a mako template render, so
+        # perhaps not worth worrying just yet.
+        with open(f"{pkg_resources.resource_filename(__name__, '')}/preamble_template.tex", "r") as in_file:
+            with open(f"{self.output_path}.tex", "w") as out_file:
+                for line in in_file.readlines():
+                    out_file.write(line)
+                out_file.write(dump_latex_from_json(self.result_list))
+                out_file.write("\\end{document}\n")
         super().close()
 
     def emit(self, record: logging.LogRecord):  # noqa: C901
