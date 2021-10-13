@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import shutil
 from enum import Enum, auto
 from typing import Union
 
@@ -31,8 +33,9 @@ class JsonHandler(logging.Handler):
         self, output_filename: str = "log", destination_dir: str = ".", level: Union[int, str] = logging.DEBUG
     ) -> None:
         super().__init__(level=level)
-        # TODO: Check whether directory exists first, if not, create it.
-        self.output_path = f"{destination_dir}/{output_filename}"
+        if not os.path.exists(destination_dir):
+            os.mkdir(destination_dir)
+        self.output_path = os.path.join(destination_dir, output_filename)  # Won't have an extension, this is fine.
         self.destination_dir = destination_dir
         self.result_list = []
         self.current_test = blank_test_result()
@@ -53,12 +56,22 @@ class JsonHandler(logging.Handler):
         # TODO: I'm sure there's a better way to do this context manager.
         # It may also end up getting replaced with a mako template render, so
         # perhaps not worth worrying just yet.
-        with open(f"{pkg_resources.resource_filename(__name__, '')}/preamble_template.tex", "r") as in_file:
-            with open(f"{self.output_path}.tex", "w") as out_file:
+        template_path = os.path.join(pkg_resources.resource_filename(__name__, ""), "preamble_template.tex")
+        with open(template_path, "r") as in_file:
+            with open(self.output_path + ".tex", "w") as out_file:
                 for line in in_file.readlines():
                     out_file.write(line)
                 out_file.write(dump_latex_from_json(self.result_list))
                 out_file.write("\\end{document}\n")
+
+        # These things are really part of the template and you need them to render
+        # the actual document. Not sure of a better way to get them there.
+        if not os.path.exists(os.path.join(self.destination_dir, "katdoc.sty")):
+            shutil.copy(os.path.join(pkg_resources.resource_filename(__name__, ""), "katdoc.sty"), self.destination_dir)
+        if not os.path.exists(os.path.join(self.destination_dir, "sarao_logo.png")):
+            shutil.copy(
+                os.path.join(pkg_resources.resource_filename(__name__, ""), "sarao_logo.png"), self.destination_dir
+            )
         super().close()
 
     def emit(self, record: logging.LogRecord):  # noqa: C901

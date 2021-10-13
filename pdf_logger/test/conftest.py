@@ -1,5 +1,11 @@
-# noqa: D100
+"""Hooks and fixtures for logging Pytest's output to a PDF.
+
+Commented out functions are there to remind me that the hooks exist, in case I
+should need them in future tinkerings.
+"""
 import logging
+import os
+import subprocess
 
 import pytest
 
@@ -9,8 +15,11 @@ from pdf_logger.json_handler import JsonHandler
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
+output_dir = "results"
+output_filename = "report"
+
 # Make sure we're using the Json Handler created for the purpose.
-my_handler = JsonHandler("report", "report")
+my_handler = JsonHandler(output_filename=output_filename, destination_dir=output_dir)
 logger.addHandler(my_handler)
 
 # Because the Json handler keeps its own internal state, to help with debugging
@@ -91,8 +100,11 @@ def pytest_runtest_logreport(report):
 
 
 def pytest_sessionfinish():
-    """Close out the files.
-
-    Later on we'll be having latex in this. But not yet, just json for now.
-    """
+    """Shut down logging and generate output files."""
     logging.shutdown()  # If we don't do this, the output files aren't closed yet.
+    pdf_path = os.path.join(output_dir, output_filename + ".tex")
+
+    # Generate the actual PDF.
+    subprocess.run(["latexmk", "-cd", pdf_path, "-pdf"])
+    # Cleans up the unnecessary stuff.
+    subprocess.run(["latexmk", "-cd", pdf_path, "-c"])

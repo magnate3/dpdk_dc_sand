@@ -37,7 +37,7 @@ def dump_latex_from_json(input_data: Union[str, list]) -> str:
         for result in result_list:
             with section.create(Subsection(result["name"])):
                 section.append(result["blurb"])
-                with section.create(Subsubsection("Procedure")):
+                with section.create(Subsubsection("Procedure", label=False)):
                     with section.create(LongTable(r"|l|p{0.7\linewidth}|")) as procedure_table:
                         for step in result["procedure"]:
                             procedure_table.add_hline()
