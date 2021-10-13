@@ -1,5 +1,6 @@
 """Module declaring LatexHandler Class."""
 
+import datetime
 import json
 import logging
 import os
@@ -8,8 +9,14 @@ from enum import Enum, auto
 from typing import Union
 
 import pkg_resources
+from dotenv import load_dotenv
+from mako.template import Template
 
 from .latex_dump import dump_latex_from_json
+
+# Get information from the .env file, such as tester's name, which shouldn't
+# really be in git.
+load_dotenv()
 
 
 class State(Enum):
@@ -57,12 +64,12 @@ class JsonHandler(logging.Handler):
         # It may also end up getting replaced with a mako template render, so
         # perhaps not worth worrying just yet.
         template_path = os.path.join(pkg_resources.resource_filename(__name__, ""), "preamble_template.tex")
-        with open(template_path, "r") as in_file:
-            with open(self.output_path + ".tex", "w") as out_file:
-                for line in in_file.readlines():
-                    out_file.write(line)
-                out_file.write(dump_latex_from_json(self.result_list))
-                out_file.write("\\end{document}\n")
+        in_template = Template(filename=template_path)
+        with open(self.output_path + ".tex", "w") as out_file:
+            date = datetime.date.today()
+            out_file.write(in_template.render(TESTER_NAME=os.getenv("TESTER_NAME"), DATE=date.strftime("%d %B %Y")))
+            out_file.write(dump_latex_from_json(self.result_list))
+            out_file.write("\\end{document}\n")
 
         # These things are really part of the template and you need them to render
         # the actual document. Not sure of a better way to get them there.
