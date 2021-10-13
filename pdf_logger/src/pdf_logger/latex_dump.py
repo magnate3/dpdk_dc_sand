@@ -1,27 +1,54 @@
 """Generate a PDF based on the intermediate json output."""
 import json
+from typing import Union
 
-import pylatex
+from pylatex import Document, LongTable, MultiColumn, Section, Subsection, Subsubsection
+from pylatex.utils import bold
 
-filepath = "../../report/report.json"
 
-with open(filepath) as fp:
-    result_list = json.load(fp)
+def dump_latex_from_json(input_data: Union[str, list]) -> str:
+    """Take a test result and generate latex for a report.
 
-doc = pylatex.Document()
+    This function can be used 'live', on the nested list / dictionary thing,
+    or it can be given a path to a json file and it'll load from that.
 
-for result in result_list:
-    with doc.create(pylatex.Section(result["name"])):
-        doc.append(result["blurb"])
-        with doc.create(pylatex.Subsection("Procedure")):
-            with doc.create(pylatex.lists.Itemize()) as procedure_list:
-                for step in result["procedure"]:
-                    procedure_list.add_item(step[0])
-                    try:
-                        with doc.create(pylatex.lists.Itemize()) as detail_list:
-                            for detail in step[1:]:
-                                detail_list.add_item(detail)
-                    except IndexError:
-                        pass
+    Parameters
+    ----------
+    input_data
+        Either the list of test result dictionaries, or a path to the json
+        file containing the dump of said list.
 
-doc.generate_pdf("../../report/report", clean_tex=False)
+    Returns
+    -------
+    str
+        A string with the latex output. Not a complete document, just the
+        section which has been known as 'Detailed Results' or some such. This
+        will need to be fitted into a template.
+    """
+    try:
+        with open(input_data) as fp:
+            result_list = json.load(fp)
+    except FileNotFoundError:
+        result_list = input_data
+
+    doc = Document()
+    # TODO: Add a summary table.
+    with doc.create(Section("Test Results")) as section:
+        for result in result_list:
+            with section.create(Subsection(result["name"])):
+                section.append(result["blurb"])
+                with section.create(Subsubsection("Procedure")):
+                    with section.create(LongTable(r"|l|p{0.7\linewidth}|")) as procedure_table:
+                        for step in result["procedure"]:
+                            procedure_table.add_hline()
+                            procedure_table.add_row((MultiColumn(2, align="|l|", data=bold(step[0])),))
+                            procedure_table.add_hline()
+                            try:
+                                for detail in step[1:]:
+                                    # TODO: timestamps for the actual steps.
+                                    procedure_table.add_row(["timestamp", detail])
+                                    procedure_table.add_hline()
+                            except IndexError:
+                                pass
+
+        return section.dumps()
