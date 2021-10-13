@@ -1,5 +1,5 @@
-report/
 *.aux
 *.log
 *.pdf
 *.tex
+.env
