@@ -63,7 +63,7 @@ class JsonHandler(logging.Handler):
         # TODO: I'm sure there's a better way to do this context manager.
         # It may also end up getting replaced with a mako template render, so
         # perhaps not worth worrying just yet.
-        template_path = os.path.join(pkg_resources.resource_filename(__name__, ""), "preamble_template.tex")
+        template_path = os.path.join(pkg_resources.resource_filename(__name__, ""), "preamble_template.mako")
         in_template = Template(filename=template_path)
         with open(self.output_path + ".tex", "w") as out_file:
             date = datetime.date.today()

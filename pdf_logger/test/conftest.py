@@ -25,7 +25,7 @@ logger.addHandler(my_handler)
 # Because the Json handler keeps its own internal state, to help with debugging
 # that, we add a normal file handler as well, which will just log everything. It
 # makes picking through the JSON output easier.
-file_handler = logging.FileHandler("report/raw_output.log")
+file_handler = logging.FileHandler(os.path.join(output_dir, "raw_output.log"))
 file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(funcName)s - %(message)s"))
 logger.addHandler(file_handler)
 
