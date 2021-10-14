@@ -1,6 +1,4 @@
-\documentclass[11pt,english,twoside]{article}
 \usepackage{katdoc}
-\usepackage{mathtools}
 \usepackage{mathtools}
 \usepackage{graphicx}
 \usepackage{hyperref}
@@ -19,10 +17,9 @@
 \newcommand{\docId}{E1200-XXX-XXXX}
 \newcommand{\docRevision}{1}
 \newcommand{\docClassification}{Commercial in Confidence}
-\newcommand{\docDate}{${DATE}}
 \newcommand{\docCopyright}{\copyright SARAO and NRF 2021}
 
-\author{${TESTER_NAME}}
+\author{\theAuthor}
 
 %% Format: \addcontributor{Role}{Name}{Designation}{Affiliation}{Date}
 \newcommand{\docApproval}{
@@ -60,9 +57,3 @@
 }
 
 \renewcommand{\floatpagefraction}{0.8}
-
-\begin{document}
-
-\title{Integration Test Report}
-
-\makekatdocbeginning
