@@ -39,7 +39,7 @@ def pdf_report(request) -> Reporter:
 @pytest.fixture
 def skarab_dsim_fixture(pdf_report):
     """SKARAB DSim."""
-    pdf_report.step("Setting up SKARAP Dsim")
+    pdf_report.step("Setting up SKARAB Dsim")
     pdf_report.detail("skarab020406, firmware 0.1")
     yield "SKARAB DSIM"
     pdf_report.step("Tearing down SKARAB dsim.")
