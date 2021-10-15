@@ -125,7 +125,6 @@ try:
     if args.fpgfilename:
         print("Starting Digitiser with fpgfilename: {}".format(args.fpgfilename))
 
-    # import IPython; IPython.embed()
     dfpga = FpgaDsimHost(dsim_config_dict["host"], fpgfilename=args.fpgfilename, config_dict=dsim_config_dict)
     try:
         import logging  # noqa: F401
@@ -133,10 +132,8 @@ try:
         dfpga.logger.setLevel(level=eval(f"logging.{args.loglevel.upper()}"))
     except AttributeError:
         # Default to DEBUG for now
-        # IPython.embed()
         dfpga.logger.setLevel(10)
 
-    # IPython.embed()
     print("Connected to {}.".format(dfpga.host))
 except TypeError:
     raise RuntimeError("Config template was not parsed!!!")
@@ -216,7 +213,6 @@ if args.sine_source:
         xscale = float(xscale_s)
         yfreq = float(yfreq_s)
         try:
-            # IPython.embed()
             sine_source = getattr(dfpga.sine_sources, "sin_{}".format(sine_name))
         except AttributeError:
             print("You can only select between sine sources: {}".format([ss.name for ss in dfpga.sine_sources]))
