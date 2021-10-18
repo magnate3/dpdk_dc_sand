@@ -16,13 +16,21 @@ Guiding principles:
   that are esoteric and difficult to understand.
 
 
+## Instructions to run the demo
+
+- Install the package.
+- Run `pytest --report-log=report.json` (note that there will be test failures:
+  that is by design).
+- Run `pdf_logger_report report.json report.pdf`.
+- View `report.pdf`.
+
+
 ## Some thoughts
 - I've used Marc Welz's original `katdoc.sty` Latex package, adapted slightly
   to make things look a bit more like the new(er) MS Word template.
 - My convention with the individual tests has been to put the blurb all in the
   docstring, and then rather than having a separate procedure section, interleave
-  the "procedure" with the actual code using `INFO`-level log messages, while
-  details are presented using `DEBUG`-level messages.
+  the "procedure" with the actual code using calls to log steps.
 
 
 ## Requires
