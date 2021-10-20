@@ -49,7 +49,16 @@ class Result:
 def parse(input_data: list) -> List[Result]:
     """Parse the data written by pytest-reportlog.
 
-    The JSON must already have been parsed in `input_data`.
+    Parameters
+    ----------
+    input_data
+        A Python list, which should have been loaded from pytest-reportlog's
+        JSON output.
+
+    Returns
+    -------
+    A list of :class:`Result` objects representing the results of all the tests
+    logged in the JSON input.
     """
     results = []
     for line in input_data:
@@ -120,8 +129,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     results = parse(result_list)
 
     # Get information from the .env file, such as tester's name, which shouldn't
-    # really be in git.
-    config = {**dotenv_values(), **os.environ}  # Get values from .env file, allow environment to override
+    # really be in git. Allow environment to override
+    config = {**dotenv_values(), **os.environ}
 
     doc = Document(
         document_options=["11pt", "english", "twoside"],
@@ -133,8 +142,15 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     doc.preamble.append(NoEscape(importlib.resources.read_text("pdf_logger", "preamble.tex")))
     doc.append(Command("title", "Integration Test Report"))
     doc.append(Command("makekatdocbeginning"))
-    # TODO: Add a summary table.
-    with doc.create(Section("Test Results")) as section:
+
+    with doc.create(Section("Result Summary")) as summary_section:
+        with summary_section.create(LongTable(r"|r|l|")) as summary_table:
+            summary_table.add_hline()
+            for result in results:
+                summary_table.add_row([fix_test_name(result.name), result.outcome])
+                summary_table.add_hline()
+
+    with doc.create(Section("Detailed Test Results")) as section:
         for result in results:
             with section.create(Subsection(fix_test_name(result.name))):
                 section.append(result.blurb)
