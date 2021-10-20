@@ -91,6 +91,11 @@ def parse(input_data: list) -> List[Result]:
     return results
 
 
+def fix_test_name(test_name: str) -> str:
+    """Change a test's name from a pytest one to a more human-friendly one."""
+    return " ".join([word.capitalize() for word in test_name.split("_") if word != "test"])
+
+
 def document_from_json(input_data: Union[str, list]) -> Document:
     """Take a test result and generate a :class:`pylatex.Document` for a report.
 
@@ -131,8 +136,11 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     # TODO: Add a summary table.
     with doc.create(Section("Test Results")) as section:
         for result in results:
-            with section.create(Subsection(result.name)):
+            with section.create(Subsection(fix_test_name(result.name))):
                 section.append(result.blurb)
+                with section.create(Subsubsection("Summary", label=False)) as summary:
+                    summary.append(bold(f"Test {result.outcome}\n\n"))
+                    summary.append(f"Test duration: {result.duration:.3f} seconds\n")  # TODO: handle minutes / hours
                 with section.create(Subsubsection("Procedure", label=False)) as procedure:
                     with section.create(LongTable(r"|l|p{0.7\linewidth}|")) as procedure_table:
                         for step in result.steps:
@@ -145,11 +153,10 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                     [datetime.fromtimestamp(float(detail.timestamp)).strftime("%T.%f"), detail.message]
                                 )
                                 procedure_table.add_hline()
-                    procedure.append(bold(f"Test {result.outcome}"))
+
                     if result.failure_message:
                         with procedure.create(FlushLeft()) as failure_message:
                             failure_message.append(result.failure_message)
-                section.append(f"Test duration: {result.duration} seconds")
 
     return doc
 
