@@ -1,6 +1,9 @@
 # noqa: D100
 from time import sleep
 
+import numpy as np
+from numpy.random import default_rng
+
 
 def test_channelisation(pdf_report, skarab_dsim_fixture):
     """Channelisation Test.
@@ -21,13 +24,17 @@ def test_channelisation(pdf_report, skarab_dsim_fixture):
     sleep(1)
     pdf_report.detail("Heap captured.")
 
-    pdf_report.step("Check peak is in centre of the channel.")
-    assert 1 in [1, 2, 3], "Peak not in centre of channel!"
-    pdf_report.detail("Peak located in centre of channel.")
+    pdf_report.step("Draw a plot to illustrate some of the data.")
+    pdf_report.detail("Making up some numners.")
+    xaxis = np.arange(10, dtype=np.float)
+    desired = np.ones_like(xaxis)
+    rng = default_rng(1)
+    actual = desired - rng.standard_normal(size=desired.shape) * 0.05
+    caption = "A plot to show you what we mean."
+    pdf_report.plot(xaxis, [desired, actual], caption, "Frequency [MHz]", "Magnitude [linear]", ["desired", "actual"])
 
-    pdf_report.step("Check response far away is below -62 dB")
-    assert 0 < 1, "Rejection not good enough!"
-    pdf_report.detail("Out of channel rejection is within spec.")
+    assert 1 in [1, 2, 3], "Assertion not true!"
+    pdf_report.detail("Plot shown.")
 
 
 def test_delay_tracking(pdf_report, skarab_dsim_fixture):

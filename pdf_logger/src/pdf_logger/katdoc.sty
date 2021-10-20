@@ -10,7 +10,6 @@
 \usepackage{lastpage}
 \usepackage{mathptmx}
 \usepackage[T1]{fontenc}
-\usepackage[latin1]{inputenc}
 \usepackage{geometry}
 \usepackage{array}
 \usepackage{babel}
@@ -21,6 +20,14 @@
 \usepackage{ifthen}
 \usepackage{float}
 \usepackage{enumitem}
+
+% For plotting to work nicely.
+\usepackage[utf8]{inputenc}
+\usepackage{pgfplots}
+\DeclareUnicodeCharacter{2212}{−}
+\usepgfplotslibrary{groupplots,dateplot}
+\usetikzlibrary{patterns,shapes.arrows}
+\pgfplotsset{compat=newest}
 
 \geometry{verbose,a4paper,tmargin=32mm,bmargin=27mm,lmargin=21mm,rmargin=19mm,headheight=10mm,headsep=12mm,footskip=12mm}
 \pagestyle{empty}

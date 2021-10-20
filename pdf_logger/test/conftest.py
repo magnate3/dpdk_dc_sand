@@ -4,8 +4,9 @@ Commented out functions are there to remind me that the hooks exist, in case I
 should need them in future tinkerings.
 """
 import time
-from typing import Optional
+from typing import List, Optional, Union
 
+import numpy as np
 import pytest
 
 
@@ -26,6 +27,34 @@ class Reporter:
         if self._cur_step is None:
             raise ValueError("Cannot have detail without a current step")
         self._cur_step.append({"$msg_type": "detail", "message": message, "timestamp": time.time()})
+
+    def plot(
+        self,
+        xaxis: np.ndarray,
+        yaxis: Union[np.ndarray, List[np.ndarray]],
+        caption: str,
+        xlabel: str = "",
+        ylabel: str = "",
+        legend_labels: Union[str, List[str]] = "",
+    ) -> None:
+        """Stick a plot in the report."""
+        if self._cur_step is None:
+            raise ValueError("Cannot have a plot without a current step")
+        if isinstance(yaxis, list):
+            yaxis = [array.tolist() for array in yaxis]
+        else:
+            yaxis = yaxis.tolist()
+        self._cur_step.append(
+            {
+                "$msg_type": "plot",
+                "yaxis": yaxis,
+                "xaxis": xaxis.tolist(),
+                "caption": caption,
+                "xlabel": xlabel,
+                "ylabel": ylabel,
+                "legend_labels": legend_labels,
+            }
+        )
 
 
 @pytest.fixture

@@ -8,8 +8,21 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import List, Literal, Optional, Union
 
+import matplotlib.pyplot as plt
+import numpy as np
 from dotenv import dotenv_values
-from pylatex import Command, Document, FlushLeft, LongTable, MultiColumn, NoEscape, Section, Subsection, Subsubsection
+from pylatex import (
+    Command,
+    Document,
+    FlushLeft,
+    LongTable,
+    MiniPage,
+    MultiColumn,
+    NoEscape,
+    Section,
+    Subsection,
+    Subsubsection,
+)
 from pylatex.utils import bold
 
 
@@ -22,11 +35,45 @@ class Detail:
 
 
 @dataclass
+class Plot:
+    """A plot requested by ``pdf_report.detail``.
+
+    This class does the drawing, given the details.
+    """
+
+    #: The X-axis.
+    xaxis: np.ndarray
+    yaxis: np.ndarray
+    caption: str
+    xlabel: str
+    ylabel: str
+    legend_labels: Union[str, List[str]]
+
+    def get_pgf_str(self) -> str:
+        """Output the PGF-plots string for the data represented here."""
+        plt.style.use("ggplot")
+        if self.yaxis.shape[0] > 1:
+            for yaxis, legend_label in zip(self.yaxis, self.legend_labels):
+                plt.plot(self.xaxis, yaxis, label=legend_label)
+        else:
+            plt.plot(self.xaxis, self.yaxis, label=self.legend_labels)
+        plt.title(self.caption)
+        plt.xlabel(self.xlabel)
+        plt.ylabel(self.ylabel)
+        plt.legend()
+        plt.grid(True)
+        import tikzplotlib
+
+        tikzplotlib.clean_figure()
+        return tikzplotlib.get_tikz_code(table_row_sep=r"\\")
+
+
+@dataclass
 class Step:
     """A step created by ``pdf_report.step``."""
 
     message: str
-    details: List[Detail] = field(default_factory=list)
+    details: List[Union[Detail, Plot]] = field(default_factory=list)
 
 
 @dataclass
@@ -77,7 +124,19 @@ def parse(input_data: list) -> List[Result]:
                     for msg in prop[1][:]:
                         msg_type = msg["$msg_type"]
                         if msg_type == "step":
-                            details = [Detail(detail["message"], detail["timestamp"]) for detail in msg["details"]]
+                            details = [
+                                Detail(detail["message"], detail["timestamp"])
+                                if detail["$msg_type"] == "detail"
+                                else Plot(
+                                    np.array(detail["xaxis"]),
+                                    np.array(detail["yaxis"]),
+                                    detail["caption"],
+                                    detail["xlabel"],
+                                    detail["ylabel"],
+                                    detail["legend_labels"],
+                                )
+                                for detail in msg["details"]
+                            ]
                             result.steps.append(Step(msg["message"], details))
                         elif msg_type == "test_info":
                             if not result.blurb:
@@ -164,10 +223,17 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                             procedure_table.add_row((MultiColumn(2, align="|l|", data=bold(step.message)),))
                             procedure_table.add_hline()
                             for detail in step.details:
-                                # TODO: timestamps for the actual steps.
-                                procedure_table.add_row(
-                                    [datetime.fromtimestamp(float(detail.timestamp)).strftime("%T.%f"), detail.message]
-                                )
+                                if isinstance(detail, Detail):
+                                    procedure_table.add_row(
+                                        [
+                                            datetime.fromtimestamp(float(detail.timestamp)).strftime("%T.%f"),
+                                            detail.message,
+                                        ]
+                                    )
+                                elif isinstance(detail, Plot):
+                                    mp = MiniPage(width=NoEscape(r"0.6\textwidth"))
+                                    mp.append(NoEscape(detail.get_pgf_str()))
+                                    procedure_table.add_row((MultiColumn(2, align="|c|", data=mp),))
                                 procedure_table.add_hline()
 
                     if result.failure_message:
