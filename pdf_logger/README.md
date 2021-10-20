@@ -34,6 +34,6 @@ Guiding principles:
 
 
 ## Requires
-- `texlive-base` at least. I have `texlive-full` installed so I'm not sure what
-  packages are required.
+- `texlive-base`, `texlive-latex-extra`. Much lighter just to use these two than
+  the entire `texlive-full`.
 - `latexmk`. This was a handy tool if ever there was one.
