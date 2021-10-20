@@ -1,3 +1,2 @@
 pylatex
 python-dotenv
-mako

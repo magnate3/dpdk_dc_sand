@@ -1,11 +1,11 @@
 """Generate a PDF based on the intermediate json output."""
 import argparse
-import datetime
 import importlib.resources
 import json
 import os
 import tempfile
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import List, Literal, Optional, Union
 
 from dotenv import dotenv_values
@@ -18,6 +18,7 @@ class Detail:
     """A message logged by ``pdf_report.detail``."""
 
     message: str
+    timestamp: float
 
 
 @dataclass
@@ -42,6 +43,7 @@ class Result:
     steps: List[Step] = field(default_factory=list)
     outcome: Literal["passed", "failed", "skipped"] = "failed"
     failure_message: Optional[str] = None
+    duration: float = 0.0
 
 
 def parse(input_data: list) -> List[Result]:
@@ -59,21 +61,25 @@ def parse(input_data: list) -> List[Result]:
             # with the existing Result).
             results.append(Result(nodeid, line["location"][2], ""))
         result = results[-1]
-        for prop in line["user_properties"]:
-            if prop[0] == "pdf_report_data":
-                for msg in prop[1]:
-                    msg_type = msg["$msg_type"]
-                    if msg_type == "step":
-                        details = [Detail(detail["message"]) for detail in msg["details"]]
-                        result.steps.append(Step(msg["message"], details))
-                    elif msg_type == "test_info":
-                        if msg["blurb"]:
-                            result.blurb = msg["blurb"]
-                    else:
-                        raise ValueError(f"Do not know how to parse $msg_type of {msg_type!r}")
+        # The teardown phase has all the log messages, so we ignore the setup and call phases.
+        if line["when"] == "teardown":
+            for prop in line["user_properties"]:
+                if prop[0] == "pdf_report_data":
+                    for msg in prop[1][:]:
+                        msg_type = msg["$msg_type"]
+                        if msg_type == "step":
+                            details = [Detail(detail["message"], detail["timestamp"]) for detail in msg["details"]]
+                            result.steps.append(Step(msg["message"], details))
+                        elif msg_type == "test_info":
+                            if not result.blurb:
+                                result.blurb = msg["blurb"]
+                        else:
+                            raise ValueError(f"Do not know how to parse $msg_type of {msg_type!r}")
         # If teardown fails, the whole test should be seen as failing
         if line["outcome"] != "passed" or line["when"] == "call":
             result.outcome = line["outcome"]
+        # The test duration will be the sum of setup, call and teardown.
+        result.duration += line["duration"]
         try:
             failure_message = line["longrepr"]["reprcrash"]["message"]
         except (KeyError, TypeError):
@@ -116,9 +122,9 @@ def document_from_json(input_data: Union[str, list]) -> Document:
         document_options=["11pt", "english", "twoside"],
         inputenc=None,  # katdoc inputs inputenc with specific options, so prevent a clash
     )
-    date = datetime.date.today()  # TODO: should store inside the JSON
+    today = date.today()  # TODO: should store inside the JSON
     doc.set_variable("theAuthor", config.get("TESTER_NAME", "Unknown"))
-    doc.set_variable("docDate", date.strftime("%d %B %Y"))
+    doc.set_variable("docDate", today.strftime("%d %B %Y"))
     doc.preamble.append(NoEscape(importlib.resources.read_text("pdf_logger", "preamble.tex")))
     doc.append(Command("title", "Integration Test Report"))
     doc.append(Command("makekatdocbeginning"))
@@ -135,12 +141,15 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                             procedure_table.add_hline()
                             for detail in step.details:
                                 # TODO: timestamps for the actual steps.
-                                procedure_table.add_row(["timestamp", detail.message])
+                                procedure_table.add_row(
+                                    [datetime.fromtimestamp(float(detail.timestamp)).strftime("%T.%f"), detail.message]
+                                )
                                 procedure_table.add_hline()
                     procedure.append(bold(f"Test {result.outcome}"))
                     if result.failure_message:
                         with procedure.create(FlushLeft()) as failure_message:
                             failure_message.append(result.failure_message)
+                section.append(f"Test duration: {result.duration} seconds")
 
     return doc
 

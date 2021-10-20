@@ -1,4 +1,5 @@
 # noqa: D100
+from time import sleep
 
 
 def test_channelisation(pdf_report, skarab_dsim_fixture):
@@ -11,10 +12,13 @@ def test_channelisation(pdf_report, skarab_dsim_fixture):
 
     pdf_report.step("Sweep frequencies across that channel and capture heaps.")
     pdf_report.detail("Setting Dsim frequency to 1")
+    sleep(1)
     pdf_report.detail("Heap captured.")
     pdf_report.detail("Setting Dsim frequency to 2")
+    sleep(1)
     pdf_report.detail("Heap captured.")
     pdf_report.detail("Setting Dsim frequency to 3")
+    sleep(1)
     pdf_report.detail("Heap captured.")
 
     pdf_report.step("Check peak is in centre of the channel.")
@@ -33,12 +37,16 @@ def test_delay_tracking(pdf_report, skarab_dsim_fixture):
     """
     pdf_report.step("Set delay model on Antenna 1")
     pdf_report.detail("Setting delay model on antenna 1")
+    sleep(1)
     assert 1 <= 1.2, "Delay model not correctly configured."
     pdf_report.detail("Antenna 1 delay model confirmed as 345.")
 
     pdf_report.step("Capture 3 heaps, compare the phase, check for within spec.")
+    sleep(1)
     pdf_report.detail("Captured heap 1")
+    sleep(1)
     pdf_report.detail("Captured heap 2")
+    sleep(1)
     pdf_report.detail("Captured heap 3")
     a = 2
     b = 1
@@ -53,6 +61,7 @@ def test_baselines(pdf_report, skarab_dsim_fixture):
     Fulfils another requirement.
     """
     pdf_report.step("Set something.")
+    sleep(1)
     pdf_report.detail("Checking that something is set.")
     pdf_report.detail("Confirmed, something is set properly.")
     # Test a bare assert without a message

@@ -3,7 +3,7 @@
 Commented out functions are there to remind me that the hooks exist, in case I
 should need them in future tinkerings.
 """
-
+import time
 from typing import Optional
 
 import pytest
@@ -25,7 +25,7 @@ class Reporter:
         """Report a low-level detail, associated with the previous call to :meth:`step`."""
         if self._cur_step is None:
             raise ValueError("Cannot have detail without a current step")
-        self._cur_step.append({"$msg_type": "detail", "message": message})
+        self._cur_step.append({"$msg_type": "detail", "message": message, "timestamp": time.time()})
 
 
 @pytest.fixture
@@ -40,7 +40,9 @@ def pdf_report(request) -> Reporter:
 def skarab_dsim_fixture(pdf_report):
     """SKARAB DSim."""
     pdf_report.step("Setting up SKARAB Dsim")
+    time.sleep(0.7)
     pdf_report.detail("skarab020406, firmware 0.1")
     yield "SKARAB DSIM"
     pdf_report.step("Tearing down SKARAB dsim.")
+    time.sleep(0.3)
     pdf_report.detail("DSim teardown finished.")
