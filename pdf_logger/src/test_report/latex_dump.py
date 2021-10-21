@@ -10,6 +10,7 @@ from typing import List, Literal, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import tikzplotlib
 from dotenv import dotenv_values
 from pylatex import (
     Command,
@@ -36,7 +37,7 @@ class Detail:
 
 @dataclass
 class Plot:
-    """A plot requested by ``pdf_report.detail``.
+    """A plot requested by ``pdf_report.plot``.
 
     This class does the drawing, given the details.
     """
@@ -62,8 +63,6 @@ class Plot:
         plt.ylabel(self.ylabel)
         plt.legend()
         plt.grid(True)
-        import tikzplotlib
-
         tikzplotlib.clean_figure()
         return tikzplotlib.get_tikz_code(table_row_sep=r"\\")
 
@@ -198,7 +197,7 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     today = date.today()  # TODO: should store inside the JSON
     doc.set_variable("theAuthor", config.get("TESTER_NAME", "Unknown"))
     doc.set_variable("docDate", today.strftime("%d %B %Y"))
-    doc.preamble.append(NoEscape(importlib.resources.read_text("pdf_logger", "preamble.tex")))
+    doc.preamble.append(NoEscape(importlib.resources.read_text("test_report", "preamble.tex")))
     doc.append(Command("title", "Integration Test Report"))
     doc.append(Command("makekatdocbeginning"))
 
@@ -253,7 +252,7 @@ def main():
     if args.pdf.endswith(".pdf"):
         args.pdf = args.pdf[:-4]  # Strip .pdf suffix, because generate_pdf appends it
     with tempfile.NamedTemporaryFile(mode="w", prefix="latexmkrc") as latexmkrc:
-        with importlib.resources.path("pdf_logger", "katdoc.sty") as katdoc_sty_path:
+        with importlib.resources.path("test_report", "katdoc.sty") as katdoc_sty_path:
             # TODO: latexmk uses Perl, which has different string parsing to
             # Python. If the path contains both a single quote and a special
             # symbol it will not produce a valid Perl string.

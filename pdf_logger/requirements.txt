@@ -1,5 +1,0 @@
-matplotlib
-numpy
-pylatex
-python-dotenv
-tikzplotlib
