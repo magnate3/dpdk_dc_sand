@@ -1,4 +1,4 @@
-"""Generate a PDF based on the intermediate json output."""
+"""Generate a PDF based on the intermediate JSON output."""
 import argparse
 import importlib.resources
 import json
@@ -23,6 +23,7 @@ from pylatex import (
     Section,
     Subsection,
     Subsubsection,
+    TextColor,
 )
 from pylatex.labelref import Hyperref
 from pylatex.utils import bold
@@ -207,7 +208,10 @@ def document_from_json(input_data: Union[str, list]) -> Document:
             summary_table.add_hline()
             for result in results:
                 summary_table.add_row(
-                    [Hyperref(f"subsec:{result.name.replace('_', '')}", fix_test_name(result.name)), result.outcome]
+                    [
+                        Hyperref(f"subsec:{result.name.replace('_', '')}", fix_test_name(result.name)),
+                        TextColor("green" if result.outcome == "passed" else "red", result.outcome),
+                    ]
                 )
                 summary_table.add_hline()
 
