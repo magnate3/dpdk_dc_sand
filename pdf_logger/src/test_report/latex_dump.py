@@ -219,9 +219,11 @@ def document_from_json(input_data: Union[str, list]) -> Document:
         for result in results:
             with section.create(Subsection(fix_test_name(result.name), label=result.name)):
                 section.append(result.blurb)
-                with section.create(Subsubsection("Summary", label=False)) as summary:
-                    summary.append(bold(f"Test {result.outcome}\n\n"))
-                    summary.append(f"Test duration: {result.duration:.3f} seconds\n")  # TODO: handle minutes / hours
+                section.append("\nOutcome: ")
+                section.append(TextColor("green" if result.outcome == "passed" else "red", result.outcome.upper()))
+                section.append(Command("hspace", "1cm"))
+                section.append(f"Duration: {result.duration:.3f} seconds\n")
+                # TODO: handle minutes / hours
                 with section.create(Subsubsection("Procedure", label=False)) as procedure:
                     with section.create(LongTable(r"|l|p{0.7\linewidth}|")) as procedure_table:
                         for step in result.steps:
