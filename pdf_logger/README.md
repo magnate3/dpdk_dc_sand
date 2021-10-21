@@ -21,7 +21,7 @@ Guiding principles:
 - Install the package.
 - Run `pytest --report-log=report.json` (note that there will be test failures:
   that is by design).
-- Run `pdf_logger_report report.json report.pdf`.
+- Run `generate_pdf_test_report report.json report.pdf`.
 - View `report.pdf`.
 
 

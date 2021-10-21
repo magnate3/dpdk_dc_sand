@@ -24,6 +24,7 @@ from pylatex import (
     Subsection,
     Subsubsection,
 )
+from pylatex.labelref import Hyperref
 from pylatex.utils import bold
 
 
@@ -53,7 +54,7 @@ class Plot:
     def get_pgf_str(self) -> str:
         """Output the PGF-plots string for the data represented here."""
         plt.style.use("ggplot")
-        if self.yaxis.shape[0] > 1:
+        if self.yaxis.ndim > 1:
             for yaxis, legend_label in zip(self.yaxis, self.legend_labels):
                 plt.plot(self.xaxis, yaxis, label=legend_label)
         else:
@@ -205,12 +206,14 @@ def document_from_json(input_data: Union[str, list]) -> Document:
         with summary_section.create(LongTable(r"|r|l|")) as summary_table:
             summary_table.add_hline()
             for result in results:
-                summary_table.add_row([fix_test_name(result.name), result.outcome])
+                summary_table.add_row(
+                    [Hyperref(f"subsec:{result.name.replace('_', '')}", fix_test_name(result.name)), result.outcome]
+                )
                 summary_table.add_hline()
 
     with doc.create(Section("Detailed Test Results")) as section:
         for result in results:
-            with section.create(Subsection(fix_test_name(result.name))):
+            with section.create(Subsection(fix_test_name(result.name), label=result.name)):
                 section.append(result.blurb)
                 with section.create(Subsubsection("Summary", label=False)) as summary:
                     summary.append(bold(f"Test {result.outcome}\n\n"))
