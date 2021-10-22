@@ -129,6 +129,9 @@ def parse(input_data: list) -> List[Result]:
                     for msg in prop[1][:]:
                         msg_type = msg["$msg_type"]
                         if msg_type == "step":
+                            # I realise that the extended conditional expression in the list
+                            # comprehension here is starting to verge on inelegant, but it
+                            # works well enough without having to have much more verbose code.
                             details = [
                                 Detail(detail["message"], detail["timestamp"])
                                 if detail["$msg_type"] == "detail"
@@ -140,6 +143,8 @@ def parse(input_data: list) -> List[Result]:
                                     detail["ylabel"],
                                     detail["legend_labels"],
                                 )
+                                if ["$msg_type"] == "plot"
+                                else Detail("", 0)  # Blank catch-all.
                                 for detail in msg["details"]
                             ]
                             result.steps.append(Step(msg["message"], details))
