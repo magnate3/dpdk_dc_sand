@@ -31,7 +31,14 @@ def test_channelisation(pdf_report, skarab_dsim_fixture):
     rng = default_rng(1)
     actual = desired - rng.standard_normal(size=desired.shape) * 0.05
     caption = "A plot to show you what we mean."
-    pdf_report.plot(xaxis, [desired, actual], caption, "Frequency [MHz]", "Magnitude [linear]", ["desired", "actual"])
+    pdf_report.plot(
+        xaxis,
+        [desired, actual],
+        caption=caption,
+        xlabel="Frequency [MHz]",
+        ylabel="Magnitude [linear]",
+        legend_labels=["desired", "actual"],
+    )
 
     assert 1 in [1, 2, 3], "Assertion not true!"
     pdf_report.detail("Plot shown.")

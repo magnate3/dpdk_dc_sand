@@ -7,6 +7,7 @@ import time
 from typing import List, Optional, Union
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 
@@ -30,24 +31,58 @@ class Reporter:
 
     def plot(
         self,
-        x: np.ndarray,
-        y: Union[np.ndarray, List[np.ndarray]],
-        caption: str,
-        xlabel: str = "",
-        ylabel: str = "",
-        legend_labels: Union[str, List[str]] = "",
+        x: npt.ArrayLike,
+        y: npt.ArrayLike,
+        *,
+        caption: Optional[str] = "",
+        xlabel: Optional[str] = "",
+        ylabel: Optional[str] = "",
+        legend_labels: Optional[Union[str, List[str]]] = "",
     ) -> None:
-        """Stick a plot in the report."""
+        """Capture numerical data for plotting.
+
+        Parameters
+        ----------
+        x
+            X-data for plotting. Must be one-dimensional.
+        y
+            Y-data for plotting. Can be up to two-dimensional, but the length
+            of the second dimension must agree with the length of `x`.
+        caption
+            Title for the graph.
+        xlabel
+            Label for the X-axis.
+        ylabel
+            Label for the Y-axis.
+        legend_labels
+            Legend labels for the various sets of data plotted. Optional only
+            in single-dimension plots, if a 2D `y` is given, a list of labels
+            must be passed.
+
+        Raises
+        ------
+        ValueError
+            If called before :func:`Report.step`, as the plot must be associated
+            with a step in the test procedure.
+        """
+        # Coerce to np.ndarray for data validation.
+        x, y = np.array(x), np.array(y)
+
+        # I must admit that I'm nervous about using `assert` for this but I
+        # guess that we're unlikely ever to run a test suite with `-O`.
+        assert x.ndim == 1, f"x has {x.ndim} dimensions, expected 1!"
+        assert y.ndim <= 2, "Can't have y with more than 2 dimensions!"
+        assert x.size == y.shape[-1], "x and y must have same length for plotting!"
+        assert len(legend_labels) == y.shape[0] if y.ndim > 1 else True, "If y is 2-dimensional, we need legend labels."
+
+        # Moving swiftly along.
         if self._cur_step is None:
             raise ValueError("Cannot have a plot without a current step")
-        if isinstance(y, list):
-            y = [array.tolist() for array in y]
-        else:
-            y = y.tolist()
+
         self._cur_step.append(
             {
                 "$msg_type": "plot",
-                "y": y,
+                "y": y.tolist(),
                 "x": x.tolist(),
                 "caption": caption,
                 "xlabel": xlabel,
