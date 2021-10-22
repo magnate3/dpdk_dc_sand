@@ -11,12 +11,11 @@ from casperfpga.skarab_definitions import SkarabProgrammingError
 from casperfpga.skarab_fileops import FpgProcessor
 from casperfpga.transport_skarab import SkarabTransport
 
+from .dsim_abstract import AbstractDsim
 from .utils import StreamAddress, get_prefixed_name, parse_config_file, remove_nones
 
-# import subprocess
-
 # for DM in [pc cm ^{ -3}] , time in [s] , and frequency in [Hz]
-alpha = 2.410e-16
+ALPHA = 2.410e-16
 
 # region --- Signal Sources ---
 
@@ -195,29 +194,29 @@ class Output(object):
         self.scale_register.write(scale=scale)
 
 
-class FpgaDsimHost(CasperFpga):
+class SkarabDsim(AbstractDsim, CasperFpga):
     """
     An FpgaHost that acts as a Digitiser unit.
 
-    :param host:
+    TODO: It's quite likely this 'double-inheritance' is overcomplicating things...
+
+    Parameters
+    ----------
+    host
         Hostname or IP address of SKARAB to program as a DSim.
-    :param katcp_port:
+    katcp_port
         Port on which SKARAB receives communications - defaults to 7147.
-    :param fpgfilename:
+    fpgfilename
         Name of fpg file to program.
-    :param config_file:
+    config_file
         config.ini file to parse for DSim configuration details.
-    :param config_dict:
+    config_dict
         Config dict that might already be parsed - would certainly save us some time/memory.
         - If present, will override the presence of a config_file.
     """
 
     def __init__(self, host, katcp_port=7147, fpgfilename=None, config_file=None, config_dict=None):
-        super().__init__(host=host, katcp_port=katcp_port, transport=SkarabTransport)
-
-        # Just adding it to test type-hinting
-        self.transport: SkarabTransport
-
+        # TODO: Error-check host and port before initialising super's
         self.config_dict = None
         if config_dict is not None:
             # But how do we confirm this is the dsimengine section of the Config file?
@@ -227,6 +226,15 @@ class FpgaDsimHost(CasperFpga):
         # Although can't we get the fpg file from the config?
         # self.fpgfilename = self.config_dict['bistream']
         self.fpgfilename = fpgfilename
+
+        # super().__init__(host, katcp_port, transport=SkarabTransport,
+        #                   adc_sample_rate=self.config_dict["sample_rate_hz"])
+        CasperFpga.__init__(self, host, katcp_port, transport=SkarabTransport)
+        AbstractDsim.__init__(self, host, katcp_port, self.config_dict["sample_rate_hz"])
+
+        # Just adding it to test type-hinting
+        self.transport: SkarabTransport
+        self.registers: AttributeContainer
 
         self.sine_sources = AttributeContainer()
         self.noise_sources = AttributeContainer()
@@ -242,12 +250,12 @@ class FpgaDsimHost(CasperFpga):
         self.noise_sources.clear()
         self.outputs.clear()
 
-        for reg in self.registers:
-            sin_name = get_prefixed_name("freq_cwg", reg.name)
-            noise_name = get_prefixed_name("scale_wng", reg.name)
-            output_scale_name = get_prefixed_name("scale_out", reg.name)
+        for reg_name in self.registers.names():
+            sin_name = get_prefixed_name("freq_cwg", reg_name)
+            noise_name = get_prefixed_name("scale_wng", reg_name)
+            output_scale_name = get_prefixed_name("scale_out", reg_name)
             if sin_name is not None:
-                scale_reg_postfix = "_" + sin_name if reg.name.endswith("_" + sin_name) else sin_name
+                scale_reg_postfix = "_" + sin_name if reg_name.endswith("_" + sin_name) else sin_name
                 scale_reg = getattr(self.registers, "scale_cwg" + scale_reg_postfix)
 
                 repeat_en_reg_name = "rpt_en_cwg" + scale_reg_postfix
@@ -261,7 +269,7 @@ class FpgaDsimHost(CasperFpga):
                     self.sine_sources,
                     "sin_" + sin_name,
                     SineSource(
-                        reg,
+                        self.registers[reg_name],
                         scale_reg,
                         sin_name,
                         repeat_len_register=repeat_len_reg,
@@ -270,13 +278,15 @@ class FpgaDsimHost(CasperFpga):
                     ),
                 )
             elif noise_name is not None:
-                setattr(self.noise_sources, "noise_" + noise_name, NoiseSource(reg, noise_name))
+                setattr(self.noise_sources, "noise_" + noise_name, NoiseSource(self.registers[reg_name], noise_name))
             elif output_scale_name is not None:
                 # TODO TEMP hack due to misnamed register
                 if output_scale_name.startswith("arb"):
                     continue
                 setattr(
-                    self.outputs, "out_" + output_scale_name, Output(output_scale_name, reg, self.registers.control)
+                    self.outputs,
+                    "out_" + output_scale_name,
+                    Output(output_scale_name, self.registers[reg_name], self.registers.control),
                 )
 
     def initialise(self) -> None:
@@ -298,7 +308,7 @@ class FpgaDsimHost(CasperFpga):
 
         # Set digitizer polarisation IDs, 0 - h, 1 - v
         self.registers.receptor_id.write(pol0_id=0, pol1_id=1)
-        self.data_resync()
+        self.resync()
 
         # Default to generating test-vectors
         for output in self.outputs:
@@ -308,7 +318,7 @@ class FpgaDsimHost(CasperFpga):
         """Reset DSim."""
         self.registers.control.write(mrst="pulse")
 
-    def data_resync(self) -> None:
+    def resync(self) -> None:
         """Start the local timer on the test d-engine - mrst, then a fake sync."""
         self.reset()
         self.registers.control.write(msync="pulse")
@@ -456,5 +466,32 @@ class FpgaDsimHost(CasperFpga):
 
         self.registers.control.write(gbe_rst=False)
 
+    def get_dsim_status(self) -> None:
+        """Get the status of this SKARAB DSim.
 
-# end
+        Currently just relies on the 40GbE Tx counter ticking over (to indicate data is flowing).
+
+        TODO: Return something more useful to the caller.
+        """
+        errmsg = "function is broken! Missing register: forty_gbe_txctr"
+        assert hasattr(self.registers, "forty_gbe_txctr"), errmsg
+        before = self.registers.forty_gbe_txctr.read()["data"]["reg"]
+        sleep(0.5)
+        after = self.registers.forty_gbe_txctr.read()["data"]["reg"]
+
+        if before == after:
+            self.logger.info("Digitiser tx raw data failed.")
+        else:
+            self.logger.info("Digitiser tx raw data success.")
+
+    def shutdown(self) -> bool:
+        """Halt the SKARAB DSim's operation.
+
+        Stops data Tx and then deprograms the board.
+        """
+        self.enable_data_output(enabled=False)
+
+        self.deprogram()
+
+        # ?
+        return True

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 """Script to launch and control a SKARAB Dsim."""
 
 import argparse
@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-from dsim.dsim_skarab import FpgaDsimHost
+from dsim.dsim_skarab import SkarabDsim
 from dsim.utils import parse_config_file
 
 parser = argparse.ArgumentParser(
@@ -125,7 +125,7 @@ try:
     if args.fpgfilename:
         print("Starting Digitiser with fpgfilename: {}".format(args.fpgfilename))
 
-    dfpga = FpgaDsimHost(dsim_config_dict["host"], fpgfilename=args.fpgfilename, config_dict=dsim_config_dict)
+    dfpga = SkarabDsim(dsim_config_dict["host"], fpgfilename=args.fpgfilename, config_dict=dsim_config_dict)
     try:
         import logging  # noqa: F401
 
@@ -167,7 +167,7 @@ if args.deprogram:
     print("Deprogrammed {}.".format(dfpga.host))
 
 if args.resync:
-    dfpga.data_resync()
+    dfpga.resync()
     sync_epoch = time.time()
     something_happened = True
     print("Reset digitiser timer and sync timer: {}".format(sync_epoch))
