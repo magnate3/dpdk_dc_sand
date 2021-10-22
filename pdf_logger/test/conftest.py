@@ -30,8 +30,8 @@ class Reporter:
 
     def plot(
         self,
-        xaxis: np.ndarray,
-        yaxis: Union[np.ndarray, List[np.ndarray]],
+        x: np.ndarray,
+        y: Union[np.ndarray, List[np.ndarray]],
         caption: str,
         xlabel: str = "",
         ylabel: str = "",
@@ -40,15 +40,15 @@ class Reporter:
         """Stick a plot in the report."""
         if self._cur_step is None:
             raise ValueError("Cannot have a plot without a current step")
-        if isinstance(yaxis, list):
-            yaxis = [array.tolist() for array in yaxis]
+        if isinstance(y, list):
+            y = [array.tolist() for array in y]
         else:
-            yaxis = yaxis.tolist()
+            y = y.tolist()
         self._cur_step.append(
             {
                 "$msg_type": "plot",
-                "yaxis": yaxis,
-                "xaxis": xaxis.tolist(),
+                "y": y,
+                "x": x.tolist(),
                 "caption": caption,
                 "xlabel": xlabel,
                 "ylabel": ylabel,
@@ -60,7 +60,7 @@ class Reporter:
 @pytest.fixture
 def pdf_report(request) -> Reporter:
     """Fixture for logging steps in a test."""
-    data = [{"$msg_type": "test_info", "blurb": request.node.function.__doc__}]
+    data = [{"$msg_type": "test_info", "blurb": request.node.function.__doc__, "test_start": time.time()}]
     request.node.user_properties.append(("pdf_report_data", data))
     return Reporter(data)
 

@@ -45,8 +45,8 @@ class Plot:
     """
 
     #: The X-axis.
-    xaxis: np.ndarray
-    yaxis: np.ndarray
+    x: np.ndarray
+    y: np.ndarray
     caption: str
     xlabel: str
     ylabel: str
@@ -55,11 +55,11 @@ class Plot:
     def get_pgf_str(self) -> str:
         """Output the PGF-plots string for the data represented here."""
         plt.style.use("ggplot")
-        if self.yaxis.ndim > 1:
-            for yaxis, legend_label in zip(self.yaxis, self.legend_labels):
-                plt.plot(self.xaxis, yaxis, label=legend_label)
+        if self.y.ndim > 1:
+            for y, legend_label in zip(self.y, self.legend_labels):
+                plt.plot(self.x, y, label=legend_label)
         else:
-            plt.plot(self.xaxis, self.yaxis, label=self.legend_labels)
+            plt.plot(self.x, self.y, label=self.legend_labels)
         plt.title(self.caption)
         plt.xlabel(self.xlabel)
         plt.ylabel(self.ylabel)
@@ -91,6 +91,7 @@ class Result:
     steps: List[Step] = field(default_factory=list)
     outcome: Literal["passed", "failed", "skipped"] = "failed"
     failure_message: Optional[str] = None
+    start_time: Optional[float] = None
     duration: float = 0.0
 
 
@@ -129,8 +130,8 @@ def parse(input_data: list) -> List[Result]:
                                 Detail(detail["message"], detail["timestamp"])
                                 if detail["$msg_type"] == "detail"
                                 else Plot(
-                                    np.array(detail["xaxis"]),
-                                    np.array(detail["yaxis"]),
+                                    np.array(detail["x"]),
+                                    np.array(detail["y"]),
                                     detail["caption"],
                                     detail["xlabel"],
                                     detail["ylabel"],
@@ -142,6 +143,8 @@ def parse(input_data: list) -> List[Result]:
                         elif msg_type == "test_info":
                             if not result.blurb:
                                 result.blurb = msg["blurb"]
+                            if result.start_time is None:
+                                result.start_time = float(msg["test_start"])
                         else:
                             raise ValueError(f"Do not know how to parse $msg_type of {msg_type!r}")
         # If teardown fails, the whole test should be seen as failing
@@ -222,6 +225,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                 section.append("\nOutcome: ")
                 section.append(TextColor("green" if result.outcome == "passed" else "red", result.outcome.upper()))
                 section.append(Command("hspace", "1cm"))
+                section.append(f"Test start time: {datetime.fromtimestamp(float(result.start_time)).strftime('%T')}")
+                section.append(Command("hspace", "1cm"))
                 section.append(f"Duration: {result.duration:.3f} seconds\n")
                 # TODO: handle minutes / hours
                 with section.create(Subsubsection("Procedure", label=False)) as procedure:
@@ -234,7 +239,7 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                 if isinstance(detail, Detail):
                                     procedure_table.add_row(
                                         [
-                                            datetime.fromtimestamp(float(detail.timestamp)).strftime("%T.%f"),
+                                            f"{(detail.timestamp - result.start_time):.3f}",
                                             detail.message,
                                         ]
                                     )
