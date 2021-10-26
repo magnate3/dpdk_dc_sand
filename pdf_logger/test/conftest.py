@@ -66,7 +66,8 @@ class Reporter:
             with a step in the test procedure.
         """
         # Coerce to np.ndarray for data validation.
-        x, y = np.array(x), np.array(y)
+        x = np.asarray(x)
+        y = np.asarray(y)
 
         # I must admit that I'm nervous about using `assert` for this but I
         # guess that we're unlikely ever to run a test suite with `-O`.
