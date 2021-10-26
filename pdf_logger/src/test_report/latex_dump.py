@@ -219,6 +219,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
             summary_table.add_hline()
             for result in results:
                 summary_table.add_row(
+                    # PyLatex strips (among other things) underscores from label names, apparently they're dangerous.
+                    # See: https://jeltef.github.io/PyLaTeX/latest/pylatex/pylatex.labelref.html#pylatex.labelref.Marker
                     [
                         Hyperref(f"subsec:{result.name.replace('_', '')}", fix_test_name(result.name)),
                         TextColor("green" if result.outcome == "passed" else "red", result.outcome),
