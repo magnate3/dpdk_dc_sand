@@ -54,20 +54,20 @@ class Plot:
 
     def get_pgf_str(self) -> str:
         """Output the PGF-plots string for the data represented here."""
-        plt.style.use("ggplot")
-        fig, ax = plt.subplots()
-        if self.y.ndim > 1:
-            for y, legend_label in zip(self.y, self.legend_labels):
-                ax.plot(self.x, y, label=legend_label)
-        else:
-            ax.plot(self.x, self.y, label=self.legend_labels)
-        ax.set(
-            title=self.caption,
-            xlabel=self.xlabel,
-            ylabel=self.ylabel,
-        )
-        ax.legend()
-        ax.grid()
+        with plt.style.context("ggplot"):
+            fig, ax = plt.subplots()
+            if self.y.ndim > 1:
+                for y, legend_label in zip(self.y, self.legend_labels):
+                    ax.plot(self.x, y, label=legend_label)
+            else:
+                ax.plot(self.x, self.y, label=self.legend_labels)
+            ax.set(
+                title=self.caption,
+                xlabel=self.xlabel,
+                ylabel=self.ylabel,
+            )
+            ax.legend()
+            ax.grid()
         tikzplotlib.clean_figure(fig)
         return tikzplotlib.get_tikz_code(fig, table_row_sep=r"\\")
 
