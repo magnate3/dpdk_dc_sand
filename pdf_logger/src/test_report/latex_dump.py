@@ -143,7 +143,7 @@ def parse(input_data: list) -> List[Result]:
                                     detail["ylabel"],
                                     detail["legend_labels"],
                                 )
-                                if ["$msg_type"] == "plot"
+                                if detail["$msg_type"] == "plot"
                                 else Detail("", 0)  # Blank catch-all.
                                 for detail in msg["details"]
                             ]
