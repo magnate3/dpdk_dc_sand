@@ -9,10 +9,15 @@ passed to the kernel in a single array.
 
 from beamform_reorder import prebeamform_reorder
 from beamforming import matrix_multiply
+from beamform_coeffs import beamform_coeffs
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 from unit_test import coeff_generator
+import numpy as np
+import time
 
+# Temp - for testing
+from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
 
 class BeamformSeqTemplate:
     """
@@ -65,6 +70,10 @@ class BeamformSeqTemplate:
         n_samples_per_channel: int,
         n_batches: int,
         test_id,
+        n_beams,
+        current_time,
+        ref_time,
+        delay,
     ) -> None:
         """Initialise the BeamformSeqTemplate class."""
         self.preBeamformReorder = prebeamform_reorder.PreBeamformReorderTemplate(
@@ -72,6 +81,10 @@ class BeamformSeqTemplate:
         )
         self.beamformMult = matrix_multiply.MatrixMultiplyTemplate(
             context, n_ants, n_channels, n_samples_per_channel, n_batches, test_id
+        )
+        # Beamformer coefficient generator. This requires time and delay values.
+        self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(
+            context, current_time, ref_time, delay, n_beams, n_ants, n_channels
         )
 
     def instantiate(self, queue, test_id):
@@ -100,13 +113,21 @@ class OpSequence(accel.OperationSequence):
         """Initialise the OpSequence class."""
         self.prebeamformReorder = template.preBeamformReorder.instantiate(queue)
         self.beamformMult = template.beamformMult.instantiate(queue, test_id)
+        # self.beamformCoeffs = template.beamformCoeffs.instantiate(queue)
         operations = [("reorder", self.prebeamformReorder), ("beamformMult", self.beamformMult)]
+        # operations = [("reorder", self.prebeamformReorder), ("coeffs", self.beamformCoeffs), ("beamformMult", self.beamformMult)]
         compounds = {
             "coeff_bufin": ["beamformMult:inCoeffs"],
             "bufin": ["reorder:inSamples"],
             "bufint": ["reorder:outReordered", "beamformMult:inData"],
             "bufout": ["beamformMult:outData"],
         }
+        # compounds = {
+        #     "bufin": ["reorder:inSamples"],
+        #     "coeff_bufin": ["coeffs:OutCoeffs", "beamformMult:inCoeffs"],
+        #     "bufint": ["reorder:outReordered", "beamformMult:inData"],
+        #     "bufout": ["beamformMult:outData"],
+        # }
         super().__init__(queue, operations, compounds)
         self.template = template
 
@@ -127,6 +148,7 @@ if __name__ == "__main__":
     # Reorder Specs
     batches = 3
     n_ants = 4
+    n_beams = 4
     num_channels = 1024
     num_samples_per_channel = 256
     pols = 2
@@ -134,21 +156,44 @@ if __name__ == "__main__":
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
 
+    sample_period = 1e-7
+    NumDelayVals = n_ants*n_beams
+
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
     # Options:  'sgemm' for cublas matrix mult
     #           'kernel' for numba-based complex multiplication kernel
     test_id = "kernel"
 
     # Generate coefficients
+    # Temporary: Create a delay_vals list
+    ref_time = time.time_ns()
+    current_time = time.time_ns()
+
+    fDelay_s = []
+    fDelayRate_sps = []
+    fPhase_rad = []
+    fPhaseRate_radps = []
+
+    for i in range(NumDelayVals):
+        fDelay_s.append((i/NumDelayVals)*sample_period/3.0)
+        fDelayRate_sps.append(2e-6)
+        fPhase_rad.append(1-(i/NumDelayVals)*sample_period/3.0)
+        fPhaseRate_radps.append(3e-6)
+    delay_vals = np.array([fDelay_s, fDelayRate_sps, fPhase_rad, fPhaseRate_radps])
+
+
+    # Temp so code will run
     coeff_gen = coeff_generator.CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
     if test_id == "kernel":
         coeffs = coeff_gen.GPU_Coeffs_kernel()
     elif test_id == "sgemm":
         coeffs = coeff_gen.GPU_Coeffs_cublas
 
+    beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals)
+
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
     queue = ctx.create_command_queue()
-    op_template = BeamformSeqTemplate(ctx, n_ants, n_channels_per_stream, num_samples_per_channel, batches, test_id)
+    op_template = BeamformSeqTemplate(ctx, n_ants, n_channels_per_stream, num_samples_per_channel, batches, test_id, n_beams, current_time, ref_time, delay_vals)
     op = op_template.instantiate(queue, test_id)
     op.ensure_all_bound()
 
@@ -178,7 +223,7 @@ if __name__ == "__main__":
     bufout_device.get(queue, host_out)
 
     # Debug: Print out all the entries to verify values
-    print_debug(host_out)
+    # print_debug(host_out)
 
     # Visualise the operation (Just for interest)
     accel.visualize_operation(op, "test_op_vis")
