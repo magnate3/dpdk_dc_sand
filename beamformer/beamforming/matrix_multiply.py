@@ -63,6 +63,7 @@ class MatrixMultiplyTemplate:
         n_ants: int,
         n_channels: int,
         n_samples_per_channel: int,
+        n_beams: int,
         batches: int,
         test_id,
     ) -> None:
@@ -74,6 +75,7 @@ class MatrixMultiplyTemplate:
         self._sample_bitwidth = 8
         self.n_pols = 2  # Hardcoded to 2. No other values are supported
         self.complexity = 2
+        self.beams = n_beams
         self.test_id = test_id
 
         # This 128 is hardcoded in the original tensor core kernel. Likely to do with optimum thread-block size.
@@ -102,14 +104,21 @@ class MatrixMultiplyTemplate:
         )
 
         if test_id == "kernel":
+            # self.coeff_data_dimensions = (
+            #     accel.Dimension(self.batches, exact=True),
+            #     accel.Dimension(self.n_pols, exact=True),
+            #     accel.Dimension(self.n_channels, exact=True),
+            #     accel.Dimension(self.n_blocks, exact=True),
+            #     accel.Dimension(self.n_samples_per_block, exact=True),
+            #     accel.Dimension(self.complexity, exact=True),
+            #     accel.Dimension(self.n_ants * 2, exact=True),
+            # )
             self.coeff_data_dimensions = (
                 accel.Dimension(self.batches, exact=True),
                 accel.Dimension(self.n_pols, exact=True),
                 accel.Dimension(self.n_channels, exact=True),
-                accel.Dimension(self.n_blocks, exact=True),
-                accel.Dimension(self.n_samples_per_block, exact=True),
-                accel.Dimension(self.complexity, exact=True),
                 accel.Dimension(self.n_ants * 2, exact=True),
+                accel.Dimension(self.beams * 2, exact=True),
             )
         elif test_id == "sgemm":
             self.coeff_data_dimensions = (

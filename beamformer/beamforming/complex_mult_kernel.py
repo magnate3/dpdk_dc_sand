@@ -39,6 +39,7 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     data and the coefficients used are complex valued requiring a complex multiplication.
     To utilise standard matrix mutliplication the coefficient matrix is constructed as detailed above.
     """
+    debug_thread_idx = 4095
     # # Compute flattened index inside the array
     iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
@@ -47,25 +48,78 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     blocks = data_matrix.shape[3]
     samples_per_block = data_matrix.shape[4]
     ants = data_matrix.shape[5]
+    n_beams = 8
 
+    # Compute data matrix index
     iBatchIndex = iThreadIndex_x // (pols * n_channel * blocks * samples_per_block)
     iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block)
+    if iThreadIndex_x == debug_thread_idx:
+        print('iThreadIndex_x', iThreadIndex_x)
+        print('iBatchIndex:', iBatchIndex)
+        print('iRemIndex:', iRemIndex)
 
     iPolIndex = iRemIndex // (n_channel * blocks * samples_per_block)
     iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block)
+    if iThreadIndex_x == debug_thread_idx:
+        print('iPolIndex', iPolIndex)
+        print('iRemIndex', iRemIndex)
 
     iChanIndex = iRemIndex // (blocks * samples_per_block)
     iRemIndex = iRemIndex % (blocks * samples_per_block)
 
+    if iThreadIndex_x == debug_thread_idx:
+        print('iChanIndex', iChanIndex)
+        print('iRemIndex', iRemIndex)
+
     iBlockIndex = iRemIndex // (samples_per_block)
     iRemIndex = iRemIndex % (samples_per_block)
-
     iSamplePerBlockIndex = iRemIndex
+
+    if iThreadIndex_x == debug_thread_idx:
+        print('iBlockIndex', iBlockIndex)
+        print('iRemIndex', iRemIndex)
+        print('iSamplePerBlockIndex', iSamplePerBlockIndex)
+
+    # Compute Coeff matrix index
+    iBatchIndex = iThreadIndex_x // (pols*n_channel*n_beams*2*ants*2)
+    iBatchIndex_rem = iThreadIndex_x % (pols*n_channel*n_beams*2*ants*2)
+
+    iPolIndex = iBatchIndex_rem // (n_channel*n_beams*2 * ants*2)
+    iPolIndex_rem = iBatchIndex_rem % (n_channel*n_beams*2 * ants*2)
+
+    iChannelIndex = iPolIndex_rem // (n_beams*2*ants*2)
+    iChannelIndex_rem = iPolIndex_rem % (n_beams*2*ants*2)
+
+    iAntIndex = iChannelIndex_rem // (n_beams*2*2)
+    iAntIndex_rem = iChannelIndex_rem % (n_beams*2*2)
+
+    iAntMatrix = iAntIndex*2
+
+    iBeamIndex = iAntIndex_rem//(2*2)
+    iBeamMatrix = iBeamIndex*2
+
+    if iThreadIndex_x == debug_thread_idx:
+        print('Coeff Index:')
+        print('iThreadIndex_x', iThreadIndex_x)
+        print('iBatchIndex', iBatchIndex)
+        print('iBatchIndex_rem', iBatchIndex_rem)
+        print('iPolIndex', iPolIndex)
+        print('iPolIndex_rem', iPolIndex_rem)
+        print('iChannelIndex:', iChannelIndex)
+        print('iChannelIndex_rem:', iChannelIndex_rem)
+        print('iAntIndex:', iAntIndex)
+        print('iAntIndex_rem:', iAntIndex_rem)
+        print('iBeamIndex:', iBeamIndex)
+        print('iAntMatrix', iAntMatrix)
+        print('iBeamMatrix', iBeamMatrix)
+
+
 
     for col in range(2):
         tmp = float32(0)
         for ant in range(ants):
-            coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col][ant]
+            # coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col][ant]
+            coeff = coeff_matrix[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix]
             data = data_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][ant]
 
             tmp += data * coeff

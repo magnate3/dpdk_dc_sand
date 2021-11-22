@@ -80,7 +80,7 @@ class BeamformSeqTemplate:
             context, n_ants, n_channels, n_samples_per_channel, n_batches
         )
         self.beamformMult = matrix_multiply.MatrixMultiplyTemplate(
-            context, n_ants, n_channels, n_samples_per_channel, n_batches, test_id
+            context, n_ants, n_channels, n_samples_per_channel, n_beams, n_batches, test_id
         )
         # Beamformer coefficient generator. This requires time and delay values.
         self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(
@@ -147,8 +147,8 @@ def print_debug(host_out):
 if __name__ == "__main__":
     # Reorder Specs
     batches = 3
-    n_ants = 4
-    n_beams = 4
+    n_ants = 16
+    n_beams = 8
     num_channels = 1024
     num_samples_per_channel = 256
     pols = 2
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     n_blocks = num_samples_per_channel // samples_per_block
 
     sample_period = 1e-7
-    NumDelayVals = n_ants*n_beams
+    NumDelayVals = n_beams*n_ants*n_channels_per_stream
 
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
     # Options:  'sgemm' for cublas matrix mult
@@ -169,18 +169,27 @@ if __name__ == "__main__":
     ref_time = time.time_ns()
     current_time = time.time_ns()
 
-    fDelay_s = []
-    fDelayRate_sps = []
-    fPhase_rad = []
-    fPhaseRate_radps = []
+    # fDelay_s = []
+    # fDelayRate_sps = []
+    # fPhase_rad = []
+    # fPhaseRate_radps = []
 
+    # for i in range(NumDelayVals):
+    #     fDelay_s.append((i/NumDelayVals)*sample_period/3.0)
+    #     fDelayRate_sps.append(2e-6)
+    #     fPhase_rad.append(1-(i/NumDelayVals)*sample_period/3.0)
+    #     fPhaseRate_radps.append(3e-6)
+    # delay_vals = np.array([fDelay_s, fDelayRate_sps, fPhase_rad, fPhaseRate_radps])
+
+    delay_vals = []
     for i in range(NumDelayVals):
-        fDelay_s.append((i/NumDelayVals)*sample_period/3.0)
-        fDelayRate_sps.append(2e-6)
-        fPhase_rad.append(1-(i/NumDelayVals)*sample_period/3.0)
-        fPhaseRate_radps.append(3e-6)
-    delay_vals = np.array([fDelay_s, fDelayRate_sps, fPhase_rad, fPhaseRate_radps])
-
+        delay_vals.append(np.single((i/NumDelayVals)*sample_period/3.0))
+        delay_vals.append(np.single(2e-6))
+        delay_vals.append(np.single(1-(i/NumDelayVals)*sample_period/3.0))
+        delay_vals.append(np.single(3e-6))
+    # Change to numpy array and reshape
+    delay_vals = np.array(delay_vals)
+    delay_vals = delay_vals.reshape(n_channels_per_stream, n_beams, n_ants,4)
 
     # Temp so code will run
     coeff_gen = coeff_generator.CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
@@ -189,7 +198,7 @@ if __name__ == "__main__":
     elif test_id == "sgemm":
         coeffs = coeff_gen.GPU_Coeffs_cublas
 
-    beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals)
+    coeffs = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, pols, n_beams, n_channels_per_stream, n_ants)
 
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
     queue = ctx.create_command_queue()
