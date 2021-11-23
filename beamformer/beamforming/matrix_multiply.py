@@ -100,7 +100,7 @@ class MatrixMultiplyTemplate:
             accel.Dimension(self.n_channels, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
-            accel.Dimension(self.complexity, exact=True),
+            accel.Dimension(self.beams * self.complexity, exact=True),
         )
 
         if test_id == "kernel":

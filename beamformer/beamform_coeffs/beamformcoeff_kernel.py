@@ -19,10 +19,10 @@ def run_coeff_gen(current_time_sec, ref_time_sec, delay_vals, batches, pols, n_c
 
     debug_thread_idx = 4095
 
-    if iThreadIndex_x == debug_thread_idx:
-        print('iThreadIndex_x', iThreadIndex_x)
-        print('cuda.blockIdx.x',cuda.blockIdx.x)
-        print('cuda.blockDim.x',cuda.blockDim.x)
+    # if iThreadIndex_x == debug_thread_idx:
+    #     print('iThreadIndex_x', iThreadIndex_x)
+    #     print('cuda.blockIdx.x',cuda.blockIdx.x)
+    #     print('cuda.blockDim.x',cuda.blockDim.x)
 
     current_time_ns = current_time_sec
     ref_time_ns = ref_time_sec
@@ -43,17 +43,17 @@ def run_coeff_gen(current_time_sec, ref_time_sec, delay_vals, batches, pols, n_c
     Phase_rad = delay_vals[iBeamIndex][iChannelIndex][iAntIndex][2]
     PhaseRate_radps = delay_vals[iBeamIndex][iChannelIndex][iAntIndex][3]
 
-    if iThreadIndex_x == debug_thread_idx:
-        print('iChannelIndex:', iChannelIndex)
-        print('iChannelIndex_rem:', iChannelIndex_rem)
-        print('iAntIndex:', iAntIndex)
-        print('iAntIndex_rem:', iAntIndex_rem)
-        print('iBeamIndex:', iBeamIndex)
-
-        print('Delay_s:', Delay_s)
-        print('DelayRate_sps', DelayRate_sps)
-        print('Phase_rad', Phase_rad)
-        print('PhaseRate_radps', PhaseRate_radps)
+    # if iThreadIndex_x == debug_thread_idx:
+    #     print('iChannelIndex:', iChannelIndex)
+    #     print('iChannelIndex_rem:', iChannelIndex_rem)
+    #     print('iAntIndex:', iAntIndex)
+    #     print('iAntIndex_rem:', iAntIndex_rem)
+    #     print('iBeamIndex:', iBeamIndex)
+    #
+    #     print('Delay_s:', Delay_s)
+    #     print('DelayRate_sps', DelayRate_sps)
+    #     print('Phase_rad', Phase_rad)
+    #     print('PhaseRate_radps', PhaseRate_radps)
 
     TimeDifference = current_time_sec - ref_time_sec
     NanosecondsTimeDifference = current_time_ns - ref_time_ns
@@ -93,20 +93,20 @@ def run_coeff_gen(current_time_sec, ref_time_sec, delay_vals, batches, pols, n_c
     iBeamIndex = iAntIndex_rem//(2*2)
     iBeamMatrix = iBeamIndex*2
 
-    if iThreadIndex_x == debug_thread_idx:
-        print('iThreadIndex_x', iThreadIndex_x)
-        print('iBatchIndex', iBatchIndex)
-        print('iBatchIndex_rem', iBatchIndex_rem)
-        print('iPolIndex', iPolIndex)
-        print('iPolIndex_rem', iPolIndex_rem)
-        print('iChannelIndex:', iChannelIndex)
-        print('iChannelIndex_rem:', iChannelIndex_rem)
-        print('iAntIndex:', iAntIndex)
-        print('iAntIndex_rem:', iAntIndex_rem)
-        print('iBeamIndex:', iBeamIndex)
-
-        print('iAntMatrix', iAntMatrix)
-        print('iBeamMatrix', iBeamMatrix)
+    # if iThreadIndex_x == debug_thread_idx:
+    #     print('iThreadIndex_x', iThreadIndex_x)
+    #     print('iBatchIndex', iBatchIndex)
+    #     print('iBatchIndex_rem', iBatchIndex_rem)
+    #     print('iPolIndex', iPolIndex)
+    #     print('iPolIndex_rem', iPolIndex_rem)
+    #     print('iChannelIndex:', iChannelIndex)
+    #     print('iChannelIndex_rem:', iChannelIndex_rem)
+    #     print('iAntIndex:', iAntIndex)
+    #     print('iAntIndex_rem:', iAntIndex_rem)
+    #     print('iBeamIndex:', iBeamIndex)
+    #
+    #     print('iAntMatrix', iAntMatrix)
+    #     print('iBeamMatrix', iBeamMatrix)
 
     # coeffs[iBeamIndex][iChannelIndex][iAntIndex][0] = SteeringCoeffCorrectReal
     # coeffs[iBeamIndex][iChannelIndex][iAntIndex][1] = SteeringCoeffCorrectImag
