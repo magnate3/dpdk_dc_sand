@@ -15,6 +15,7 @@ from katsdpsigproc.abc import AbstractContext
 from unit_test import coeff_generator
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 # Temp - for testing
 from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
@@ -169,34 +170,24 @@ if __name__ == "__main__":
     ref_time = time.time_ns()
     current_time = time.time_ns()
 
-    # fDelay_s = []
-    # fDelayRate_sps = []
-    # fPhase_rad = []
-    # fPhaseRate_radps = []
-
-    # for i in range(NumDelayVals):
-    #     fDelay_s.append((i/NumDelayVals)*sample_period/3.0)
-    #     fDelayRate_sps.append(2e-6)
-    #     fPhase_rad.append(1-(i/NumDelayVals)*sample_period/3.0)
-    #     fPhaseRate_radps.append(3e-6)
-    # delay_vals = np.array([fDelay_s, fDelayRate_sps, fPhase_rad, fPhaseRate_radps])
-
+    # Setup delay_vals. NOTE: This is provided by CAM.
     delay_vals = []
     for i in range(NumDelayVals):
         delay_vals.append(np.single((i/NumDelayVals)*sample_period/3.0))
         delay_vals.append(np.single(2e-6))
         delay_vals.append(np.single(1-(i/NumDelayVals)*sample_period/3.0))
         delay_vals.append(np.single(3e-6))
+
     # Change to numpy array and reshape
     delay_vals = np.array(delay_vals)
     delay_vals = delay_vals.reshape(n_channels_per_stream, n_beams, n_ants,4)
 
     # Temp so code will run
-    coeff_gen = coeff_generator.CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
-    if test_id == "kernel":
-        coeffs = coeff_gen.GPU_Coeffs_kernel()
-    elif test_id == "sgemm":
-        coeffs = coeff_gen.GPU_Coeffs_cublas
+    # coeff_gen = coeff_generator.CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
+    # if test_id == "kernel":
+    #     coeffs = coeff_gen.GPU_Coeffs_kernel()
+    # elif test_id == "sgemm":
+    #     coeffs = coeff_gen.GPU_Coeffs_cublas
 
     coeffs = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, pols, n_beams, n_channels_per_stream, n_ants)
 
@@ -234,5 +225,7 @@ if __name__ == "__main__":
     # Debug: Print out all the entries to verify values
     # print_debug(host_out)
 
+    plt.plot(host_coeff[0][0][0][0][:])
+    plt.show()
     # Visualise the operation (Just for interest)
     accel.visualize_operation(op, "test_op_vis")

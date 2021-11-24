@@ -128,14 +128,14 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
 
             tmp += data * coeff
 
-            if (iThreadIndex_x == debug_thread_idx) & (col==14):
+            if (iThreadIndex_x == debug_thread_idx) & (col==4):
                 # print('BF icChannelIndex:', icChannelIndex)
                 # print('-----')
                 print('BF Col:', col)
                 print('BF Ant:', ant)
                 print('data', data)
                 print('coeff', coeff)
-                print('tmp', tmp)
+                # print('tmp', tmp)
 
         # Copy computed weighted and summed ant samples to output
         # if col%2 == 0:
@@ -143,6 +143,7 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
         out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col] = tmp
 
         if (iThreadIndex_x == debug_thread_idx):
+            print('col:', col)
             print('out:', tmp)
         # else:
             # Computed sample is imaginary component

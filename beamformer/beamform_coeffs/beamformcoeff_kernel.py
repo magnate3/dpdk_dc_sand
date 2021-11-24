@@ -28,7 +28,7 @@ def run_coeff_gen(current_time_sec, ref_time_sec, delay_vals, batches, pols, n_c
     ref_time_ns = ref_time_sec
     SAMPLING_PERIOD = 1e-7
     complexity = 2
-    duplicate = 2
+    # duplicate = 2
 
     iChannelIndex = iThreadIndex_x // (n_beams*n_ants)
     iChannelIndex_rem = iThreadIndex_x % (n_beams*n_ants)
@@ -119,14 +119,14 @@ def run_coeff_gen(current_time_sec, ref_time_sec, delay_vals, batches, pols, n_c
     # coeffs[iBeamIndex][iChannelIndex][iAntIndex][1][1] = SteeringCoeffCorrectReal
 
     # if (iBeamMatrix%2==1):
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix+1] = 1
+    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
     # else:
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = 4
+    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
 
     # if (iAntMatrix%2==1):
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix+1] = 4
+    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
     # else:
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix] = -1
+    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
 
     # if iThreadIndex_x == 4095:
         # if (iBeamMatrix % 2 == 1):
