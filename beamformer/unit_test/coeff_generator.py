@@ -22,7 +22,7 @@ class CoeffGenerator:
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
     """
 
-    def __init__(self, batches, n_channels, n_blocks, samples_per_block, n_ants):
+    def __init__(self, batches, n_channels, n_blocks, samples_per_block, n_ants, xeng_id):
         """Initialise the coefficient generation class."""
         self.batches = batches
         self.n_channels = n_channels
@@ -31,6 +31,7 @@ class CoeffGenerator:
         self.n_ants = n_ants
         self.pols = 2  # Always
         self.complexity = 2  # Always
+        self.xeng_id = xeng_id
         self.total_length = self.batches * self.pols * self.n_channels * self.n_blocks * self.samples_per_block
 
         # Static coefficient values for testing

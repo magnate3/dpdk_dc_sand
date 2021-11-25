@@ -24,3 +24,8 @@ num_samples_per_channel = [256]
 # num_channels = [1024, 4096, 32768]
 num_channels = [1024]
 # num_channels = [1024, 4096]
+
+
+"""num_beams: List of number of beams."""
+num_beams = [8]
+xeng_id = [0]

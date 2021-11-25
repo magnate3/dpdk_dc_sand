@@ -21,16 +21,19 @@ Contains one test (parametrised):
 import numpy as np
 import pytest
 from beamforming import matrix_multiply
+from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
 from unit_test.coeff_generator import CoeffGenerator
+import time
 
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
 @pytest.mark.parametrize("num_channels", test_parameters.num_channels)
 @pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
-def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_channel):
+@pytest.mark.parametrize("num_beams", test_parameters.num_beams)
+def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_channel, num_beams):
     """
     Parametrised unit test of the beamform computation using Numba-based kernel.
 
@@ -64,7 +67,23 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     n_channels_per_stream = num_channels // n_ants // 4
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
+    num_pols = 2
     coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
+
+    ref_time = time.time_ns()
+    current_time = time.time_ns()
+    sample_period = 1e-7
+    NumDelayVals = num_beams*n_ants*n_channels_per_stream
+    delay_vals = []
+    for i in range(NumDelayVals):
+        delay_vals.append(np.single((i/NumDelayVals)*sample_period/3.0))
+        delay_vals.append(np.single(2e-6))
+        delay_vals.append(np.single(1-(i/NumDelayVals)*sample_period/3.0))
+        delay_vals.append(np.single(3e-6))
+
+    # Change to numpy array and reshape
+    delay_vals = np.array(delay_vals)
+    delay_vals = delay_vals.reshape(n_channels_per_stream, num_beams, n_ants,4)
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -76,6 +95,7 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
         n_ants=n_ants,
         n_channels=n_channels_per_stream,
         n_samples_per_channel=num_samples_per_channel,
+        n_beams=num_beams,
         batches=batches,
         test_id=test_id,
     )
@@ -101,7 +121,8 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     ).astype(bufSamples_host.dtype)
 
     # 3.2 Generate Coeffs
-    host_coeff[:] = coeff_gen.GPU_Coeffs_kernel()
+    # host_coeff[:] = coeff_gen.GPU_Coeffs_kernel()
+    host_coeff[:] = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, num_pols, num_beams, n_channels_per_stream, n_ants)
 
     # 4. Matrix Multiply: Transfer input sample array to GPU, run complex multiply kernel, transfer output array to CPU.
     bufcoeff_device.set(queue, host_coeff)
@@ -129,4 +150,5 @@ if __name__ == "__main__":
             test_parameters.array_size[a],
             test_parameters.num_channels[0],
             test_parameters.num_samples_per_channel[0],
+            test_parameters.num_beams[0],
         )

@@ -148,7 +148,7 @@ def print_debug(host_out):
 if __name__ == "__main__":
     # Reorder Specs
     batches = 3
-    n_ants = 16
+    n_ants = 4
     n_beams = 8
     num_channels = 1024
     num_samples_per_channel = 256
@@ -159,6 +159,7 @@ if __name__ == "__main__":
 
     sample_period = 1e-7
     NumDelayVals = n_beams*n_ants*n_channels_per_stream
+    xeng_id = 0
 
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
     # Options:  'sgemm' for cublas matrix mult
@@ -171,12 +172,16 @@ if __name__ == "__main__":
     current_time = time.time_ns()
 
     # Setup delay_vals. NOTE: This is provided by CAM.
+    sample_period = 1/1712e6
+    samples_delay = 5
+    NumDelayVals = n_channels_per_stream * n_beams * n_ants
     delay_vals = []
+    # Make all the delays the same so the results should be identical per antenna-beam
     for i in range(NumDelayVals):
-        delay_vals.append(np.single((i/NumDelayVals)*sample_period/3.0))
-        delay_vals.append(np.single(2e-6))
-        delay_vals.append(np.single(1-(i/NumDelayVals)*sample_period/3.0))
-        delay_vals.append(np.single(3e-6))
+        delay_vals.append(np.single(samples_delay*sample_period))
+        delay_vals.append(np.single(0))
+        delay_vals.append(np.single(np.pi/2))
+        delay_vals.append(np.single(0))
 
     # Change to numpy array and reshape
     delay_vals = np.array(delay_vals)
@@ -189,7 +194,8 @@ if __name__ == "__main__":
     # elif test_id == "sgemm":
     #     coeffs = coeff_gen.GPU_Coeffs_cublas
 
-    coeffs = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, pols, n_beams, n_channels_per_stream, n_ants)
+    # coeffs = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, pols, n_beams, n_channels_per_stream, n_ants)
+    coeffs = beamform_coeff_kernel.coeff_gen(delay_vals, batches, pols, n_beams, n_channels_per_stream, num_channels, n_ants, xeng_id)
 
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
     queue = ctx.create_command_queue()
@@ -225,7 +231,7 @@ if __name__ == "__main__":
     # Debug: Print out all the entries to verify values
     # print_debug(host_out)
 
-    plt.plot(host_coeff[0][0][0][0][:])
-    plt.show()
+    # plt.plot(host_coeff[0][0][0][0][:])
+    # plt.show()
     # Visualise the operation (Just for interest)
     accel.visualize_operation(op, "test_op_vis")

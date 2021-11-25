@@ -185,7 +185,7 @@ class complex_mult_kernel:
         data_matrix = data_matrix.reshape(batches, pols, n_channel, blocks, samples_per_block, (ants * complexity))
 
         # Set the number of threads in a block
-        threadsperblock = 512
+        threadsperblock = 128
 
         # Calculate the number of thread blocks in the grid
         ant_sample_blocks = data_matrix.size / (ants * complexity)
