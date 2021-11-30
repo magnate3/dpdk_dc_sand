@@ -1,6 +1,6 @@
 """Coefficient generator for unit tests."""
 import numpy as np
-
+import math
 
 class CoeffGenerator:
     """Class for generating coefficients for testing purposes.
@@ -126,7 +126,50 @@ class CoeffGenerator:
             self.n_ants * self.complexity,
         )
 
-    def CPU_Coeffs(self):
+    def CPU_Coeffs(self, delay_vals, batches, pols, n_beams, num_channels, total_channels, n_ants, xeng_id, sample_period):
+
+        complexity = 2
+        cols = 2
+
+        coeff_matrix = np.empty(batches*pols*num_channels*n_ants*n_beams*complexity*cols, dtype=np.float32)
+        coeff_matrix = coeff_matrix.reshape(batches, pols, num_channels, n_ants*complexity, n_beams*cols)
+
+        for iBatchIndex in range(batches):
+            for iPolIndex in range(pols):
+                for iChannel in range(num_channels):
+                    for iBeamIndex in range(n_beams):
+                        for iAntIndex in range (n_ants):
+                            Delay_s = delay_vals[iChannel][iBeamIndex][iAntIndex][0]
+                            DelayRate_sps = delay_vals[iChannel][iBeamIndex][iAntIndex][1]
+                            Phase_rad = delay_vals[iChannel][iBeamIndex][iAntIndex][2]
+                            PhaseRate_radps = delay_vals[iChannel][iBeamIndex][iAntIndex][3]
+
+                            # part_1 =  delay_CAM * channel_num_i * -pi  / (total_channels * sampling_rate_nanosec) +  phase_offset_CAM
+                            initial_phase = Delay_s * iChannel * (-np.math.pi) / (total_channels * sample_period) + Phase_rad
+
+                            # Then:
+                            # Phase_correction_band_center = Delay_CAM * (total_channels/2) * -pi / (total_channels * sampling_rate_nanosec)
+                            Phase_correction_band_center = Delay_s * (total_channels / 2) * (-np.math.pi) / (total_channels * sample_period)
+
+                            # Calculate rotation value
+                            Rotation = initial_phase - Phase_correction_band_center
+
+                            # Compute Steering Coeffs
+                            SteeringCoeffCorrectReal = math.cos(Rotation)
+                            SteeringCoeffCorrectImag = math.sin(Rotation)
+
+                            iAntMatrix = iAntIndex * 2
+                            iBeamMatrix = iBeamIndex * 2
+
+                            # Store coeffs in return matrix
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
+
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
+        return coeff_matrix
+
+    def CPU_dummy_coeffs(self):
         """Generate coefficients for complex multiplication on the CPU.
 
         Note: This is for use in complex multiplication. The real and imaginary
