@@ -33,7 +33,10 @@ import time
 @pytest.mark.parametrize("num_channels", test_parameters.num_channels)
 @pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
 @pytest.mark.parametrize("num_beams", test_parameters.num_beams)
-def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_channel, num_beams):
+@pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
+@pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
+@pytest.mark.parametrize("phase", test_parameters.phase)
+def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_channel, num_beams, xeng_id, samples_delay, phase):
     """
     Parametrised unit test of the beamform computation using Numba-based kernel.
 
@@ -68,22 +71,24 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
     num_pols = 2
-    coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
+    coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants, xeng_id)
 
-    ref_time = time.time_ns()
-    current_time = time.time_ns()
-    sample_period = 1e-7
-    NumDelayVals = num_beams*n_ants*n_channels_per_stream
+    sample_period = 1/1712e6
+    NumDelayVals = n_channels_per_stream * num_beams * n_ants
     delay_vals = []
+
+    # Temp
+    d = 0
+
     for i in range(NumDelayVals):
-        delay_vals.append(np.single((i/NumDelayVals)*sample_period/3.0))
-        delay_vals.append(np.single(2e-6))
-        delay_vals.append(np.single(1-(i/NumDelayVals)*sample_period/3.0))
-        delay_vals.append(np.single(3e-6))
+        delay_vals.append(np.single((samples_delay) * sample_period))
+        delay_vals.append(np.single(0))
+        delay_vals.append(np.single(phase + d * 0.1))
+        delay_vals.append(np.single(0))
 
     # Change to numpy array and reshape
     delay_vals = np.array(delay_vals)
-    delay_vals = delay_vals.reshape(n_channels_per_stream, num_beams, n_ants,4)
+    delay_vals = delay_vals.reshape(n_channels_per_stream, num_beams, n_ants, 4)
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -122,7 +127,9 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
 
     # 3.2 Generate Coeffs
     # host_coeff[:] = coeff_gen.GPU_Coeffs_kernel()
-    host_coeff[:] = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, num_pols, num_beams, n_channels_per_stream, n_ants)
+    # host_coeff[:] = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, n_ants)
+    host_coeff[:] = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream,
+                                                num_channels, n_ants, xeng_id, sample_period)
 
     # 4. Matrix Multiply: Transfer input sample array to GPU, run complex multiply kernel, transfer output array to CPU.
     bufcoeff_device.set(queue, host_coeff)
@@ -131,12 +138,33 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     bufBeamform_device.get(queue, bufBeamform_host)
 
     # 5. Run CPU version. This will be used to verify GPU reorder.
-    cpu_coeffs = coeff_gen.CPU_Coeffs()
+    # cpu_coeffs = coeff_gen.CPU_Coeffs()
+    cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
+                                     n_ants, xeng_id, sample_period)
+
     beamform_data_cpu = complex_mult_cpu.complex_mult(
         input_data=bufSamples_host,
         coeffs=cpu_coeffs,
         output_data_shape=bufBeamform_host.shape,
     )
+
+    bf_cpu_shape = np.shape(beamform_data_cpu)
+    bf_gpu_shape = np.shape(bufBeamform_host)
+    M = bf_cpu_shape[0]
+    N = bf_cpu_shape[1]
+    O = bf_cpu_shape[2]
+    P = bf_cpu_shape[3]
+    Q = bf_cpu_shape[4]
+    R = bf_cpu_shape[5]
+
+    for m in range(M):
+        for n in range(N):
+            for o in range(O):
+                for p in range(P):
+                    for q in range(Q):
+                        for r in range(R):
+                            if beamform_data_cpu[m,n,o,p,q,r] != bufBeamform_host[m,n,o,p,q,r]:
+                                print("Mismatch:",m,n,o,p,q,r, beamform_data_cpu[m,n,o,p,q,r], bufBeamform_host[m,n,o,p,q,r])
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
@@ -147,8 +175,11 @@ if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):
         test_beamform_parametrised(
             test_parameters.batches[0],
-            test_parameters.array_size[a],
+            test_parameters.array_size[0],
             test_parameters.num_channels[0],
             test_parameters.num_samples_per_channel[0],
             test_parameters.num_beams[0],
+            test_parameters.xeng_id[0],
+            test_parameters.samples_delay[0],
+            test_parameters.phase[0],
         )

@@ -10,8 +10,6 @@ import numpy as np
 
 @cuda.jit
 def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams, n_ants, xeng_id, sample_period, coeffs):
-    # def run_coeff_gen(current_time, ref_time, delay, n_channel, n_beams, n_ants, coeff_matrix):
-
     """Execute complex multiplication.
     """
     # # Compute flattened index inside the array
@@ -19,12 +17,12 @@ def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams
 
     debug_thread_idx = 32
 
-
     # if iThreadIndex_x == debug_thread_idx:
     #     print('iThreadIndex_x', iThreadIndex_x)
     #     print('cuda.blockIdx.x',cuda.blockIdx.x)
     #     print('cuda.blockDim.x',cuda.blockDim.x)
 
+    # Compute indexes for delay_vals matrix
     iBatchIndex = iThreadIndex_x // (pols*n_channels*n_beams*n_ants)
     iBatchIndex_rem = iThreadIndex_x % (pols*n_channels*n_beams*n_ants)
 
@@ -34,98 +32,34 @@ def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams
     iChannelIndex = iPolIndex_rem // (n_beams*n_ants)
     iChannelIndex_rem = iPolIndex_rem % (n_beams*n_ants)
 
-    # Compute actual channel index (i.e. channel in spectrum being computed on)
-    # This is needed when computing the rotation value before the cos/sin lookup.
-    # There are n_channels per xeng so adding n_channels * xeng_id gives the 
-    # relative channel in the spectrum the xeng GPU thread is working on.
-    # iChannel = iChannelIndex//(batches*pols) + n_channels * xeng_id
-    iChannel = iChannelIndex + n_channels * xeng_id
-
     iAntIndex = iChannelIndex_rem // (n_beams)
     iAntIndex_rem = iChannelIndex_rem % (n_beams)
 
     iBeamIndex = iAntIndex_rem
 
-    Delay_s = delay_vals[iChannel][iBeamIndex][iAntIndex][0]
-    DelayRate_sps = delay_vals[iChannel][iBeamIndex][iAntIndex][1]
-    Phase_rad = delay_vals[iChannel][iBeamIndex][iAntIndex][2]
-    PhaseRate_radps = delay_vals[iChannel][iBeamIndex][iAntIndex][3]
+    # Extract delay and phase values
+    Delay_s = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][0]
+    DelayRate_sps = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][1]
+    Phase_rad = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][2]
+    PhaseRate_radps = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][3]
 
-    # if iBatchIndex > 1:
-    #     print('iBatchIndex', iBatchIndex)
+    # Compute rotation value for steering coefficient computation
 
-    # if iThreadIndex_x == debug_thread_idx:
-    #     print('iThreadIndex_x', iThreadIndex_x)
-    #     print('iBatchIndex', iBatchIndex)
-    #     print('iBatchIndex_rem', iBatchIndex_rem)
-    #     print('iPolIndex', iPolIndex)
-    #     print('iPolIndex_rem', iPolIndex_rem)
-    #     print('iBeamIndex:', iBeamIndex)
-    #     print('iChannelIndex:', iChannelIndex)
-    #     print('iChannelIndex_rem:', iChannelIndex_rem)
-    #     print('iAntIndex:', iAntIndex)
-    #     print('iChannel:', iChannel)
-    #     print('Delay_s:', Delay_s)
-    #     print('Phase_rad:', Phase_rad)
+    # Compute actual channel index (i.e. channel in spectrum being computed on)
+    # This is needed when computing the rotation value before the cos/sin lookup.
+    # There are n_channels per xeng so adding n_channels * xeng_id gives the
+    # relative channel in the spectrum the xeng GPU thread is working on.
+    # iChannel = iChannelIndex//(batches*pols) + n_channels * xeng_id
+    iChannel = iChannelIndex + n_channels * xeng_id
 
-    # if iThreadIndex_x == debug_thread_idx:
-    #     print('iChannel:', iChannel)
-    #     print('iChannelIndex:', iChannelIndex)
-    #     print('iChannelIndex_rem:', iChannelIndex_rem)
-    #     print('iAntIndex:', iAntIndex)
-    #     print('iAntIndex_rem:', iAntIndex_rem)
-    #     print('iBeamIndex:', iBeamIndex)
-    
-    #     print('Delay_s:', Delay_s)
-    #     print('DelayRate_sps', DelayRate_sps)
-    #     print('Phase_rad', Phase_rad)
-    #     print('PhaseRate_radps', PhaseRate_radps)
-
-    # TimeDifference = current_time_sec - ref_time_sec
-    # NanosecondsTimeDifference = current_time_ns - ref_time_ns
-    # TimeDifference += NanosecondsTimeDifference/1e9
-
-    # DeltaTime = TimeDifference
-    # DeltaDelay = DelayRate_sps*DeltaTime
-    # DelayN = (DelayRate_sps + DeltaDelay) * iChannelIndex * (np.pi) / (
-    #                 SAMPLING_PERIOD * n_channels)
-    # DelayN2 = (Delay_s + DeltaDelay)*(n_channels/2)*(np.pi)/(SAMPLING_PERIOD*n_channels)
-    # DeltaPhase = PhaseRate_radps * DeltaTime
-    # Phase0 = Phase_rad - DelayN2 + DeltaPhase
-    # Rotation = DelayN + Phase0
-
-    # More accurately: for channel i
-    # part_1 =  delay_CAM * channel_num_i * -pi  / (total_channels * sampling_rate_nanosec) +  phase_offset_CAM 
     initial_phase = Delay_s * iChannel * (-np.math.pi) / (total_channels * sample_period) + Phase_rad
 
-    # Then:
-    # Phase_correction_band_center = Delay_CAM * (total_channels/2) * -pi / (total_channels * sampling_rate_nanosec)
     Phase_correction_band_center = Delay_s * (total_channels/2) * (-np.math.pi) / (total_channels * sample_period)
 
-    # if iThreadIndex_x == debug_thread_idx:
-    #     print('Delay_s', Delay_s)
-    #     print('Phase_rad', Phase_rad)
-    #     print('n_channels', n_channels)
-    #     print('total_channels', total_channels)
-    #     print('iniial_phase', initial_phase)
-    #     print('Phase_correction_band_center', Phase_correction_band_center)
-
-    # Rotation =  part_1 - Phase_correction_band_center
     Rotation = initial_phase - Phase_correction_band_center
-
-    # Then:
-    # Steer_Coeff_real = cos(Rotation)
-    # Steer_Coeff_Imag = sin(Rotation)
 
     SteeringCoeffCorrectReal = math.cos(Rotation)
     SteeringCoeffCorrectImag = math.sin(Rotation)
-
-    # Then when BF:
-    # Steered_channel = Channel_vector_( a+jb) * (Steer_Coeff_real + jSteer_Coeff_Imag)
-
-    # if iThreadIndex_x == debug_thread_idx:
-    #     print('Steering Real:', SteeringCoeffCorrectReal)
-    #     print('Steering Imag:', SteeringCoeffCorrectImag)
 
     # Compute indexes for output matrix
     iBatchIndex = iThreadIndex_x // (pols*n_channels*n_beams*n_ants)
@@ -137,126 +71,18 @@ def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams
     iChannelIndex = iPolIndex_rem // (n_beams*n_ants)
     iChannelIndex_rem = iPolIndex_rem % (n_beams*n_ants)
 
-    # ---
     iBeamIndex = iChannelIndex_rem // (n_ants)
     iBeamIndex_rem = iChannelIndex_rem % (n_ants)
 
     iBeamMatrix = iBeamIndex*2
     iAntMatrix = iBeamIndex_rem*2
-    # ---
 
-    # iAntIndex = iChannelIndex_rem // (n_beams*2)
-    # iAntIndex_rem = iChannelIndex_rem % (n_beams*2)
-    #
-    # iAntMatrix = iAntIndex
-    #
-    # iBeamIndex = iAntIndex_rem*2
-    # iBeamMatrix = iBeamIndex
-
-    # if iThreadIndex_x == debug_thread_idx:
-    #     print('iThreadIndex_x', iThreadIndex_x)
-    #     print('iBatchIndex', iBatchIndex)
-    #     print('iBatchIndex_rem', iBatchIndex_rem)
-    #     print('iPolIndex', iPolIndex)
-    #     print('iPolIndex_rem', iPolIndex_rem)
-    #     print('iChannelIndex:', iChannelIndex)
-    #     print('iChannelIndex_rem:', iChannelIndex_rem)
-    #     print('iAntIndex:', iAntIndex)
-    #     print('iAntIndex_rem:', iAntIndex_rem)
-    #     print('iBeamIndex:', iBeamIndex)
-    #     # print('iBeamIndex_rem:', iBeamIndex_rem)
-    #     print('iAntMatrix', iAntMatrix)
-    #     print('iBeamMatrix', iBeamMatrix)
-
-    # if iThreadIndex_x == debug_thread_idx:
-    #     print('iThreadIndex_x', iThreadIndex_x)
-    #     print('iBatchIndex', iBatchIndex)
-    #     print('iBatchIndex_rem', iBatchIndex_rem)
-    #     print('iPolIndex', iPolIndex)
-    #     print('iPolIndex_rem', iPolIndex_rem)
-    #     print('iChannelIndex:', iChannelIndex)
-    #     print('iChannelIndex_rem:', iChannelIndex_rem)
-    #     print('iAntIndex:', iAntIndex)
-    #     print('iAntIndex_rem:', iAntIndex_rem)
-    #     print('iBeamIndex:', iBeamIndex)
-    #
-    #     print('iAntMatrix', iAntMatrix)
-    #     print('iBeamMatrix', iBeamMatrix)
-
-    # if (iChannel == 22) & (iAntIndex == 2):
-    #     print('iChannel:', iChannel)
-    #     print('Delay_s:', Delay_s)
-    #     print('Phase_rad', Phase_rad)
-    #     print('SteeringCoeffCorrectReal', SteeringCoeffCorrectReal)
-    #     print('SteeringCoeffCorrectImag', SteeringCoeffCorrectImag)
-
-
+    # Store steering coefficients in output matrix
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
 
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
-
-    # if iThreadIndex_x == 4095:
-        # if (iBeamMatrix % 2 == 1):
-        #     print('Odd: iBeamMatrix', iBeamMatrix)
-        # coeffs[iChannelIndex][iAntMatrix][iBeamMatrix+1] = 1
-        # # else:
-        # #     print('Even: iBeamMatrix', iBeamMatrix)
-        # coeffs[iChannelIndex][iAntMatrix][iBeamMatrix] = 4
-        #
-        # # if (iAntMatrix % 2 == 1):
-        # #     print('Odd: iAntMatrix', iAntMatrix)
-        # coeffs[iChannelIndex][iAntMatrix][iBeamMatrix+1] = -4
-        # # else:
-        # #     print('Even: iAntMatrix', iAntMatrix)
-        # coeffs[iChannelIndex][iAntMatrix][iBeamMatrix] = 1
-
-    # iInterChannelIndex = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
-    # if iInterChannelIndex < 1:
-    #     print('NBEAMS x ANTS:', n_beams*n_ants)
-    #     print(n_beams*n_ants)
-    #     print(iInterChannelIndex)
-
-    # if (iInterChannelIndex < n_beams*n_ants):
-    #     iChannelIndex = cuda.blockIdx.y
-    #     iAntIndex = np.uint(iInterChannelIndex/n_beams)
-    #     iBeamIndex = iInterChannelIndex - iAntIndex * n_beams
-    #
-    #     fDelay_s = delay_vals[0][iAntIndex*n_beams + iBeamIndex]
-    #     fDelayRate_sps = delay_vals[1][iAntIndex*n_beams + iBeamIndex]
-    #     fPhase_rad = delay_vals[2][iAntIndex*n_beams + iBeamIndex]
-    #     fPhaseRate_radps = delay_vals[3][iAntIndex*n_beams + iBeamIndex]
-    #
-    #     if iInterChannelIndex == 0:
-    #         print('iAntIndex*n_beams + iBeamIndex:', iAntIndex*n_beams + iBeamIndex)
-    #         print(fDelay_s)
-    #         print(fDelayRate_sps)
-    #         print(fPhase_rad)
-    #         print(fPhaseRate_radps)
-    #
-    #     fTimeDifference = current_time_sec - ref_time_sec
-    #     fNanosecondsTimeDifference = current_time_ns - ref_time_ns
-    #     fTimeDifference += fNanosecondsTimeDifference/1e9
-    #
-    #     fDeltaTime = fTimeDifference
-    #     fDeltaDelay = fDelayRate_sps*fDeltaTime
-    #     fDelayN = (fDelayRate_sps + fDeltaDelay) * iChannelIndex * (np.pi) / (
-    #                 SAMPLING_PERIOD * n_channels)
-    #     fDelayN2 = (fDelay_s + fDeltaDelay)*(n_channels/2)*(np.pi)/(SAMPLING_PERIOD*n_channels)
-    #     fDeltaPhase = fPhaseRate_radps*fDeltaTime
-    #     fPhase0 = fPhase_rad - fDelayN2 + fDeltaPhase
-    #     fRotation = fDelayN + fPhase0
-    #
-    #     fSteeringCoeffCorrectReal = math.cos(fRotation)
-    #     fSteeringCoeffCorrectImag = math.sin(fRotation)
-    #     if iInterChannelIndex == 0:
-    #         print('Real:', fSteeringCoeffCorrectReal)
-    #         print('Imag:', fSteeringCoeffCorrectImag)
-    #
-    #     ulOutputIndex = 0
-    #     coeffs[ulOutputIndex] = fSteeringCoeffCorrectReal
-    #     coeffs[ulOutputIndex+1] = fSteeringCoeffCorrectImag
 
 class beamform_coeff_kernel:
     """Class for beamform complex multiplication."""

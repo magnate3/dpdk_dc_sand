@@ -17,13 +17,10 @@ Contains one test (parametrised):
         kernel through a range of value combinations.
 """
 
-
 import numpy as np
 import pytest
-from beamforming import matrix_multiply
 from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
-from katsdpsigproc import accel
-from unit_test import complex_mult_cpu, test_parameters
+from unit_test import test_parameters
 from unit_test.coeff_generator import CoeffGenerator
 import time
 import matplotlib.pyplot as plt
@@ -35,7 +32,9 @@ import matplotlib.pyplot as plt
 @pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
 @pytest.mark.parametrize("num_beams", test_parameters.num_beams)
 @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
-def test_beamform_coeffs_parametrised(batches, n_ants, num_channels, num_samples_per_channel, num_beams, xeng_id):
+@pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
+@pytest.mark.parametrize("phase", test_parameters.phase)
+def test_beamform_coeffs_parametrised(batches, n_ants, num_channels, num_samples_per_channel, num_beams, xeng_id, samples_delay, phase):
     """
     Parametrised unit test of the beamform computation using Numba-based kernel.
 
@@ -70,19 +69,8 @@ def test_beamform_coeffs_parametrised(batches, n_ants, num_channels, num_samples
     coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants, xeng_id)
 
     sample_period = 1/1712e6
-    samples_delay = 5
 
     NumDelayVals = n_channels_per_stream * num_beams * n_ants
-
-    gpu_phasor_real0 = []
-    gpu_phasor_imag0 = []
-    gpu_phasor_real1 = []
-    gpu_phasor_imag1 = []
-
-    cpu_phasor_real0 = []
-    cpu_phasor_imag0 = []
-    cpu_phasor_real1 = []
-    cpu_phasor_imag1 = []
 
     for d in range(1):
         delay_vals = []
@@ -91,7 +79,7 @@ def test_beamform_coeffs_parametrised(batches, n_ants, num_channels, num_samples
         for i in range(NumDelayVals):
             delay_vals.append(np.single((samples_delay)*sample_period))
             delay_vals.append(np.single(0))
-            delay_vals.append(np.single(np.pi/2+d*0.1))
+            delay_vals.append(np.single(phase + d*0.1))
             delay_vals.append(np.single(0))
 
         # or
@@ -123,38 +111,14 @@ def test_beamform_coeffs_parametrised(batches, n_ants, num_channels, num_samples
 
         # 3.2 Generate Coeffs on GPU
         GPU_coeff = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period)
-        gpu_phasor_real0.append(GPU_coeff[0][0][1][2][0])
-        gpu_phasor_imag0.append(GPU_coeff[0][0][1][2][1])
-
-        gpu_phasor_real1.append(GPU_coeff[0][0][63][2][0])
-        gpu_phasor_imag1.append(GPU_coeff[0][0][63][2][1])
 
         # 5. Run CPU version. This will be used to verify GPU reorder.
         CPU_coeff = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period)
-        cpu_phasor_real0.append(GPU_coeff[0][0][1][2][0])
-        cpu_phasor_imag0.append(GPU_coeff[0][0][1][2][1])
 
-        cpu_phasor_real1.append(GPU_coeff[0][0][63][2][0])
-        cpu_phasor_imag1.append(GPU_coeff[0][0][63][2][1])
-
-    #
-    # plt.plot(gpu_phasor_real0)
-    # plt.plot(cpu_phasor_real0)
-    # plt.show()
-
-    # for m in range(3):
-    #     for n in range(2):
-    #         for o in range(64):
-    #             for p in range(8):
-    #                 for q in range(16):
-    #                     if CPU_coeff[0][0][0][p][q] != GPU_coeff[0][0][0][p][q]:
-    #                         print('Mismatch:', 'm', m, 'n:', n, 'o:', o, 'p:', p, 'q:', q)
-
-    # 6. Verify the processed/returned result
-    #    - Both the input and output data are ultimately of type np.int8
+        # 6. Verify the processed/returned result
+        #    - Both the input and output data are ultimately of type np.int8
     np.testing.assert_array_equal(CPU_coeff, GPU_coeff)
 
-    a = 1
 
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):
@@ -165,4 +129,6 @@ if __name__ == "__main__":
             test_parameters.num_samples_per_channel[0],
             test_parameters.num_beams[0],
             test_parameters.xeng_id[0],
+            test_parameters.samples_delay[0],
+            test_parameters.phase[0],
         )

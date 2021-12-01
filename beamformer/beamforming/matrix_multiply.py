@@ -8,7 +8,7 @@ in a single array.
 """
 import numpy as np
 from beamforming.complex_mult_kernel import complex_mult_kernel
-from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
+# from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 from katsdpsigproc.accel import IOSlot, Operation

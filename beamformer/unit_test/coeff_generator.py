@@ -136,13 +136,20 @@ class CoeffGenerator:
 
         for iBatchIndex in range(batches):
             for iPolIndex in range(pols):
-                for iChannel in range(num_channels):
+                for iChannelIndex in range(num_channels):
                     for iBeamIndex in range(n_beams):
                         for iAntIndex in range (n_ants):
-                            Delay_s = delay_vals[iChannel][iBeamIndex][iAntIndex][0]
-                            DelayRate_sps = delay_vals[iChannel][iBeamIndex][iAntIndex][1]
-                            Phase_rad = delay_vals[iChannel][iBeamIndex][iAntIndex][2]
-                            PhaseRate_radps = delay_vals[iChannel][iBeamIndex][iAntIndex][3]
+                            Delay_s = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][0]
+                            DelayRate_sps = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][1]
+                            Phase_rad = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][2]
+                            PhaseRate_radps = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][3]
+
+                            # Compute actual channel index (i.e. channel in spectrum being computed on)
+                            # This is needed when computing the rotation value before the cos/sin lookup.
+                            # There are n_channels per xeng so adding n_channels * xeng_id gives the
+                            # relative channel in the spectrum the xeng GPU thread is working on.
+                            # iChannel = iChannelIndex//(batches*pols) + n_channels * xeng_id
+                            iChannel = iChannelIndex + num_channels * xeng_id
 
                             # part_1 =  delay_CAM * channel_num_i * -pi  / (total_channels * sampling_rate_nanosec) +  phase_offset_CAM
                             initial_phase = Delay_s * iChannel * (-np.math.pi) / (total_channels * sample_period) + Phase_rad
@@ -162,11 +169,11 @@ class CoeffGenerator:
                             iBeamMatrix = iBeamIndex * 2
 
                             # Store coeffs in return matrix
-                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
-                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
 
-                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
-                            coeff_matrix[iBatchIndex][iPolIndex][iChannel][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
+                            coeff_matrix[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
         return coeff_matrix
 
     def CPU_dummy_coeffs(self):

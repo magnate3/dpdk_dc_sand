@@ -1,4 +1,5 @@
 """Module containing correlator configuration options that should be tested where appropriate in all unit tests."""
+import numpy as np
 
 # """batches: Number of batches for processing."""
 batches = [3]
@@ -29,3 +30,5 @@ num_channels = [1024]
 """num_beams: List of number of beams."""
 num_beams = [8]
 xeng_id = [0]
+samples_delay = [5]
+phase = [np.pi/2]
