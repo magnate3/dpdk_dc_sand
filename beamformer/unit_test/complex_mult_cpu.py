@@ -49,6 +49,8 @@ def complex_mult(
     for b in range(batches):
         for p in range(pols):
             for c in range(n_channel):
+                if c == 1:
+                    tt = 1
                 for block in range(blocks):
                     for s in range(n_samples_per_block):
                         # data_cmplx = []
@@ -74,6 +76,12 @@ def complex_mult(
 
                             # Compute
                             cmplx_prod = np.dot(data_cmplx, coeff_cmplx)
+
+                            # if (b == 0) & (p == 0) & (c == 1) & (block == 0) & (s == 0):
+                            # # if (b == 0) & (p == 0) & (c == 1):
+                            #     print('data_cmplx', data_cmplx)
+                            #     print('beam:', (beam*2 + 1), 'coeff_cmplx', coeff_cmplx)
+                            #     print('cmplx_prod',cmplx_prod)
 
                             # Assign real and imaginary results to repective positions
                             output_data[b, p, c, block, s, beam*2] = np.real(cmplx_prod)

@@ -39,7 +39,8 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     data and the coefficients used are complex valued requiring a complex multiplication.
     To utilise standard matrix mutliplication the coefficient matrix is constructed as detailed above.
     """
-    debug_thread_idx = 4095
+    debug_thread_idx_lower = 2048*48-4
+    debug_thread_idx_upper = 2048*48+2
     # # Compute flattened index inside the array
     iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
@@ -51,70 +52,86 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     n_beams = 8
 
     # Compute data matrix index
-    iBatchIndex = iThreadIndex_x // (pols * n_channel * blocks * samples_per_block)
-    iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block)
-    if iThreadIndex_x == debug_thread_idx:
-        print(' ')
-        print('iThreadIndex_x', iThreadIndex_x)
-        print('iBatchIndex:', iBatchIndex)
-        print('iRemIndex:', iRemIndex)
+    iBatchIndex = iThreadIndex_x // (pols * n_channel * blocks * samples_per_block * ants)
+    iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block * ants)
+    # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+    #     print(' ')
+    #     print('iThreadIndex_x', iThreadIndex_x)
+    #     print('iBatchIndex:', iBatchIndex)
+    #     print('iRemIndex:', iRemIndex)
 
-    iPolIndex = iRemIndex // (n_channel * blocks * samples_per_block)
-    iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block)
-    if iThreadIndex_x == debug_thread_idx:
-        print('iPolIndex', iPolIndex)
-        print('iRemIndex', iRemIndex)
+    iPolIndex = iRemIndex // (n_channel * blocks * samples_per_block * ants)
+    iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block * ants)
+    # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+    #     print('iPolIndex', iPolIndex)
+    #     print('iRemIndex', iRemIndex)
 
-    iChanIndex = iRemIndex // (blocks * samples_per_block)
-    iRemIndex = iRemIndex % (blocks * samples_per_block)
+    iChanIndex = iRemIndex // (blocks * samples_per_block * ants)
+    iRemIndex = iRemIndex % (blocks * samples_per_block * ants)
 
-    if iThreadIndex_x == debug_thread_idx:
-        print('iChanIndex', iChanIndex)
-        print('iRemIndex', iRemIndex)
+    # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+    #     print('iChanIndex', iChanIndex)
+    #     print('iRemIndex', iRemIndex)
 
-    iBlockIndex = iRemIndex // (samples_per_block)
-    iRemIndex = iRemIndex % (samples_per_block)
-    iSamplePerBlockIndex = iRemIndex
+    iBlockIndex = iRemIndex // (samples_per_block * ants)
+    iRemIndex = iRemIndex % (samples_per_block * ants)
 
-    if iThreadIndex_x == debug_thread_idx:
-        print('iBlockIndex', iBlockIndex)
-        print('iRemIndex', iRemIndex)
-        print('iSamplePerBlockIndex', iSamplePerBlockIndex)
+    # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+    #     print('iBlockIndex', iBlockIndex)
+    #     print('iRemIndex', iRemIndex)
+
+    iSamplePerBlockIndex = iRemIndex // ants
+    iRemIndex = iRemIndex % ants
+
+    IAntIndex = iRemIndex
+
+    # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+    #     print('iSamplePerBlockIndex', iSamplePerBlockIndex)
+    #     print('IAntIndex', IAntIndex)
 
     # Compute Coeff matrix index
-    icBatchIndex = iThreadIndex_x // (pols*n_channel*n_beams*2*ants*2)
-    icBatchIndex_rem = iThreadIndex_x % (pols*n_channel*n_beams*2*ants*2)
+    icBatchIndex = iThreadIndex_x // (pols*n_channel * ants * n_beams*2)
+    icBatchIndex_rem = iThreadIndex_x % (pols*n_channel * ants * n_beams*2)
 
-    icPolIndex = icBatchIndex_rem // (n_channel*n_beams*2 * ants*2)
-    icPolIndex_rem = icBatchIndex_rem % (n_channel*n_beams*2 * ants*2)
+    icPolIndex = icBatchIndex_rem // (n_channel * ants * n_beams*2)
+    icPolIndex_rem = icBatchIndex_rem % (n_channel * ants * n_beams*2)
 
-    icChannelIndex = icPolIndex_rem // (n_beams*2*ants*2)
-    icChannelIndex_rem = icPolIndex_rem % (n_beams*2*ants*2)
+    icChannelIndex = icPolIndex_rem // (samples_per_block * ants * n_beams*2)
+    icChannelIndex_rem = icPolIndex_rem % (samples_per_block * ants * n_beams*2)
 
-    icAntIndex = icChannelIndex_rem // (n_beams*2*2)
-    icAntIndex_rem = icChannelIndex_rem % (n_beams*2*2)
+    # icAntIndex = icChannelIndex_rem // (n_beams*2*2)
+    # icAntIndex_rem = icChannelIndex_rem % (n_beams*2*2)
+    #
+    # icAntMatrix = icAntIndex*2
+    #
+    # icBeamIndex = icAntIndex_rem//(2*2)
+    # icBeamMatrix = icBeamIndex*2
 
-    icAntMatrix = icAntIndex*2
+    # icChannelIndex = icPolIndex_rem // (ants * n_beams*2)
+    # icChannelIndex_rem = icPolIndex_rem % (ants * n_beams*2)
+    #
+    # icAntIndex = icChannelIndex_rem // (n_beams*2*2)
+    # icAntIndex_rem = icChannelIndex_rem % (n_beams*2*2)
+    #
+    # icAntMatrix = icAntIndex*2
+    #
+    # icBeamIndex = icAntIndex_rem//(2*2)
+    # icBeamMatrix = icBeamIndex*2
 
-    icBeamIndex = icAntIndex_rem//(2*2)
-    icBeamMatrix = icBeamIndex*2
-
-    if iThreadIndex_x == debug_thread_idx:
-        print(' ')
-        print(' ')
-        print('Coeff Index:')
-        print('iThreadIndex_x', iThreadIndex_x)
-        print('icBatchIndex', icBatchIndex)
-        print('icBatchIndex_rem', icBatchIndex_rem)
-        print('icPolIndex', icPolIndex)
-        print('icPolIndex_rem', icPolIndex_rem)
-        print('icChannelIndex:', icChannelIndex)
-        print('icChannelIndex_rem:', icChannelIndex_rem)
-        print('icAntIndex:', icAntIndex)
-        print('icAntIndex_rem:', icAntIndex_rem)
-        print('icBeamIndex:', icBeamIndex)
-        print('icAntMatrix', icAntMatrix)
-        print('icBeamMatrix', icBeamMatrix)
+    # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+    #     print(' ')
+    #     print(' ')
+    #     print('icBatchIndex', icBatchIndex)
+    #     print('icBatchIndex_rem', icBatchIndex_rem)
+    #     print('icPolIndex', icPolIndex)
+    #     print('icPolIndex_rem', icPolIndex_rem)
+    #     print('icChannelIndex:', icChannelIndex)
+    #     print('icChannelIndex_rem:', icChannelIndex_rem)
+        # print('icAntIndex:', icAntIndex)
+        # print('icAntIndex_rem:', icAntIndex_rem)
+        # print('icBeamIndex:', icBeamIndex)
+        # print('icAntMatrix', icAntMatrix)
+        # print('icBeamMatrix', icBeamMatrix)
         # coeff = coeff_matrix[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix]
         # print('Coeff:', coeff)
 
@@ -122,29 +139,61 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     for col in range(n_beams*2):
         tmp = float32(0)
         for ant in range(ants):
-            # coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col][ant]
-            coeff = coeff_matrix[icBatchIndex][icPolIndex][icChannelIndex][ant][col]
+            coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][ant][col]
+            # coeff = coeff_matrix[icBatchIndex][icPolIndex][icChannelIndex][ant][col]
             data = data_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][ant]
 
             tmp += data * coeff
 
-            if (iThreadIndex_x == debug_thread_idx) & (col==4):
-                # print('BF icChannelIndex:', icChannelIndex)
-                # print('-----')
-                print('BF Col:', col)
-                print('BF Ant:', ant)
-                print('data', data)
-                print('coeff', coeff)
-                # print('tmp', tmp)
+            # if (iBatchIndex == 0) & (iPolIndex == 0) & (iChanIndex == 1) & (iBlockIndex == 0) & (iSamplePerBlockIndex == 0) & (col==0):
+            #     print('ant:', ant, 'col:', col, 'data:', data)
+            #     print('----')
+
+            # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
+            #     print('thread:', iThreadIndex_x,
+            #           'iBatchIndex', iBatchIndex,
+            #           'icBatchIndex',icBatchIndex,
+            #           'iPolIndex:', iPolIndex,
+            #           'icPolIndex:', icPolIndex,
+            #           'iChanIndex:', iChanIndex,
+            #           'icChannelIndex:', icChannelIndex,
+            #           'iBlockIndex:', iBlockIndex,
+            #           'iSamplePerBlockIndex:', iSamplePerBlockIndex,
+            #           'ant:', ant,
+            #           'col:', col,
+            #           'coeff:', coeff,
+            #           'data:', data,
+            #           'tmp', tmp)
+
+            # if ((icBatchIndex == 0) & (icPolIndex == 0) & (icChannelIndex == 1) & (ant == 0) & (col == 1)):
+                # print('ant:', ant, 'col:', col, 'coeff:', coeff)
+                # print('----')
+
+            # if (iThreadIndex_x == debug_thread_idx) & (col==4):
+            #     # print('BF icChannelIndex:', icChannelIndex)
+            #     # print('-----')
+            #     print('BF Col:', col)
+            #     print('BF Ant:', ant)
+            #     print('data', data)
+            #     print('coeff', coeff)
+            #     # print('tmp', tmp)
 
         # Copy computed weighted and summed ant samples to output
         # if col%2 == 0:
             # Computed sample is real component
-        out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col] = tmp
 
-        if (iThreadIndex_x == debug_thread_idx):
-            print('col:', col)
-            print('out:', tmp)
+        # if (iThreadIndex_x < debug_thread_idx)&(col>=0):
+        #     print('thread:', iThreadIndex_x, 'ant:', ant, 'col:', col, 'coeff:', coeff, 'data:', data, 'tmp', tmp)
+
+
+        out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col] = tmp
+        # if (iBatchIndex == 0) & (iPolIndex == 0) & (iChanIndex == 1) & (iBlockIndex == 0) & (
+        #         iSamplePerBlockIndex == 0) & ((col == 0)|(col == 1)):
+        #     print('col:', col, 'tmp', tmp)
+
+        # if (iThreadIndex_x == debug_thread_idx):
+        #     print('col:', col)
+        #     print('out:', tmp)
         # else:
             # Computed sample is imaginary component
             # out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col] = tmp
@@ -188,7 +237,8 @@ class complex_mult_kernel:
         threadsperblock = 128
 
         # Calculate the number of thread blocks in the grid
-        ant_sample_blocks = data_matrix.size / (ants * complexity)
+        # ant_sample_blocks = data_matrix.size / (ants * complexity)
+        ant_sample_blocks = data_matrix.size
         blockspergrid = int(ant_sample_blocks // threadsperblock)
 
         # Make the context associated with device device_id the current context.

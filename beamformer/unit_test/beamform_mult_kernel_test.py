@@ -82,9 +82,9 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
 
     for i in range(NumDelayVals):
         delay_vals.append(np.single((samples_delay) * sample_period))
-        delay_vals.append(np.single(0))
+        delay_vals.append(np.single(0.0))
         delay_vals.append(np.single(phase + d * 0.1))
-        delay_vals.append(np.single(0))
+        delay_vals.append(np.single(0.0))
 
     # Change to numpy array and reshape
     delay_vals = np.array(delay_vals)
@@ -148,27 +148,27 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
         output_data_shape=bufBeamform_host.shape,
     )
 
-    bf_cpu_shape = np.shape(beamform_data_cpu)
-    bf_gpu_shape = np.shape(bufBeamform_host)
-    M = bf_cpu_shape[0]
-    N = bf_cpu_shape[1]
-    O = bf_cpu_shape[2]
-    P = bf_cpu_shape[3]
-    Q = bf_cpu_shape[4]
-    R = bf_cpu_shape[5]
-
-    for m in range(M):
-        for n in range(N):
-            for o in range(O):
-                for p in range(P):
-                    for q in range(Q):
-                        for r in range(R):
-                            if beamform_data_cpu[m,n,o,p,q,r] != bufBeamform_host[m,n,o,p,q,r]:
-                                print("Mismatch:",m,n,o,p,q,r, beamform_data_cpu[m,n,o,p,q,r], bufBeamform_host[m,n,o,p,q,r])
+    # bf_cpu_shape = np.shape(beamform_data_cpu)
+    # bf_gpu_shape = np.shape(bufBeamform_host)
+    # M = bf_cpu_shape[0]
+    # N = bf_cpu_shape[1]
+    # O = bf_cpu_shape[2]
+    # P = bf_cpu_shape[3]
+    # Q = bf_cpu_shape[4]
+    # R = bf_cpu_shape[5]
+    #
+    # for m in range(M):
+    #     for n in range(N):
+    #         for o in range(O):
+    #             for p in range(P):
+    #                 for q in range(Q):
+    #                     for r in range(R):
+    #                         if (beamform_data_cpu[m,n,o,p,q,r] - bufBeamform_host[m,n,o,p,q,r]) > 0.001:
+    #                             print("Mismatch:",m,n,o,p,q,r, beamform_data_cpu[m,n,o,p,q,r], bufBeamform_host[m,n,o,p,q,r])
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-    np.testing.assert_array_equal(beamform_data_cpu, bufBeamform_host)
+    np.testing.assert_allclose(beamform_data_cpu, bufBeamform_host, rtol=1e-04, atol=1e-04)
 
 
 if __name__ == "__main__":
