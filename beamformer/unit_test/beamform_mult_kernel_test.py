@@ -125,6 +125,17 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
         np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
     ).astype(bufSamples_host.dtype)
 
+
+    # 5. Run CPU version. This will be used to verify GPU reorder.
+    cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
+                                     n_ants, xeng_id, sample_period)
+
+    beamform_data_cpu = complex_mult_cpu.complex_mult(
+        input_data=bufSamples_host,
+        coeffs=cpu_coeffs,
+        output_data_shape=bufBeamform_host.shape,
+    )
+
     # 3.2 Generate Coeffs
     # host_coeff[:] = coeff_gen.GPU_Coeffs_kernel()
     # host_coeff[:] = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, n_ants)
@@ -137,26 +148,26 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     BeamformMult()
     bufBeamform_device.get(queue, bufBeamform_host)
 
-    # 5. Run CPU version. This will be used to verify GPU reorder.
-    # cpu_coeffs = coeff_gen.CPU_Coeffs()
-    cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
-                                     n_ants, xeng_id, sample_period)
-
-    beamform_data_cpu = complex_mult_cpu.complex_mult(
-        input_data=bufSamples_host,
-        coeffs=cpu_coeffs,
-        output_data_shape=bufBeamform_host.shape,
-    )
-
-    # bf_cpu_shape = np.shape(beamform_data_cpu)
-    # bf_gpu_shape = np.shape(bufBeamform_host)
-    # M = bf_cpu_shape[0]
-    # N = bf_cpu_shape[1]
-    # O = bf_cpu_shape[2]
-    # P = bf_cpu_shape[3]
-    # Q = bf_cpu_shape[4]
-    # R = bf_cpu_shape[5]
+    # # 5. Run CPU version. This will be used to verify GPU reorder.
+    # # cpu_coeffs = coeff_gen.CPU_Coeffs()
+    # cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
+    #                                  n_ants, xeng_id, sample_period)
     #
+    # beamform_data_cpu = complex_mult_cpu.complex_mult(
+    #     input_data=bufSamples_host,
+    #     coeffs=cpu_coeffs,
+    #     output_data_shape=bufBeamform_host.shape,
+    # )
+
+    bf_cpu_shape = np.shape(beamform_data_cpu)
+    bf_gpu_shape = np.shape(bufBeamform_host)
+    M = bf_cpu_shape[0]
+    N = bf_cpu_shape[1]
+    O = bf_cpu_shape[2]
+    P = bf_cpu_shape[3]
+    Q = bf_cpu_shape[4]
+    R = bf_cpu_shape[5]
+
     # for m in range(M):
     #     for n in range(N):
     #         for o in range(O):

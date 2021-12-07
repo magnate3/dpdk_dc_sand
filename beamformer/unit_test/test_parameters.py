@@ -8,8 +8,8 @@ batches = [3]
 # These are the estimated subarray sizes that will be run. The 130, 192 and 256 values are estimates for SKA and are
 # not final. Additionally values 5,23,61 and 19 are just there to test that various non-power-of-two array sizes will
 # run.
-array_size = [4, 8, 16, 32, 64, 128, 256]
-# array_size = [128]
+array_size = [4, 7, 8, 16, 32, 64, 80, 90, 128, 150, 256]
+# array_size = [7]
 # array_size = [130, 192, 256, 5, 23, 61, 19]
 # array_size = [4, 8, 16, 32, 64, 84, 130, 192, 256, 5, 23, 61, 19]
 
@@ -22,9 +22,9 @@ num_samples_per_channel = [256]
 
 """num_channels: List of number of total channels per array."""
 # Number of FFT channels out of the F-Engine
-# num_channels = [1024, 4096, 32768]
-num_channels = [1024]
-# num_channels = [1024, 4096]
+# num_channels = [1024, 2048, 4096, 8192, 16384]
+num_channels = [1024, 2048, 4096, 8192]
+# num_channels = [2048, 4096, 16384, 32768]
 
 
 """num_beams: List of number of beams."""

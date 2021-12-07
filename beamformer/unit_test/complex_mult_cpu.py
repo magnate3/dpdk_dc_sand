@@ -6,7 +6,6 @@ as per the shape descibed.
 """
 import numpy as np
 
-
 def complex_mult(
     input_data: np.ndarray,
     coeffs: np.ndarray,
@@ -49,8 +48,7 @@ def complex_mult(
     for b in range(batches):
         for p in range(pols):
             for c in range(n_channel):
-                if c == 1:
-                    tt = 1
+                print('Batch:', b ,'Pol:', p, 'Channel:', c)
                 for block in range(blocks):
                     for s in range(n_samples_per_block):
                         # data_cmplx = []
