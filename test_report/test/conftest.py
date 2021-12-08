@@ -18,6 +18,12 @@ class Reporter:
         self._data = data
         self._cur_step: Optional[list] = None
 
+    def config(self, **kwargs) -> None:
+        """Report the test cconfiguration."""
+        test_config = {"$msg_type": "config"}
+        test_config.update(kwargs)
+        self._data.append(test_config)
+
     def step(self, message: str) -> None:
         """Report the start of a high-level step."""
         self._cur_step = []

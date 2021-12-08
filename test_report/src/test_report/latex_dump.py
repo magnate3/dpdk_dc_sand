@@ -29,6 +29,21 @@ from pylatex.labelref import Hyperref
 from pylatex.utils import bold
 
 
+def readable_duration(duration: float) -> str:
+    """Change a duration in seconds to something human-readable."""
+    if duration < 60:
+        return f"{duration:.3f} s"
+    else:
+        seconds = duration % 60
+        duration /= 60
+        if duration < 60:
+            return f"{int(duration)} m {seconds:.3f} s"
+        else:
+            minutes = int(duration % 60)
+            duration /= 60
+            return f"{int(duration)} h {minutes} m {seconds:.3f} s"
+
+
 @dataclass
 class Detail:
     """A message logged by ``pdf_report.detail``."""
@@ -96,6 +111,7 @@ class Result:
     failure_message: Optional[str] = None
     start_time: Optional[float] = None
     duration: float = 0.0
+    config: dict = field(default_factory=dict)
 
 
 def parse(input_data: list) -> List[Result]:
@@ -112,7 +128,7 @@ def parse(input_data: list) -> List[Result]:
     A list of :class:`Result` objects representing the results of all the tests
     logged in the JSON input.
     """
-    results = []
+    results: list[Result] = []
     for line in input_data:
         if line["$report_type"] != "TestReport":
             continue
@@ -127,6 +143,7 @@ def parse(input_data: list) -> List[Result]:
             for prop in line["user_properties"]:
                 if prop[0] == "pdf_report_data":
                     for msg in prop[1][:]:
+                        assert isinstance(msg, dict)
                         msg_type = msg["$msg_type"]
                         if msg_type == "step":
                             # I realise that the extended conditional expression in the list
@@ -153,6 +170,9 @@ def parse(input_data: list) -> List[Result]:
                                 result.blurb = msg["blurb"]
                             if result.start_time is None:
                                 result.start_time = float(msg["test_start"])
+                        elif msg_type == "config":
+                            msg.pop("$msg_type")  # We don't need this.
+                            result.config.update(msg)
                         else:
                             raise ValueError(f"Do not know how to parse $msg_type of {msg_type!r}")
         # If teardown fails, the whole test should be seen as failing
@@ -197,6 +217,7 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                 result_list.append(json.loads(line))
     except TypeError:
         result_list = input_data
+
     results = parse(result_list)
 
     # Get information from the .env file, such as tester's name, which shouldn't
@@ -215,7 +236,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     doc.append(Command("makekatdocbeginning"))
 
     with doc.create(Section("Result Summary")) as summary_section:
-        with summary_section.create(LongTable(r"|r|l|")) as summary_table:
+        with summary_section.create(LongTable(r"|r|l|r|")) as summary_table:
+            total_duration: float = 0.0
             summary_table.add_hline()
             for result in results:
                 summary_table.add_row(
@@ -224,9 +246,12 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                     [
                         Hyperref(f"subsec:{result.name.replace('_', '')}", fix_test_name(result.name)),
                         TextColor("green" if result.outcome == "passed" else "red", result.outcome),
+                        readable_duration(result.duration),
                     ]
                 )
                 summary_table.add_hline()
+                total_duration += result.duration
+        summary_section.append(f"Total test duration: {readable_duration(total_duration)}")
 
     with doc.create(Section("Detailed Test Results")) as section:
         for result in results:
@@ -237,8 +262,16 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                 section.append(Command("hspace", "1cm"))
                 section.append(f"Test start time: {datetime.fromtimestamp(float(result.start_time)).strftime('%T')}")
                 section.append(Command("hspace", "1cm"))
-                section.append(f"Duration: {result.duration:.3f} seconds\n")
-                # TODO: handle minutes / hours
+                section.append(f"Duration: {readable_duration(result.duration)} seconds\n")
+
+                with section.create(LongTable(r"|l|p{0.4\linewidth}|")) as config_table:
+                    config_table.add_hline()
+                    config_table.add_row((MultiColumn(2, align="|c|", data=bold("Test Configuration")),))
+                    config_table.add_hline()
+                    for key, value in result.config.items():
+                        config_table.add_row([key.capitalize(), value])
+                        config_table.add_hline()
+
                 with section.create(Subsubsection("Procedure", label=False)) as procedure:
                     with section.create(LongTable(r"|l|p{0.7\linewidth}|")) as procedure_table:
                         for step in result.steps:
@@ -249,7 +282,7 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                 if isinstance(detail, Detail):
                                     procedure_table.add_row(
                                         [
-                                            f"{(detail.timestamp - result.start_time):.3f}",
+                                            f"{readable_duration(detail.timestamp - result.start_time)}",
                                             detail.message,
                                         ]
                                     )
