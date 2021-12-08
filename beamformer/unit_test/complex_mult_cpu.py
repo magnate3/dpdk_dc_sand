@@ -48,7 +48,7 @@ def complex_mult(
     for b in range(batches):
         for p in range(pols):
             for c in range(n_channel):
-                print('Batch:', b ,'Pol:', p, 'Channel:', c)
+                # print('Batch:', b ,'Pol:', p, 'Channel:', c)
                 for block in range(blocks):
                     for s in range(n_samples_per_block):
                         # data_cmplx = []

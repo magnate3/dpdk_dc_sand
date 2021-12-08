@@ -226,13 +226,24 @@ class complex_mult_kernel:
         data_matrix = data_matrix.reshape(batches, pols, n_channel, blocks, samples_per_block, (ants * complexity))
 
         # Set the number of threads in a block
-        threadsperblock = 512
+        # threadsperblock = 512
 
         # Calculate the number of thread blocks in the grid
         # ant_sample_blocks = data_matrix.size / (ants * complexity)
         # ant_sample_blocks = data_matrix.size
         # ant_sample_blocks = batches * pols * n_channel * blocks * samples_per_block * n_beams * complexity
         ant_sample_blocks = batches * pols * n_channel * blocks * samples_per_block * ants * complexity
+
+        largest_divisor = 0
+        num = ant_sample_blocks
+        for i in range(2, num):
+            if ((num % i == 0) & (i<=1024)):
+                largest_divisor = i
+            elif (i > 1024):
+                break
+
+        threadsperblock = largest_divisor
+
         blockspergrid = np.uint(ant_sample_blocks // threadsperblock)
         # blockspergrid = np.uint(np.ceil(ant_sample_blocks / threadsperblock))
 

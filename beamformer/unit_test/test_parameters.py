@@ -22,9 +22,10 @@ num_samples_per_channel = [256]
 
 """num_channels: List of number of total channels per array."""
 # Number of FFT channels out of the F-Engine
-# num_channels = [1024, 2048, 4096, 8192, 16384]
+# num_channels = [1024, 2048, 4096, 8192, 16384, 32768]
 num_channels = [1024, 2048, 4096, 8192]
-# num_channels = [2048, 4096, 16384, 32768]
+# num_channels = [16384]
+# num_channels = [32768]
 
 
 """num_beams: List of number of beams."""

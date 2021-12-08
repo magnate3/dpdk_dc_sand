@@ -16,7 +16,8 @@ def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams
     iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
     # start = 2 * (2 * (36 * 7 * 2 * 8 * 2)) + 1 * (36 * 7 * 2 * 8 * 2) + (34 * 7 * 2 * 8 * 2)*0
-    debug_thread_idx_lower =  2 * (2 * (36 * 7 * 8)) + 1 * (36 * 7 * 8) + (34 * 7 * 8) -16
+    # debug_thread_idx_lower =  2 * (2 * (36 * 7 * 8)) + 1 * (36 * 7 * 8) + (34 * 7 * 8) -16
+    debug_thread_idx_lower = 0
     debug_thread_idx_upper = debug_thread_idx_lower + 64
 
     # if iThreadIndex_x == debug_thread_idx:
@@ -95,7 +96,6 @@ def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams
     #     print('iThreadIndex_x',iThreadIndex_x)
 
     # if (iThreadIndex_x > debug_thread_idx_lower)&(iThreadIndex_x < debug_thread_idx_upper):
-    # if (iThreadIndex_x > debug_thread_idx_lower):
     #     print('thread:', iThreadIndex_x,
     #         'iBatchIndex', iBatchIndex,
     #         'iBatchIndex_rem', iBatchIndex_rem,
@@ -108,12 +108,25 @@ def run_coeff_gen(delay_vals, batches, pols, n_channels, total_channels, n_beams
     #         'iBeamMatrix:', iBeamMatrix,
     #         'iAntMatrix:', iAntMatrix)
 
+    # if iAntMatrix > 12:
+    #     print('iAntMatrix', iAntMatrix)
+
+    # if ((iBatchIndex == 0) & (iPolIndex == 0) & (iChannelIndex == 0)& (iAntMatrix == 0)):
+    #     print('iThreadIndex_x', iThreadIndex_x, 'iBeamMatrix', iBeamMatrix)
+
     # Store steering coefficients in output matrix
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
 
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
+
+    # if iThreadIndex_x > 0:
+    #     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal #4
+    #     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix+1] = SteeringCoeffCorrectImag #1
+
+    #     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix] = -SteeringCoeffCorrectImag #-1
+    #     coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix+1][iBeamMatrix+1] = SteeringCoeffCorrectReal #4
 
 class beamform_coeff_kernel:
     """Class for beamform complex multiplication."""
@@ -139,12 +152,23 @@ class beamform_coeff_kernel:
         coeff_matrix = coeff_matrix.reshape(batches, pols, num_channels, n_ants*complexity, n_beams*cols)
 
         # Set the number of threads in a block
-        threadsperblock = 128
+        # threadsperblock = 128
 
+        largest_divisor = 0
+        num = batches*pols*num_channels*n_beams*n_ants
+        for i in range(2, num):
+            if ((num % i == 0) & (i<=1024)):
+                largest_divisor = i
+            elif (i > 1024):
+                break
+
+        threadsperblock = largest_divisor
+        
         # Calculate the number of thread blocks in the grid
-        # blockspergrid = int((batches*pols*num_channels*n_beams*n_ants) // threadsperblock)
+        blockspergrid = batches*pols*num_channels*n_beams*n_ants // threadsperblock
 
-        blockspergrid = int(np.ceil((batches * pols * num_channels * n_beams * n_ants) / threadsperblock))
+        # blockspergrid = int(np.ceil((batches * pols * num_channels * n_beams * n_ants) / threadsperblock))
+
         # Make the context associated with device device_id the current context.
         # NOTE: Without doing this Numba will try execute kernel code on it's own context which will throw an error as
         # the device already has a context associated to it from katsdpsigproc command queue. This will make the
