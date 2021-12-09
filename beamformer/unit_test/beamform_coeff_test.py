@@ -22,6 +22,7 @@ import pytest
 from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
 from unit_test import test_parameters
 from unit_test.coeff_generator import CoeffGenerator
+
 # import time
 # import matplotlib.pyplot as plt
 
@@ -34,14 +35,9 @@ from unit_test.coeff_generator import CoeffGenerator
 @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
 @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
 @pytest.mark.parametrize("phase", test_parameters.phase)
-def test_beamform_coeffs_parametrised(  batches, 
-                                        n_ants, 
-                                        num_channels, 
-                                        num_samples_per_channel, 
-                                        num_beams, 
-                                        xeng_id, 
-                                        samples_delay, 
-                                        phase):
+def test_beamform_coeffs_parametrised(
+    batches, n_ants, num_channels, num_samples_per_channel, num_beams, xeng_id, samples_delay, phase
+):
     """
     Parametrised unit test of the beamform coefficient generation using Numba-based kernel.
 
@@ -64,7 +60,7 @@ def test_beamform_coeffs_parametrised(  batches,
     num_beams: int
         The number of beams that will be steered.
     xeng_id: int
-        Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.   
+        Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
     samples_delay: int
         Delay in ADC samples that should be applied.
     phase: float
@@ -83,7 +79,7 @@ def test_beamform_coeffs_parametrised(  batches,
     num_pols = 2
     coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants, xeng_id)
 
-    sample_period = 1/1712e6
+    sample_period = 1 / 1712e6
 
     NumDelayVals = n_channels_per_stream * num_beams * n_ants
 
@@ -91,7 +87,7 @@ def test_beamform_coeffs_parametrised(  batches,
 
     # 2. Make all the delays the same so the results should be identical per antenna-beam
     for i in range(NumDelayVals):
-        delay_vals.append(np.single((samples_delay)*sample_period))
+        delay_vals.append(np.single((samples_delay) * sample_period))
         delay_vals.append(np.single(0))
         delay_vals.append(np.single(phase))
         delay_vals.append(np.single(0))
@@ -119,10 +115,14 @@ def test_beamform_coeffs_parametrised(  batches,
     delay_vals = delay_vals.reshape(n_channels_per_stream, num_beams, n_ants, 4)
 
     # 3. Generate Coeffs on GPU
-    GPU_coeff = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period)
+    GPU_coeff = beamform_coeff_kernel.coeff_gen(
+        delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period
+    )
 
     # 4. Run CPU version. This will be used to verify GPU reorder.
-    CPU_coeff = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period)
+    CPU_coeff = coeff_gen.CPU_Coeffs(
+        delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period
+    )
 
     # 5. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8

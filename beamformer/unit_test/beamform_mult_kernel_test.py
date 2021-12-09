@@ -25,8 +25,6 @@ from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
 from unit_test.coeff_generator import CoeffGenerator
-import time
-
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
@@ -56,6 +54,14 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
         The number of channels per stream is calculated from this value.
     num_samples_per_channel: int
         The number of time samples per frequency channel.
+    num_beams: int
+        The number of beams that will be steered.
+    xeng_id: int
+        Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
+    samples_delay: int
+        Delay in ADC samples that should be applied.
+    phase: float
+        Phase value in radians to be applied.
 
     This test:
         1. Populate a host-side array with random data in the range of the relevant dtype.
@@ -77,13 +83,10 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     NumDelayVals = n_channels_per_stream * num_beams * n_ants
     delay_vals = []
 
-    # Temp
-    d = 0
-
     for i in range(NumDelayVals):
         delay_vals.append(np.single((samples_delay) * sample_period))
         delay_vals.append(np.single(0.0))
-        delay_vals.append(np.single(phase + d * 0.1))
+        delay_vals.append(np.single(phase))
         delay_vals.append(np.single(0.0))
 
     # Change to numpy array and reshape
@@ -125,20 +128,7 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
         np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
     ).astype(bufSamples_host.dtype)
 
-
-    # 5. Run CPU version. This will be used to verify GPU reorder.
-    cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
-                                     n_ants, xeng_id, sample_period)
-
-    beamform_data_cpu = complex_mult_cpu.complex_mult(
-        input_data=bufSamples_host,
-        coeffs=cpu_coeffs,
-        output_data_shape=bufBeamform_host.shape,
-    )
-
     # 3.2 Generate Coeffs
-    # host_coeff[:] = coeff_gen.GPU_Coeffs_kernel()
-    # host_coeff[:] = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, n_ants)
     host_coeff[:] = beamform_coeff_kernel.coeff_gen(delay_vals, batches, num_pols, num_beams, n_channels_per_stream,
                                                 num_channels, n_ants, xeng_id, sample_period)
 
@@ -148,34 +138,15 @@ def test_beamform_parametrised(batches, n_ants, num_channels, num_samples_per_ch
     BeamformMult()
     bufBeamform_device.get(queue, bufBeamform_host)
 
-    # # 5. Run CPU version. This will be used to verify GPU reorder.
-    # # cpu_coeffs = coeff_gen.CPU_Coeffs()
-    # cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
-    #                                  n_ants, xeng_id, sample_period)
-    #
-    # beamform_data_cpu = complex_mult_cpu.complex_mult(
-    #     input_data=bufSamples_host,
-    #     coeffs=cpu_coeffs,
-    #     output_data_shape=bufBeamform_host.shape,
-    # )
-
-    bf_cpu_shape = np.shape(beamform_data_cpu)
-    bf_gpu_shape = np.shape(bufBeamform_host)
-    M = bf_cpu_shape[0]
-    N = bf_cpu_shape[1]
-    O = bf_cpu_shape[2]
-    P = bf_cpu_shape[3]
-    Q = bf_cpu_shape[4]
-    R = bf_cpu_shape[5]
-
-    # for m in range(M):
-    #     for n in range(N):
-    #         for o in range(O):
-    #             for p in range(P):
-    #                 for q in range(Q):
-    #                     for r in range(R):
-    #                         if (beamform_data_cpu[m,n,o,p,q,r] - bufBeamform_host[m,n,o,p,q,r]) > 0.001:
-    #                             print("Mismatch:",m,n,o,p,q,r, beamform_data_cpu[m,n,o,p,q,r], bufBeamform_host[m,n,o,p,q,r])
+    # 5. Run CPU version. This will be used to verify GPU reorder.
+    cpu_coeffs = coeff_gen.CPU_Coeffs(delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels,
+                                     n_ants, xeng_id, sample_period)
+    
+    beamform_data_cpu = complex_mult_cpu.complex_mult(
+        input_data=bufSamples_host,
+        coeffs=cpu_coeffs,
+        output_data_shape=bufBeamform_host.shape,
+    )
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
