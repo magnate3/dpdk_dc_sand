@@ -19,7 +19,7 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
+from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
 from unit_test import test_parameters
 from unit_test.coeff_generator import CoeffGenerator
 
@@ -77,16 +77,15 @@ def test_beamform_coeffs_parametrised(
     samples_per_block = 16
     n_blocks = num_samples_per_channel // samples_per_block
     num_pols = 2
-    coeff_gen = CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants, xeng_id)
 
     sample_period = 1 / 1712e6
 
-    NumDelayVals = n_channels_per_stream * num_beams * n_ants
+    num_delay_vals = n_channels_per_stream * num_beams * n_ants
 
     delay_vals = []
 
     # 2. Make all the delays the same so the results should be identical per antenna-beam
-    for i in range(NumDelayVals):
+    for _ in range(num_delay_vals):
         delay_vals.append(np.single((samples_delay) * sample_period))
         delay_vals.append(np.single(0))
         delay_vals.append(np.single(phase))
@@ -114,23 +113,46 @@ def test_beamform_coeffs_parametrised(
     delay_vals = np.array(delay_vals)
     delay_vals = delay_vals.reshape(n_channels_per_stream, num_beams, n_ants, 4)
 
-    # 3. Generate Coeffs on GPU
-    GPU_coeff = beamform_coeff_kernel.coeff_gen(
-        delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period
+    cpu_coeff_gen = CoeffGenerator(
+        delay_vals,
+        batches,
+        num_pols,
+        n_channels_per_stream,
+        num_channels,
+        n_blocks,
+        samples_per_block,
+        n_ants,
+        num_beams,
+        xeng_id,
+        sample_period,
+    )
+    gpu_coeff_gen = BeamformCoeffKernel(
+        delay_vals,
+        batches,
+        num_pols,
+        n_channels_per_stream,
+        num_channels,
+        n_blocks,
+        samples_per_block,
+        n_ants,
+        num_beams,
+        xeng_id,
+        sample_period,
     )
 
+    # 3. Generate Coeffs on GPU
+    gpu_coeff = gpu_coeff_gen.coeff_gen()
+
     # 4. Run CPU version. This will be used to verify GPU reorder.
-    CPU_coeff = coeff_gen.CPU_Coeffs(
-        delay_vals, batches, num_pols, num_beams, n_channels_per_stream, num_channels, n_ants, xeng_id, sample_period
-    )
+    cpu_coeff = cpu_coeff_gen.cpu_coeffs()
 
     # 5. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-    np.testing.assert_array_equal(CPU_coeff, GPU_coeff)
+    np.testing.assert_array_equal(cpu_coeff, gpu_coeff)
 
 
 if __name__ == "__main__":
-    for a in range(len(test_parameters.array_size)):
+    for _ in range(len(test_parameters.array_size)):
         test_beamform_coeffs_parametrised(
             test_parameters.batches[0],
             test_parameters.array_size[0],

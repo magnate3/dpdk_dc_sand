@@ -6,6 +6,7 @@ as per the shape descibed.
 """
 import numpy as np
 
+
 def complex_mult(
     input_data: np.ndarray,
     coeffs: np.ndarray,
@@ -31,6 +32,7 @@ def complex_mult(
         Number of samples per channels.
     n_samples_per_block: int
         Number of samples per block.
+
     Returns
     -------
     np.ndarray of type float
@@ -50,7 +52,7 @@ def complex_mult(
             for c in range(n_channel):
                 for block in range(blocks):
                     for s in range(n_samples_per_block):
-                        for beam in range(beams//2):
+                        for beam in range(beams // 2):
                             data_cmplx = []
                             coeff_cmplx = []
                             for a in range(ants):
@@ -62,7 +64,9 @@ def complex_mult(
                                 data_cmplx.append(dtmp_cmplx)
 
                                 # Create complex valued pair for coefficients
-                                ctmp_cmplx = complex(coeffs[b, p, c, a*2, beam*2], coeffs[b, p, c, a*2, beam*2+1])
+                                ctmp_cmplx = complex(
+                                    coeffs[b, p, c, a * 2, beam * 2], coeffs[b, p, c, a * 2, beam * 2 + 1]
+                                )
 
                                 # Append complex valued pair to form an array of <real,imag> values
                                 coeff_cmplx.append(ctmp_cmplx)
@@ -71,6 +75,6 @@ def complex_mult(
                             cmplx_prod = np.dot(data_cmplx, coeff_cmplx)
 
                             # Assign real and imaginary results to repective positions
-                            output_data[b, p, c, block, s, beam*2] = np.real(cmplx_prod)
-                            output_data[b, p, c, block, s, beam*2 + 1] = np.imag(cmplx_prod)
+                            output_data[b, p, c, block, s, beam * 2] = np.real(cmplx_prod)
+                            output_data[b, p, c, block, s, beam * 2 + 1] = np.imag(cmplx_prod)
     return output_data

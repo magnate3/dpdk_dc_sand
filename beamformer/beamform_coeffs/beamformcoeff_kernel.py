@@ -13,74 +13,105 @@ from numba import cuda
 @cuda.jit
 def run_coeff_gen(delay_vals, pols, n_channels, total_channels, n_beams, n_ants, xeng_id, sample_period, coeffs):
     """Execute Beamforming steering coefficients."""
-    # # Compute flattened index inside the array
-    iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
+    # Compute flattened index inside the array
+    ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
     # Compute indexes for delay_vals matrix
-    iBatchIndex = iThreadIndex_x // (pols * n_channels * n_beams * n_ants)
-    iBatchIndex_rem = iThreadIndex_x % (pols * n_channels * n_beams * n_ants)
+    # ibatchindex = ithreadindex_x // (pols * n_channels * n_beams * n_ants)
+    ibatchindex_rem = ithreadindex_x % (pols * n_channels * n_beams * n_ants)
 
-    iPolIndex = iBatchIndex_rem // (n_channels * n_beams * n_ants)
-    iPolIndex_rem = iBatchIndex_rem % (n_channels * n_beams * n_ants)
+    # ipolindex = ibatchindex_rem // (n_channels * n_beams * n_ants)
+    ipolindex_rem = ibatchindex_rem % (n_channels * n_beams * n_ants)
 
-    iChannelIndex = iPolIndex_rem // (n_beams * n_ants)
-    iChannelIndex_rem = iPolIndex_rem % (n_beams * n_ants)
+    ichannelindex = ipolindex_rem // (n_beams * n_ants)
+    ichannelindex_rem = ipolindex_rem % (n_beams * n_ants)
 
-    iAntIndex = iChannelIndex_rem // (n_beams)
-    iAntIndex_rem = iChannelIndex_rem % (n_beams)
+    iantindex = ichannelindex_rem // (n_beams)
+    iantindex_rem = ichannelindex_rem % (n_beams)
 
-    iBeamIndex = iAntIndex_rem
+    ibeamindex = iantindex_rem
 
     # Extract delay and phase values
-    Delay_s = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][0]
-    DelayRate_sps = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][1]
-    Phase_rad = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][2]
-    PhaseRate_radps = delay_vals[iChannelIndex][iBeamIndex][iAntIndex][3]
+    delay_s = delay_vals[ichannelindex][ibeamindex][iantindex][0]
+    # DelayRate_sps = delay_vals[ichannelindex][ibeamindex][iantindex][1]
+    phase_rad = delay_vals[ichannelindex][ibeamindex][iantindex][2]
+    # PhaseRate_radps = delay_vals[ichannelindex][ibeamindex][iantindex][3]
 
     # Compute actual channel index (i.e. channel in spectrum being computed on)
     # This is needed when computing the rotation value before the cos/sin lookup.
     # There are n_channels per xeng so adding n_channels * xeng_id gives the
     # relative channel in the spectrum the xeng GPU thread is working on.
-    iChannel = iChannelIndex + n_channels * xeng_id
+    ichannel = ichannelindex + n_channels * xeng_id
 
-    initial_phase = Delay_s * iChannel * (-np.math.pi) / (total_channels * sample_period) + Phase_rad
+    initial_phase = delay_s * ichannel * (-np.math.pi) / (total_channels * sample_period) + phase_rad
 
-    Phase_correction_band_center = Delay_s * (total_channels / 2) * (-np.math.pi) / (total_channels * sample_period)
+    phase_correction_band_center = delay_s * (total_channels / 2) * (-np.math.pi) / (total_channels * sample_period)
 
     # Compute rotation value for steering coefficient computation
-    Rotation = initial_phase - Phase_correction_band_center
+    rotation = initial_phase - phase_correction_band_center
 
-    SteeringCoeffCorrectReal = math.cos(Rotation)
-    SteeringCoeffCorrectImag = math.sin(Rotation)
+    steering_coeff_correct_real = math.cos(rotation)
+    steering_coeff_correct_imag = math.sin(rotation)
 
     # Compute indexes for output matrix
-    iBatchIndex = iThreadIndex_x // (pols * n_channels * n_beams * n_ants)
-    iBatchIndex_rem = iThreadIndex_x % (pols * n_channels * n_beams * n_ants)
+    ibatchindex = ithreadindex_x // (pols * n_channels * n_beams * n_ants)
+    ibatchindex_rem = ithreadindex_x % (pols * n_channels * n_beams * n_ants)
 
-    iPolIndex = iBatchIndex_rem // (n_channels * n_beams * n_ants)
-    iPolIndex_rem = iBatchIndex_rem % (n_channels * n_beams * n_ants)
+    ipolindex = ibatchindex_rem // (n_channels * n_beams * n_ants)
+    ipolindex_rem = ibatchindex_rem % (n_channels * n_beams * n_ants)
 
-    iChannelIndex = iPolIndex_rem // (n_beams * n_ants)
-    iChannelIndex_rem = iPolIndex_rem % (n_beams * n_ants)
+    ichannelindex = ipolindex_rem // (n_beams * n_ants)
+    ichannelindex_rem = ipolindex_rem % (n_beams * n_ants)
 
-    iBeamIndex = iChannelIndex_rem // (n_ants)
-    iBeamIndex_rem = iChannelIndex_rem % (n_ants)
+    ibeamindex = ichannelindex_rem // (n_ants)
+    ibeamindex_rem = ichannelindex_rem % (n_ants)
 
-    iBeamMatrix = iBeamIndex * 2
-    iAntMatrix = iBeamIndex_rem * 2
+    ibeam_matrix = ibeamindex * 2
+    iant_matrix = ibeamindex_rem * 2
 
     # Store steering coefficients in output matrix
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix] = SteeringCoeffCorrectReal
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix][iBeamMatrix + 1] = SteeringCoeffCorrectImag
+    coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][ibeam_matrix] = steering_coeff_correct_real
+    coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][ibeam_matrix + 1] = steering_coeff_correct_imag
 
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix + 1][iBeamMatrix] = -SteeringCoeffCorrectImag
-    coeffs[iBatchIndex][iPolIndex][iChannelIndex][iAntMatrix + 1][iBeamMatrix + 1] = SteeringCoeffCorrectReal
+    coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][ibeam_matrix] = -steering_coeff_correct_imag
+    coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][ibeam_matrix + 1] = steering_coeff_correct_real
 
 
-class beamform_coeff_kernel:
+class BeamformCoeffKernel:
     """Class for beamform complex multiplication."""
 
-    def coeff_gen(delay_vals, batches, pols, n_beams, num_channels, total_channels, n_ants, xeng_id, sample_period):
+    # def __init__(self, batches, n_channels, n_blocks, samples_per_block, n_ants, xeng_id):
+
+    def __init__(
+        self,
+        delay_vals,
+        batches,
+        num_pols,
+        n_channels_per_stream,
+        total_channels,
+        n_blocks,
+        samples_per_block,
+        n_ants,
+        num_beams,
+        xeng_id,
+        sample_period,
+    ):
+        """Initialise the coefficient generation class."""
+        self.delay_vals = delay_vals
+        self.batches = batches
+        self.pols = num_pols
+        self.num_channels = n_channels_per_stream
+        self.total_channels = total_channels
+        self.n_blocks = n_blocks
+        self.samples_per_block = samples_per_block
+        self.n_ants = n_ants
+        self.num_beams = num_beams
+        self.xeng_id = xeng_id
+        self.sample_period = sample_period
+        self.total_length = self.batches * self.pols * self.num_channels * self.n_blocks * self.samples_per_block
+        self.complexity = 2  # Always
+
+    def coeff_gen(self):
         """Complex multiplication setup.
 
         Parameters
@@ -91,14 +122,18 @@ class beamform_coeff_kernel:
             Number of batches to process.
         pols: int
             Number of polarisations.
-        n_beams: int
-             Number of beams to be steered.
         num_channels: int
             The number of channels the XEng core will process.
         total_channels: int
             The total number of channels in the system.
+        n_blocks: int
+            Number of blocks into which samples are divided in groups of 16
+        samples_per_block: int
+            Number of samples to process per sample-block
         n_ants: int
             The number of antennas from which data will be received.
+        num_beams: int
+             Number of beams to be steered.
         xeng_id: int
             Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
         sample_period: int
@@ -108,11 +143,16 @@ class beamform_coeff_kernel:
         cols = 2
 
         # Temp - a place holder until this code get added into the op sequence.
-        coeff_matrix = np.empty(batches * pols * num_channels * n_ants * n_beams * complexity * cols, dtype=np.float32)
-        coeff_matrix = coeff_matrix.reshape(batches, pols, num_channels, n_ants * complexity, n_beams * cols)
+        coeff_matrix = np.empty(
+            self.batches * self.pols * self.num_channels * self.n_ants * self.num_beams * complexity * cols,
+            dtype=np.float32,
+        )
+        coeff_matrix = coeff_matrix.reshape(
+            self.batches, self.pols, self.num_channels, self.n_ants * complexity, self.num_beams * cols
+        )
 
         # Calculate the number of threads required.
-        total_threads = batches * pols * num_channels * n_beams * n_ants
+        total_threads = self.batches * self.pols * self.num_channels * self.num_beams * self.n_ants
 
         # Calculate the largest divisor possible (withing range 2-1024)
         largest_divisor = 0
@@ -125,7 +165,7 @@ class beamform_coeff_kernel:
         threadsperblock = largest_divisor
 
         # Calculate the number of thread blocks in the grid
-        blockspergrid = batches * pols * num_channels * n_beams * n_ants // threadsperblock
+        blockspergrid = self.batches * self.pols * self.num_channels * self.num_beams * self.n_ants // threadsperblock
 
         # Make the context associated with device device_id the current context.
         # NOTE: Without doing this Numba will try execute kernel code on it's own context which will throw an error as
@@ -135,7 +175,15 @@ class beamform_coeff_kernel:
 
         # Now start the kernel
         run_coeff_gen[blockspergrid, threadsperblock](
-            delay_vals, pols, num_channels, total_channels, n_beams, n_ants, xeng_id, sample_period, coeff_matrix
+            self.delay_vals,
+            self.pols,
+            self.num_channels,
+            self.total_channels,
+            self.num_beams,
+            self.n_ants,
+            self.xeng_id,
+            self.sample_period,
+            coeff_matrix,
         )
 
         # Wait for all commands in the stream to finish executing.

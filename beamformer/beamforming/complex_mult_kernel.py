@@ -4,8 +4,9 @@ Module for beamformer complex multiplication.
 The beamform multiplication kernel ingests data from the pre-beamform reorder and produces a beamformed product
 as per the shape descibed.
 """
-from numba import cuda, float32
 import numpy as np
+from numba import cuda, float32
+
 
 @cuda.jit
 def run_complex_mult(data_matrix, coeff_matrix, out):
@@ -39,8 +40,8 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     data and the coefficients used are complex valued requiring a complex multiplication.
     To utilise standard matrix mutliplication the coefficient matrix is constructed as detailed above.
     """
-    # # Compute flattened index inside the array
-    iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
+    # Compute flattened index inside the array
+    ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
     pols = data_matrix.shape[1]
     n_channel = data_matrix.shape[2]
@@ -48,34 +49,34 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     samples_per_block = data_matrix.shape[4]
     ants = data_matrix.shape[5]
     complexity = 2
-    n_beams = coeff_matrix.shape[4]//complexity
+    n_beams = coeff_matrix.shape[4] // complexity
 
     # Compute data matrix index
-    iBatchIndex = iThreadIndex_x // (pols * n_channel * blocks * samples_per_block * ants)
-    iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block * ants)
+    ibatchindex = ithreadindex_x // (pols * n_channel * blocks * samples_per_block * ants)
+    iremindex = ithreadindex_x % (pols * n_channel * blocks * samples_per_block * ants)
 
-    iPolIndex = iRemIndex // (n_channel * blocks * samples_per_block * ants)
-    iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block * ants)
+    ipolindex = iremindex // (n_channel * blocks * samples_per_block * ants)
+    iremindex = iremindex % (n_channel * blocks * samples_per_block * ants)
 
-    iChanIndex = iRemIndex // (blocks * samples_per_block * ants)
-    iRemIndex = iRemIndex % (blocks * samples_per_block * ants)
+    ichanindex = iremindex // (blocks * samples_per_block * ants)
+    iremindex = iremindex % (blocks * samples_per_block * ants)
 
-    iBlockIndex = iRemIndex // (samples_per_block * ants)
-    iRemIndex = iRemIndex % (samples_per_block * ants)
+    iblockindex = iremindex // (samples_per_block * ants)
+    iremindex = iremindex % (samples_per_block * ants)
 
-    iSamplePerBlockIndex = iRemIndex // ants
+    isample_per_block_index = iremindex // ants
 
-    for col in range(n_beams*2):
+    for col in range(n_beams * 2):
         tmp = float32(0)
         for ant in range(ants):
-            coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][ant][col]
-            data = data_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][ant]
+            coeff = coeff_matrix[ibatchindex][ipolindex][ichanindex][ant][col]
+            data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][ant]
             tmp += data * coeff
 
-        out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col] = tmp
+        out[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][col] = tmp
 
 
-class complex_mult_kernel:
+class ComplexMultKernel:
     """Class for beamform complex multiplication."""
 
     def complex_mult(self, data_matrix, coeff_matrix, out):
@@ -107,9 +108,9 @@ class complex_mult_kernel:
         # Calculate the largest divisor possible (withing range 2-1024)
         largest_divisor = 0
         for i in range(2, total_threads):
-            if ((total_threads % i == 0) & (i>1 & i<=1024)):
+            if (total_threads % i == 0) & (i > 1 & i <= 1024):
                 largest_divisor = i
-            elif (i > 1024):
+            elif i > 1024:
                 break
 
         # Set the number of threads in a block. This is the largest divisor.
