@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+testpaths = "unit_test"
+addopts = "--cov-context=test --cov-report html --import-mode=prepend"
+
+[tool.coverage.run]
+branch = true
+command_line = "-m pytest"
+source = [
+	"beamforming/",
+	"beamform_reorder/",
+	"beamform_coeffs/",
+	"unit_test/",
+]
+
+[tool.coverage.html]
+show_contexts = true
