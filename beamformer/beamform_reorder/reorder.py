@@ -65,11 +65,11 @@ def reorder(input_data: np.ndarray, input_data_shape: tuple, output_data_shape: 
 
     Parameters
     ----------
-    input_data: np.ndarray of type uint16
+    input_data:
         Input data for reordering.
-    input_data_shape: tuple
+    input_data_shape:
         Input data shape.
-    output_data_shape: tuple
+    output_data_shape:
         Data shape to rehsape input data into.
 
     Returns

@@ -23,17 +23,17 @@ class PreBeamformReorderTemplate:
 
     Parameters
     ----------
-    context: AbstractContext
+    context:
     The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
     A context is associated with a single device and 'owns' all memory allocations.
     For the purposes of this python module the CUDA context is required.
-    n_ants: int
+    n_ants:
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
-    n_channels: int
+    n_channels:
         The number of frequency channels to be processed.
-    n_samples_per_channel: int
+    n_samples_per_channel:
         The number of time samples to be processed per frequency channel.
-    n_batches: int
+    n_batches:
         The number of matrices to be reordered, a single data matrix = one batch.
     """
 
@@ -81,13 +81,13 @@ class PreBeamformReorderTemplate:
         self.matrix_size = self.n_ants * self.n_channels * self.n_samples_per_channel * self.n_polarisations
 
         # Maximum number of threads per block, as per Section I of Nvidia's CUDA Programming Guide
-        THREADS_PER_BLOCK: Final[int] = 1024
-        self.threads_per_block = THREADS_PER_BLOCK
+        threads_per_block: Final[int] = 1024
+        self.threads_per_block = threads_per_block
 
         # 4. Calculate the number of thread blocks to launch per kernel call
         # - This is in the x-dimension and remains constant for the lifetime of the object.
         # - TODO: Error-check these values (As in, bounds/values, not method).
-        self.n_blocks_x = int(np.ceil(self.matrix_size / THREADS_PER_BLOCK))
+        self.n_blocks_x = int(np.ceil(self.matrix_size / threads_per_block))
 
         # 5. Compile the kernel
         #   - The size of this kernel simply depends on the individual matrix size and the
@@ -150,17 +150,17 @@ class PreBeamformReorder(accel.Operation):
 
     def _run(self) -> None:
         """Run the correlation kernel."""
-        inSamples_buffer = self.buffer("inSamples")
-        outReordered_buffer = self.buffer("outReordered")
-        max_threadIdx = int(self.template.threads_per_block * self.template.n_blocks_x)
+        in_samples_buffer = self.buffer("inSamples")
+        out_reordered_buffer = self.buffer("outReordered")
+        max_thread_idx = int(self.template.threads_per_block * self.template.n_blocks_x)
 
         self.command_queue.enqueue_kernel(
             self.template.kernel,
-            [inSamples_buffer.buffer, outReordered_buffer.buffer],
+            [in_samples_buffer.buffer, out_reordered_buffer.buffer],
             # Even though we are using CUDA, we follow OpenCLs grid/block conventions. As such we need to multiply the
             # number of blocks(global_size) by the block size(local_size) in order to specify global threads not global
             # blocks.
             # - Global size is across the x- and y-dimensions (for this application).
-            global_size=(max_threadIdx, self.template.n_batches),
+            global_size=(max_thread_idx, self.template.n_batches),
             local_size=(self.template.threads_per_block, 1),
         )

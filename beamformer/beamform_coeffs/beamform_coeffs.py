@@ -7,12 +7,14 @@ Provision for batched operations is included, i.e. reordering multiple sets of d
 in a single array.
 """
 import numpy as np
-#from beamforming.complex_mult_kernel import complex_mult_kernel
-#from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
-from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
+
+# from beamforming.complex_mult_kernel import complex_mult_kernel
+# from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
+from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 from katsdpsigproc.accel import IOSlot, Operation
+
 
 class BeamformCoeffsTemplate:
     """
@@ -20,40 +22,30 @@ class BeamformCoeffsTemplate:
 
     Parameters
     ----------
-    context: AbstractContext
+    context:
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
-    n_ants: int
+    delay_vals:
+        Data matrix of delay values.
+    n_beams:
+        The number of beams that will be steered.
+    n_ants:
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
-    n_channels: int
+    n_channels:
         The number of frequency channels to be processed.
-    n_samples_per_channel: int
-        The number of samples per channel.
-    batches: int
-        The number of matrices to be reordered, a single data matrix = one batch.
-    _sample_bitwidth: int
-        Number of bits per input sample. Fixed at 8.
-    n_pols: int
-        Number of polarisations. Always 2.
-    complexity: int
-        Constant for complex number dimensions. Always 2.
     """
 
     def __init__(
         self,
         context: AbstractContext,
-        current_time: int,
-        ref_time: int,
-        delay: int,
+        delay_vals: int,
         n_beams: int,
         n_ants: int,
         n_channels: int,
     ) -> None:
         self.context = context
-        self.current_time = current_time
-        self.ref_time = ref_time
-        self.delay = delay
+        self.delay_vals = delay_vals
         self.n_beams = n_beams
         self.n_channels = n_channels
         self.n_ants = n_ants
@@ -82,12 +74,10 @@ class CoeffGen(Operation):
 
     Parameters
     ----------
-    template: MultiplyTemplate
-        Template for multiplication class
+    template: BeamformCoeffsTemplate
+        Template for beamform coefficients class
     command_queue: accel.AbstractCommandQueue
         CUDA command queue
-    test_id: string
-        ID of the computation to run. This will be removed and is only for testing.
     """
 
     def __init__(self, template: BeamformCoeffsTemplate, command_queue: accel.AbstractCommandQueue):
@@ -98,6 +88,6 @@ class CoeffGen(Operation):
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
-            beamform_coeff_kernel.coeff_gen(
-                self, self.current_time, self.ref_time, self.delay, self.n_beams, self.n_channels, self.n_ants, self.buffer("OutCoeffs").buffer
+            BeamformCoeffKernel.coeff_gen(
+                self, self.delay_vals, self.n_beams, self.n_channels, self.n_ants, self.buffer("OutCoeffs").buffer
             )

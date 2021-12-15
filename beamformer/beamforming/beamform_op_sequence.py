@@ -7,18 +7,16 @@ per the shape descibed. Provision for batched operations is included, i.e. reord
 passed to the kernel in a single array.
 """
 
-from beamform_reorder import prebeamform_reorder
-from beamforming import matrix_multiply
-from beamform_coeffs import beamform_coeffs
-from katsdpsigproc import accel
-from katsdpsigproc.abc import AbstractContext
-from unit_test import coeff_generator
 import numpy as np
-import time
-import matplotlib.pyplot as plt
+from beamform_coeffs import beamform_coeffs
 
 # Temp - for testing
-from beamform_coeffs.beamformcoeff_kernel import beamform_coeff_kernel
+from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
+from beamform_reorder import prebeamform_reorder
+from beamforming import matrix_multiply
+from katsdpsigproc import accel
+from katsdpsigproc.abc import AbstractContext
+
 
 class BeamformSeqTemplate:
     """
@@ -61,6 +59,8 @@ class BeamformSeqTemplate:
         Temporary parameter used to specify the type of matrix comute to use. Options
         'sgemm': Use cublasSgemmBatched
         'kernel': Use numba-based kernel
+    n_beams:
+        The number of beams that will be steered.
     """
 
     def __init__(
@@ -71,10 +71,8 @@ class BeamformSeqTemplate:
         n_samples_per_channel: int,
         n_batches: int,
         test_id,
-        n_beams,
-        current_time,
-        ref_time,
-        delay,
+        n_beams: int,
+        delay: int,
     ) -> None:
         """Initialise the BeamformSeqTemplate class."""
         self.preBeamformReorder = prebeamform_reorder.PreBeamformReorderTemplate(
@@ -84,9 +82,7 @@ class BeamformSeqTemplate:
             context, n_ants, n_channels, n_samples_per_channel, n_beams, n_batches, test_id
         )
         # Beamformer coefficient generator. This requires time and delay values.
-        self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(
-            context, current_time, ref_time, delay, n_beams, n_ants, n_channels
-        )
+        self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(context, delay, n_beams, n_ants, n_channels)
 
     def instantiate(self, queue, test_id):
         """Instantiate and return OpSequence object."""
@@ -116,7 +112,8 @@ class OpSequence(accel.OperationSequence):
         self.beamformMult = template.beamformMult.instantiate(queue, test_id)
         # self.beamformCoeffs = template.beamformCoeffs.instantiate(queue)
         operations = [("reorder", self.prebeamformReorder), ("beamformMult", self.beamformMult)]
-        # operations = [("reorder", self.prebeamformReorder), ("coeffs", self.beamformCoeffs), ("beamformMult", self.beamformMult)]
+        # operations = [("reorder", self.prebeamformReorder), ("coeffs", self.beamformCoeffs),
+        # ("beamformMult", self.beamformMult)]
         compounds = {
             "coeff_bufin": ["beamformMult:inCoeffs"],
             "bufin": ["reorder:inSamples"],
@@ -158,7 +155,7 @@ if __name__ == "__main__":
     n_blocks = num_samples_per_channel // samples_per_block
 
     sample_period = 1e-7
-    NumDelayVals = n_beams*n_ants*n_channels_per_stream
+    NumDelayVals = n_beams * n_ants * n_channels_per_stream
     xeng_id = 0
 
     # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
@@ -166,26 +163,21 @@ if __name__ == "__main__":
     #           'kernel' for numba-based complex multiplication kernel
     test_id = "kernel"
 
-    # Generate coefficients
-    # Temporary: Create a delay_vals list
-    ref_time = time.time_ns()
-    current_time = time.time_ns()
-
     # Setup delay_vals. NOTE: This is provided by CAM.
-    sample_period = 1/1712e6
+    sample_period = 1 / 1712e6
     samples_delay = 5
     NumDelayVals = n_channels_per_stream * n_beams * n_ants
     delay_vals = []
     # Make all the delays the same so the results should be identical per antenna-beam
-    for i in range(NumDelayVals):
-        delay_vals.append(np.single(samples_delay*sample_period))
+    for _ in range(NumDelayVals):
+        delay_vals.append(np.single(samples_delay * sample_period))
         delay_vals.append(np.single(0))
-        delay_vals.append(np.single(np.pi/2))
+        delay_vals.append(np.single(np.pi / 2))
         delay_vals.append(np.single(0))
 
     # Change to numpy array and reshape
     delay_vals = np.array(delay_vals)
-    delay_vals = delay_vals.reshape(n_channels_per_stream, n_beams, n_ants,4)
+    delay_vals = delay_vals.reshape(n_channels_per_stream, n_beams, n_ants, 4)
 
     # Temp so code will run
     # coeff_gen = coeff_generator.CoeffGenerator(batches, n_channels_per_stream, n_blocks, samples_per_block, n_ants)
@@ -194,18 +186,31 @@ if __name__ == "__main__":
     # elif test_id == "sgemm":
     #     coeffs = coeff_gen.GPU_Coeffs_cublas
 
-    # coeffs = beamform_coeff_kernel.coeff_gen(current_time, ref_time, delay_vals, batches, pols, n_beams, n_channels_per_stream, n_ants)
-    coeffs = beamform_coeff_kernel.coeff_gen(delay_vals, batches, pols, n_beams, n_channels_per_stream, num_channels, n_ants, xeng_id)
+    gpu_coeff_gen = BeamformCoeffKernel(
+        delay_vals,
+        batches,
+        pols,
+        n_channels_per_stream,
+        num_channels,
+        n_blocks,
+        samples_per_block,
+        n_ants,
+        n_beams,
+        xeng_id,
+        sample_period,
+    )
 
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
     queue = ctx.create_command_queue()
-    op_template = BeamformSeqTemplate(ctx, n_ants, n_channels_per_stream, num_samples_per_channel, batches, test_id, n_beams, current_time, ref_time, delay_vals)
+    op_template = BeamformSeqTemplate(
+        ctx, n_ants, n_channels_per_stream, num_samples_per_channel, batches, test_id, n_beams, delay_vals
+    )
     op = op_template.instantiate(queue, test_id)
     op.ensure_all_bound()
 
     bufcoeff_device = op.beamformMult.buffer("inCoeffs")
     host_coeff = bufcoeff_device.empty_like()
-    host_coeff = coeffs
+    host_coeff = gpu_coeff_gen.coeff_gen()
 
     bufin_device = op.prebeamformReorder.buffer("inSamples")
     host_in = bufin_device.empty_like()

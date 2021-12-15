@@ -27,10 +27,10 @@ from unit_test import test_parameters
 
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
-@pytest.mark.parametrize("num_ants", test_parameters.array_size)
-@pytest.mark.parametrize("num_channels", test_parameters.num_channels)
-@pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
-def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_samples_per_channel):
+@pytest.mark.parametrize("n_ants", test_parameters.array_size)
+@pytest.mark.parametrize("n_channels", test_parameters.n_channels)
+@pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
+def test_prebeamform_reorder_parametrised(batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int):
     """
     Parametrised unit test of the Pre-beamform Reorder kernel.
 
@@ -40,17 +40,17 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
 
     Parameters
     ----------
-    batches: int
+    batches:
         Number of batches to process.
-    num_ants: int
+    num_ants:
         The number of antennas from which data will be received.
-    num_channels: int
+    num_channels:
         The number of frequency channels out of the FFT.
         NB: This is not the number of FFT channels per stream.
         The number of channels per stream is calculated from this value.
-    num_samples_per_channel: int
+    num_samples_per_channel:
         The number of time samples per frequency channel.
-    n_samples_per_block: int
+    n_samples_per_block:
         Number of samples per block.
 
     This test:
@@ -67,7 +67,7 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # This integer division is so that when num_ants % num_channels !=0 then the remainder will be dropped.
     # - This will only occur in the MeerKAT Extension correlator.
     # TODO: Need to consider case where we round up as some X-Engines will need to do this to capture all the channels.
-    n_channels_per_stream = num_channels // num_ants // 4
+    n_channels_per_stream = n_channels // n_ants // 4
 
     # 2. Initialise GPU kernels and buffers.
     ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
@@ -75,19 +75,19 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
 
     template = PreBeamformReorderTemplate(
         ctx,
-        n_ants=num_ants,
+        n_ants=n_ants,
         n_channels=n_channels_per_stream,
-        n_samples_per_channel=num_samples_per_channel,
+        n_samples_per_channel=n_samples_per_channel,
         n_batches=batches,
     )
-    preBeamformReorder = template.instantiate(queue)
-    preBeamformReorder.ensure_all_bound()
+    pre_beamform_reorder = template.instantiate(queue)
+    pre_beamform_reorder.ensure_all_bound()
 
-    bufSamples_device = preBeamformReorder.buffer("inSamples")
-    bufSamples_host = bufSamples_device.empty_like()
+    buf_samples_device = pre_beamform_reorder.buffer("inSamples")
+    buf_samples_host = buf_samples_device.empty_like()
 
-    bufReordered_device = preBeamformReorder.buffer("outReordered")
-    bufReordered_host = bufReordered_device.empty_like()
+    buf_reordered_device = pre_beamform_reorder.buffer("outReordered")
+    buf_reordered_host = buf_reordered_device.empty_like()
 
     # 3. Generate random input data - need to modify the dtype and shape of the array as numpy does not have a packet
     # 8-bit int complex type.
@@ -95,25 +95,25 @@ def test_prebeamform_reorder_parametrised(batches, num_ants, num_channels, num_s
     # Inject random data for test.
     rng = np.random.default_rng(seed=2021)
 
-    bufSamples_host[:] = rng.uniform(
-        np.iinfo(bufSamples_host.dtype).min, np.iinfo(bufSamples_host.dtype).max, bufSamples_host.shape
-    ).astype(bufSamples_host.dtype)
+    buf_samples_host[:] = rng.uniform(
+        np.iinfo(buf_samples_host.dtype).min, np.iinfo(buf_samples_host.dtype).max, buf_samples_host.shape
+    ).astype(buf_samples_host.dtype)
 
     # 4. Transfer input sample array to the GPU, run kernel, transfer output Reordered array to the CPU.
-    bufSamples_device.set(queue, bufSamples_host)
-    preBeamformReorder()
-    bufReordered_device.get(queue, bufReordered_host)
+    buf_samples_device.set(queue, buf_samples_host)
+    pre_beamform_reorder()
+    buf_reordered_device.get(queue, buf_reordered_host)
 
     # 5. Run CPU version. This will be used to verify GPU reorder.
     output_data_cpu = reorder.reorder(
-        input_data=bufSamples_host,
-        input_data_shape=bufSamples_host.shape,
-        output_data_shape=bufReordered_host.shape,
+        input_data=buf_samples_host,
+        input_data_shape=buf_samples_host.shape,
+        output_data_shape=buf_reordered_host.shape,
     )
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-    np.testing.assert_array_equal(output_data_cpu, bufReordered_host)
+    np.testing.assert_array_equal(output_data_cpu, buf_reordered_host)
 
 
 if __name__ == "__main__":
@@ -121,6 +121,6 @@ if __name__ == "__main__":
         test_prebeamform_reorder_parametrised(
             test_parameters.batches[0],
             test_parameters.array_size[a],
-            test_parameters.num_channels[0],
-            test_parameters.num_samples_per_channel[0],
+            test_parameters.n_channels[0],
+            test_parameters.n_samples_per_channel[0],
         )

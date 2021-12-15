@@ -16,21 +16,21 @@ def complex_mult(
 
     Parameters
     ----------
-    input_data: np.ndarray[np.uint16]
+    input_data:
         Input data for reordering.
-    output_data: np.ndarray[np.uint16]
+    output_data:
         Reordered data.
-    batches: int
+    batches:
         Number of batches to process.
-    pols: int
+    pols:
         Numer of polarisations. Always 2.
-    n_channel: int
+    n_channel:
         Number of total channels per array.
-    ants: int
+    ants:
         Number of antennas in array.
-    samples_chan: int
+    samples_chan:
         Number of samples per channels.
-    n_samples_per_block: int
+    n_samples_per_block:
         Number of samples per block.
 
     Returns

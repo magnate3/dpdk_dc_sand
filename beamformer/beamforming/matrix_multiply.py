@@ -104,15 +104,6 @@ class MatrixMultiplyTemplate:
         )
 
         if test_id == "kernel":
-            # self.coeff_data_dimensions = (
-            #     accel.Dimension(self.batches, exact=True),
-            #     accel.Dimension(self.n_pols, exact=True),
-            #     accel.Dimension(self.n_channels, exact=True),
-            #     accel.Dimension(self.n_blocks, exact=True),
-            #     accel.Dimension(self.n_samples_per_block, exact=True),
-            #     accel.Dimension(self.complexity, exact=True),
-            #     accel.Dimension(self.n_ants * 2, exact=True),
-            # )
             self.coeff_data_dimensions = (
                 accel.Dimension(self.batches, exact=True),
                 accel.Dimension(self.n_pols, exact=True),

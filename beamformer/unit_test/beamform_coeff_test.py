@@ -23,47 +23,51 @@ from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
 from unit_test import test_parameters
 from unit_test.coeff_generator import CoeffGenerator
 
-# import time
-# import matplotlib.pyplot as plt
-
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
-@pytest.mark.parametrize("num_channels", test_parameters.num_channels)
-@pytest.mark.parametrize("num_samples_per_channel", test_parameters.num_samples_per_channel)
-@pytest.mark.parametrize("num_beams", test_parameters.num_beams)
+@pytest.mark.parametrize("n_channels", test_parameters.n_channels)
+@pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
+@pytest.mark.parametrize("n_beams", test_parameters.n_beams)
 @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
 @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
 @pytest.mark.parametrize("phase", test_parameters.phase)
 def test_beamform_coeffs_parametrised(
-    batches, n_ants, num_channels, num_samples_per_channel, num_beams, xeng_id, samples_delay, phase
+    batches: int,
+    n_ants: int,
+    n_channels: int,
+    n_samples_per_channel: int,
+    n_beams: int,
+    xeng_id: int,
+    samples_delay: int,
+    phase: float,
 ):
     """
     Parametrised unit test of the beamform coefficient generation using Numba-based kernel.
 
     This unit test runs the generation on a combination of parameters indicated in test_parameters.py. The values
-    parametrised are indicated in the parameter list, operating on a *single* batch. This unit test also invokes
+    parametrised are indicated in the parameter list, operating on a multiple batches. This unit test also invokes
     verification of the beamformed data.
 
     Parameters
     ----------
-    batches: int
+    batches:
         Number of batches to process.
-    n_ants: int
+    n_ants:
         The number of antennas from which data will be received.
-    num_channels: int
+    n_channels:
         The number of frequency channels out of the FFT.
         NB: This is not the number of FFT channels per stream.
         The number of channels per stream is calculated from this value.
-    num_samples_per_channel: int
+    n_samples_per_channel:
         The number of time samples per frequency channel.
-    num_beams: int
+    n_beams:
         The number of beams that will be steered.
-    xeng_id: int
+    xeng_id:
         Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
-    samples_delay: int
+    samples_delay:
         Delay in ADC samples that should be applied.
-    phase: float
+    phase:
         Phase value in radians to be applied.
 
     This test:
@@ -73,14 +77,14 @@ def test_beamform_coeffs_parametrised(
         4. Verify it relative to the input array using a reference computed on the host CPU.
     """
     # 1. Array parameters
-    n_channels_per_stream = num_channels // n_ants // 4
+    n_channels_per_stream = n_channels // n_ants // 4
     samples_per_block = 16
-    n_blocks = num_samples_per_channel // samples_per_block
+    n_blocks = n_samples_per_channel // samples_per_block
     num_pols = 2
 
     sample_period = 1 / 1712e6
 
-    num_delay_vals = n_channels_per_stream * num_beams * n_ants
+    num_delay_vals = n_channels_per_stream * n_beams * n_ants
 
     delay_vals = []
 
@@ -111,18 +115,18 @@ def test_beamform_coeffs_parametrised(
 
     # Change to numpy array and reshape
     delay_vals = np.array(delay_vals)
-    delay_vals = delay_vals.reshape(n_channels_per_stream, num_beams, n_ants, 4)
+    delay_vals = delay_vals.reshape(n_channels_per_stream, n_beams, n_ants, 4)
 
     cpu_coeff_gen = CoeffGenerator(
         delay_vals,
         batches,
         num_pols,
         n_channels_per_stream,
-        num_channels,
+        n_channels,
         n_blocks,
         samples_per_block,
         n_ants,
-        num_beams,
+        n_beams,
         xeng_id,
         sample_period,
     )
@@ -131,11 +135,11 @@ def test_beamform_coeffs_parametrised(
         batches,
         num_pols,
         n_channels_per_stream,
-        num_channels,
+        n_channels,
         n_blocks,
         samples_per_block,
         n_ants,
-        num_beams,
+        n_beams,
         xeng_id,
         sample_period,
     )
@@ -156,9 +160,9 @@ if __name__ == "__main__":
         test_beamform_coeffs_parametrised(
             test_parameters.batches[0],
             test_parameters.array_size[0],
-            test_parameters.num_channels[0],
-            test_parameters.num_samples_per_channel[0],
-            test_parameters.num_beams[0],
+            test_parameters.n_channels[0],
+            test_parameters.n_samples_per_channel[0],
+            test_parameters.n_beams[0],
             test_parameters.xeng_id[0],
             test_parameters.samples_delay[0],
             test_parameters.phase[0],

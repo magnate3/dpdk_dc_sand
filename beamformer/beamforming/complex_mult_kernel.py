@@ -9,16 +9,16 @@ from numba import cuda, float32
 
 
 @cuda.jit
-def run_complex_mult(data_matrix, coeff_matrix, out):
+def run_complex_mult(data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.ndarray):
     """Execute complex multiplication.
 
     Parameters
     ----------
-    data_matrix: nd.array[np.uint8]
+    data_matrix:
         Data matrix on reordered data
-    coeff_matrix: nd.array[np.float32]
+    coeff_matrix:
         Coefficients for beamforming computation.
-    out: nd.array[np.float32]
+    out:
         Complex multipication product for beamforming computation.
 
     Note: This is for use in complex multiplication using two
@@ -43,6 +43,7 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     # Compute flattened index inside the array
     ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
+    batches = data_matrix.shape[0]
     pols = data_matrix.shape[1]
     n_channel = data_matrix.shape[2]
     blocks = data_matrix.shape[3]
@@ -51,29 +52,30 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     complexity = 2
     n_beams = coeff_matrix.shape[4] // complexity
 
-    # Compute data matrix index
-    ibatchindex = ithreadindex_x // (pols * n_channel * blocks * samples_per_block * ants)
-    iremindex = ithreadindex_x % (pols * n_channel * blocks * samples_per_block * ants)
+    if ithreadindex_x <= (batches * pols * n_channel * blocks * samples_per_block * ants * complexity):
+        # Compute data matrix index
+        ibatchindex = ithreadindex_x // (pols * n_channel * blocks * samples_per_block * ants)
+        iremindex = ithreadindex_x % (pols * n_channel * blocks * samples_per_block * ants)
 
-    ipolindex = iremindex // (n_channel * blocks * samples_per_block * ants)
-    iremindex = iremindex % (n_channel * blocks * samples_per_block * ants)
+        ipolindex = iremindex // (n_channel * blocks * samples_per_block * ants)
+        iremindex = iremindex % (n_channel * blocks * samples_per_block * ants)
 
-    ichanindex = iremindex // (blocks * samples_per_block * ants)
-    iremindex = iremindex % (blocks * samples_per_block * ants)
+        ichanindex = iremindex // (blocks * samples_per_block * ants)
+        iremindex = iremindex % (blocks * samples_per_block * ants)
 
-    iblockindex = iremindex // (samples_per_block * ants)
-    iremindex = iremindex % (samples_per_block * ants)
+        iblockindex = iremindex // (samples_per_block * ants)
+        iremindex = iremindex % (samples_per_block * ants)
 
-    isample_per_block_index = iremindex // ants
+        isample_per_block_index = iremindex // ants
 
-    for col in range(n_beams * 2):
-        tmp = float32(0)
-        for ant in range(ants):
-            coeff = coeff_matrix[ibatchindex][ipolindex][ichanindex][ant][col]
-            data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][ant]
-            tmp += data * coeff
+        for col in range(n_beams * 2):
+            tmp = float32(0)
+            for ant in range(ants):
+                coeff = coeff_matrix[ibatchindex][ipolindex][ichanindex][ant][col]
+                data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][ant]
+                tmp += data * coeff
 
-        out[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][col] = tmp
+            out[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][col] = tmp
 
 
 class ComplexMultKernel:
@@ -105,19 +107,10 @@ class ComplexMultKernel:
         # Calculate the number of threads required.
         total_threads = batches * pols * n_channel * blocks * samples_per_block * ants * complexity
 
-        # Calculate the largest divisor possible (withing range 2-1024)
-        largest_divisor = 0
-        for i in range(2, total_threads):
-            if (total_threads % i == 0) & (i > 1 & i <= 1024):
-                largest_divisor = i
-            elif i > 1024:
-                break
-
-        # Set the number of threads in a block. This is the largest divisor.
-        threadsperblock = largest_divisor
+        threadsperblock = 128
 
         # Calculate the number of blocks in a grid.
-        blockspergrid = np.uint(total_threads // threadsperblock)
+        blockspergrid = np.uint(np.ceil(total_threads / threadsperblock))
 
         # Make the context associated with device device_id the current context.
         # NOTE: Without doing this Numba will try execute kernel code on it's own context which will throw an error as
