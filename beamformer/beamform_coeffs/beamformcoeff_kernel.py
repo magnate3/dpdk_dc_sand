@@ -87,7 +87,7 @@ class BeamformCoeffKernel:
         Number of batches to process.
     pols:
         Number of polarisations.
-    num_channels:
+    n_channels_per_stream:
         The number of channels the XEng core will process.
     total_channels:
         The total number of channels in the system.
@@ -97,7 +97,7 @@ class BeamformCoeffKernel:
         Number of samples to process per sample-block
     n_ants:
         The number of antennas from which data will be received.
-    num_beams:
+    n_beams:
          Number of beams to be steered.
     xeng_id:
         Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
