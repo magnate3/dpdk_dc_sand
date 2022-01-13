@@ -19,10 +19,13 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
+from katsdpsigproc import accel
+from katsdpsigproc.abc import AbstractCommandQueue, AbstractContext
+
+from beamform_coeffs.beamform_coeffs import BeamformCoeffsTemplate
+# from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
 from unit_test import test_parameters
 from unit_test.coeff_generator import CoeffGenerator
-
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
@@ -32,7 +35,7 @@ from unit_test.coeff_generator import CoeffGenerator
 @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
 @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
 @pytest.mark.parametrize("phase", test_parameters.phase)
-def test_beamform_coeffs_parametrised(
+def test_beamform_coeffs(
     batches: int,
     n_ants: int,
     n_channels: int,
@@ -51,6 +54,12 @@ def test_beamform_coeffs_parametrised(
 
     Parameters
     ----------
+    context: AbstractContext
+        The GPU context that we'll operate in.
+    command_queue
+        The GPU command queue (typically this will be an instance of
+        :class:`katsdpsigproc.cuda.CommandQueue` which wraps a CUDA Stream) on
+        which actual processing operations are to be scheduled.
     batches:
         Number of batches to process.
     n_ants:
@@ -130,8 +139,27 @@ def test_beamform_coeffs_parametrised(
         xeng_id,
         sample_period,
     )
-    gpu_coeff_gen = BeamformCoeffKernel(
-        delay_vals,
+    # gpu_coeff_gen = BeamformCoeffKernel(
+    #     delay_vals,
+    #     batches,
+    #     num_pols,
+    #     n_channels_per_stream,
+    #     n_channels,
+    #     n_blocks,
+    #     samples_per_block,
+    #     n_ants,
+    #     n_beams,
+    #     xeng_id,
+    #     sample_period,
+    # )
+
+    # Create context and command queue
+    ctx = accel.create_some_context(device_filter=lambda device: device.is_cuda)
+    queue = ctx.create_command_queue()
+
+    # 3. Generate Coeffs on GPU
+    coeff_template = BeamformCoeffsTemplate(
+        ctx, 
         batches,
         num_pols,
         n_channels_per_stream,
@@ -141,23 +169,31 @@ def test_beamform_coeffs_parametrised(
         n_ants,
         n_beams,
         xeng_id,
-        sample_period,
-    )
+        sample_period)
 
-    # 3. Generate Coeffs on GPU
-    gpu_coeff = gpu_coeff_gen.coeff_gen()
+    beamform_coeffs = coeff_template.instantiate(queue, delay_vals)
+    beamform_coeffs.ensure_all_bound()
+
+    bufcoeff_device = beamform_coeffs.buffer("outCoeffs")
+    host_gpu_coeff = bufcoeff_device.empty_like()
+
+    # Run gpu coeff kernel
+    beamform_coeffs()
+
+    # Get beamforming coeffs for gpu memory
+    bufcoeff_device.get(queue, host_gpu_coeff)  
 
     # 4. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeff = cpu_coeff_gen.cpu_coeffs()
 
     # 5. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-    np.testing.assert_array_equal(cpu_coeff, gpu_coeff)
+    np.testing.assert_array_equal(cpu_coeff, host_gpu_coeff)
 
 
 if __name__ == "__main__":
     for _ in range(len(test_parameters.array_size)):
-        test_beamform_coeffs_parametrised(
+        test_beamform_coeffs(
             test_parameters.batches[0],
             test_parameters.array_size[0],
             test_parameters.n_channels[0],
