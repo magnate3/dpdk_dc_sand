@@ -9,14 +9,9 @@ in a single array.
 import numpy as np
 import math
 from numba import cuda
-
-# from beamforming.complex_mult_kernel import complex_mult_kernel
-# from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
-# from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 from katsdpsigproc.accel import IOSlot, Operation
-
 
 @cuda.jit
 def run_coeff_gen(
@@ -143,21 +138,6 @@ class BeamformCoeffKernel:
 
     def coeff_gen(self, delay_vals, coeff_matrix):
         """Complex multiplication setup."""
-        # complexity = 2
-        # The 'cols' variable is a dimensionality duplication factor required when creating the ants-beams coeff matrix.
-        # The last two dimensions (ants and beams) needs to be doubled to accommodate the duplucation and negation
-        # of real and imaginary coefficients in order to apply complex multiplication through real-only values.
-        # cols = 2
-
-        # Temp - a place holder until this code get added into the op sequence.
-        # coeff_matrix = np.empty(
-        #     self.batches * self.pols * self.n_channels * self.n_ants * self.n_beams * complexity * cols,
-        #     dtype=np.float32,
-        # )
-        # coeff_matrix = coeff_matrix.reshape(
-        #     self.batches, self.pols, self.n_channels, self.n_ants * complexity, self.n_beams * cols
-        # )
-
         threadsperblock = 128
 
         # Calculate the number of thread blocks in the grid
@@ -236,6 +216,13 @@ class BeamformCoeffsTemplate:
         self.xeng_id = xeng_id
         self.sample_period = sample_period
 
+        self.delay_vals_data_dimensions = (
+            accel.Dimension(self.n_channels_per_stream, exact=True),
+            accel.Dimension(self.n_beams, exact=True),
+            accel.Dimension(self.n_ants, exact=True),
+            accel.Dimension(4, exact=True),
+        )
+
         self.coeff_data_dimensions = (
             accel.Dimension(self.batches, exact=True),
             accel.Dimension(self.num_pols, exact=True),
@@ -244,9 +231,9 @@ class BeamformCoeffsTemplate:
             accel.Dimension(self.n_beams*2, exact=True),
         )
 
-    def instantiate(self, command_queue: accel.AbstractCommandQueue, delay_vals):
+    def instantiate(self, command_queue: accel.AbstractCommandQueue):
         """Initialise the complex multiplication class."""
-        return BeamformCoeffs(self, command_queue, delay_vals)
+        return BeamformCoeffs(self, command_queue)
 
 
 class BeamformCoeffs(Operation):
@@ -268,10 +255,9 @@ class BeamformCoeffs(Operation):
         CUDA command queue
     """
 
-    def __init__(self, template: BeamformCoeffsTemplate, command_queue: accel.AbstractCommandQueue, delay_vals):
+    def __init__(self, template: BeamformCoeffsTemplate, command_queue: accel.AbstractCommandQueue):
         super().__init__(command_queue)
         self.template = template
-        self.delay_vals = delay_vals
     
         self.beamformcoeffkernel = BeamformCoeffKernel(
             self.template.batches,
@@ -285,9 +271,10 @@ class BeamformCoeffs(Operation):
             self.template.xeng_id,
             self.template.sample_period,
         )
+        self.slots["delay_vals"] = IOSlot(dimensions=self.template.delay_vals_data_dimensions, dtype=np.float32)
         self.slots["outCoeffs"] = IOSlot(dimensions=self.template.coeff_data_dimensions, dtype=np.float32)
 
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
-           self.beamformcoeffkernel.coeff_gen(self.delay_vals, self.buffer("outCoeffs").buffer)
+            self.beamformcoeffkernel.coeff_gen(self.buffer("delay_vals").buffer, self.buffer("outCoeffs").buffer)

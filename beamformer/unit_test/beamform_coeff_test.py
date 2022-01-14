@@ -171,16 +171,24 @@ def test_beamform_coeffs(
         xeng_id,
         sample_period)
 
-    beamform_coeffs = coeff_template.instantiate(queue, delay_vals)
+    beamform_coeffs = coeff_template.instantiate(queue)
     beamform_coeffs.ensure_all_bound()
+
+    # Create host buffers
+    buf_delay_vals_device = beamform_coeffs.buffer("delay_vals")
+    host_delay_vals = buf_delay_vals_device.empty_like()
 
     bufcoeff_device = beamform_coeffs.buffer("outCoeffs")
     host_gpu_coeff = bufcoeff_device.empty_like()
 
+    # Copy delay_vals from host to device
+    host_delay_vals = delay_vals
+    buf_delay_vals_device.set(queue, host_delay_vals)
+
     # Run gpu coeff kernel
     beamform_coeffs()
 
-    # Get beamforming coeffs for gpu memory
+    # Get beamforming coeffs from gpu memory
     bufcoeff_device.get(queue, host_gpu_coeff)  
 
     # 4. Run CPU version. This will be used to verify GPU reorder.
@@ -189,7 +197,6 @@ def test_beamform_coeffs(
     # 5. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
     np.testing.assert_array_equal(cpu_coeff, host_gpu_coeff)
-
 
 if __name__ == "__main__":
     for _ in range(len(test_parameters.array_size)):

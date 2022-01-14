@@ -118,9 +118,9 @@ class MatrixMultiplyTemplate:
                 accel.Dimension(self.n_ants * self.complexity, exact=True),
             )
 
-    def instantiate(self, command_queue: accel.AbstractCommandQueue, test_id):
+    def instantiate(self, command_queue: accel.AbstractCommandQueue):
         """Initialise the complex multiplication class."""
-        return MatrixMultiply(self, command_queue, test_id)
+        return MatrixMultiply(self, command_queue)
 
 
 class MatrixMultiply(Operation):
@@ -144,10 +144,10 @@ class MatrixMultiply(Operation):
         ID of the computation to run. This will be removed and is only for testing.
     """
 
-    def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue, test_id):
+    def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue):
         super().__init__(command_queue)
         self.template = template
-        self.test_id = test_id
+        self.test_id = template.test_id
 
         self.slots["inData"] = IOSlot(dimensions=self.template.input_data_dimensions, dtype=np.uint8)
         self.slots["outData"] = IOSlot(dimensions=self.template.output_data_dimensions, dtype=np.float32)
