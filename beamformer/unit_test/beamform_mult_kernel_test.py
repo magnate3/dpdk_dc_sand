@@ -76,7 +76,7 @@ class BeamformSeq(accel.OperationSequence):
         ]
         compounds = {
             'bufin_delay_vals': ['beamform_coeff:delay_vals' ],
-            'bufint': ['beamform_coeff:outCoeffs', 'beamform_mult:inCoeffs'],
+            'bufint': ['beamform_mult:inCoeffs','beamform_coeff:outCoeffs' ],
             'bufin_data': ['beamform_mult:inData' ],
             'bufout': ['beamform_mult:outData']
         }
@@ -184,10 +184,13 @@ def test_beamform_parametrised(
     op = op_template.instantiate(queue)  
     op.ensure_all_bound()
 
+    # Visualise the operation
+    # accel.visualize_operation(op, 'bf_vis')
+
     # Create host buffers
     buf_delay_vals_device = op.beamform_coeff.buffer("delay_vals")
     host_delay_vals = buf_delay_vals_device.empty_like()
-    host_delay_vals = delay_vals
+    host_delay_vals[:] = delay_vals
 
     buf_data_in_device = op.beamform_mult.buffer("inData")
     host_data_in = buf_data_in_device.empty_like()
@@ -195,8 +198,8 @@ def test_beamform_parametrised(
     buf_beamform_data_out_device = op.beamform_mult.buffer("outData")
     host_beamform_data_out = buf_beamform_data_out_device.empty_like()
 
-    temp_out_device = op.beamform_mult.buffer("inData")
-    host_temp = temp_out_device.empty_like()
+    # temp_out_device = op.beamform_mult.buffer("inData")
+    # host_temp = temp_out_device.empty_like()
 
     # 3.1 Generate random input data
     # Inject random data for test.
@@ -212,13 +215,12 @@ def test_beamform_parametrised(
     # 4.3 Run coefficient generation and complex multiply kernel;
     # 4.3 Transfer output array to CPU.
     buf_data_in_device.set(queue, host_data_in)
-    # temp_out_device.get(queue, host_temp)
 
     buf_delay_vals_device.set(queue, host_delay_vals)
     op()
     buf_beamform_data_out_device.get(queue, host_beamform_data_out)
 
-
+    # temp_out_device.get(queue, host_temp)
 
     # 5. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeff_gen = CoeffGenerator(
@@ -235,13 +237,6 @@ def test_beamform_parametrised(
         sample_period,
     )
     cpu_coeffs = cpu_coeff_gen.cpu_coeffs()
-
-    # temp_cpu = cpu_coeffs.reshape(batches*num_pols*n_channels_per_stream*n_beams*n_ants*4)
-    # temp_gpu = host_coeffs_out.reshape(batches*num_pols*n_channels_per_stream*n_beams*n_ants*4)
-
-    # for i in range(len(temp_cpu)):
-    #     if (temp_cpu[i] != temp_gpu[i]):
-    #         print(f'error at:{i}')
 
     beamform_data_cpu = complex_mult_cpu.complex_mult(
         input_data=host_data_in,

@@ -21,7 +21,7 @@ def run_coeff_gen(
     # Compute flattened index inside the array
     ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
-    if ithreadindex_x <= (batches * pols * n_channels * n_beams * n_ants):
+    if ithreadindex_x < (batches * pols * n_channels * n_beams * n_ants):
         # Compute indexes for delay_vals matrix
         ibatchindex_rem = ithreadindex_x % (pols * n_channels * n_beams * n_ants)
 
@@ -167,9 +167,6 @@ class BeamformCoeffKernel:
 
         # Wait for all commands in the stream to finish executing.
         cuda.synchronize()
-
-        # return coeff_matrix
-
 
 class BeamformCoeffsTemplate:
     """
