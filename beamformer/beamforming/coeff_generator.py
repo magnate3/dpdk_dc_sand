@@ -17,7 +17,16 @@ from numba import cuda
 
 @cuda.jit
 def run_coeff_gen(
-    delay_vals, batches, pols, n_channels, total_channels, n_beams, n_ants, xeng_id, sample_period, coeffs
+    delay_vals,
+    batches,
+    pols,
+    n_channels,
+    total_channels,
+    n_beams,
+    n_ants,
+    xeng_id,
+    sample_period,
+    coeffs,
 ):
     """Execute Beamforming steering coefficients."""
     # Compute flattened index inside the array
@@ -47,9 +56,17 @@ def run_coeff_gen(
         # relative channel in the spectrum the xeng GPU thread is working on.
         ichannel = ichannelindex + n_channels * xeng_id
 
-        initial_phase = delay_s * ichannel * (-np.math.pi) / (total_channels * sample_period) + phase_rad
+        initial_phase = (
+            delay_s * ichannel * (-np.math.pi) / (total_channels * sample_period)
+            + phase_rad
+        )
 
-        phase_correction_band_center = delay_s * (total_channels / 2) * (-np.math.pi) / (total_channels * sample_period)
+        phase_correction_band_center = (
+            delay_s
+            * (total_channels / 2)
+            * (-np.math.pi)
+            / (total_channels * sample_period)
+        )
 
         # Compute rotation value for steering coefficient computation
         rotation = initial_phase - phase_correction_band_center
@@ -74,18 +91,31 @@ def run_coeff_gen(
         iant_matrix = ibeamindex_rem * 2
 
         # Store steering coefficients in output matrix
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][ibeam_matrix] = steering_coeff_correct_real
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][ibeam_matrix + 1] = steering_coeff_correct_imag
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][
+            ibeam_matrix
+        ] = steering_coeff_correct_real
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][
+            ibeam_matrix + 1
+        ] = steering_coeff_correct_imag
 
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][ibeam_matrix] = -steering_coeff_correct_imag
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][ibeam_matrix + 1] = steering_coeff_correct_real
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][
+            ibeam_matrix
+        ] = -steering_coeff_correct_imag
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][
+            ibeam_matrix + 1
+        ] = steering_coeff_correct_real
 
 
-class BeamformCoeffKernel:
-    """Class for beamform coefficient kernel.
+class CoeffGeneratorTemplate:
+    """
+    Template class for beamform coeficient generator.
 
     Parameters
     ----------
+    context:
+        The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
+        A context is associated with a single device and 'owns' all memory allocations.
+        For the purposes of this python module the CUDA context is required.
     batches:
         Number of batches to process.
     num_pols:
@@ -106,85 +136,6 @@ class BeamformCoeffKernel:
         Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
     sample_period:
         Sampling period of the ADC.
-    """
-
-    def __init__(
-        self,
-        batches: int,
-        num_pols: int,
-        n_channels_per_stream: int,
-        total_channels: int,
-        n_blocks: int,
-        samples_per_block: int,
-        n_ants: int,
-        n_beams: int,
-        xeng_id: int,
-        sample_period: int,
-    ):
-        self.batches = batches
-        self.pols = num_pols
-        self.n_channels = n_channels_per_stream
-        self.total_channels = total_channels
-        self.n_blocks = n_blocks
-        self.samples_per_block = samples_per_block
-        self.n_ants = n_ants
-        self.n_beams = n_beams
-        self.xeng_id = xeng_id
-        self.sample_period = sample_period
-        self.total_length = self.batches * self.pols * self.n_channels * self.n_blocks * self.samples_per_block
-        self.complexity = 2  # Always
-
-    def coeff_gen(self, delay_vals, coeff_matrix):
-        """Complex multiplication setup."""
-        threadsperblock = 128
-
-        # Calculate the number of thread blocks in the grid
-        blockspergrid = np.uint(
-            np.ceil(self.batches * self.pols * self.n_channels * self.n_beams * self.n_ants / threadsperblock)
-        )
-
-        # Make the context associated with device device_id the current context.
-        # NOTE: Without doing this Numba will try execute kernel code on it's own context which will throw an error as
-        # the device already has a context associated to it from katsdpsigproc command queue. This will make the
-        # context associated with the deivce device_id the current context.
-        cuda.select_device(0)
-
-        # Now start the kernel
-        run_coeff_gen[blockspergrid, threadsperblock](
-            delay_vals,
-            self.batches,
-            self.pols,
-            self.n_channels,
-            self.total_channels,
-            self.n_beams,
-            self.n_ants,
-            self.xeng_id,
-            self.sample_period,
-            coeff_matrix,
-        )
-
-        # Wait for all commands in the stream to finish executing.
-        cuda.synchronize()
-
-
-class BeamformCoeffsTemplate:
-    """
-    Template class for beamform coeficient generator.
-
-    Parameters
-    ----------
-    context:
-        The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
-        A context is associated with a single device and 'owns' all memory allocations.
-        For the purposes of this python module the CUDA context is required.
-    delay_vals:
-        Data matrix of delay values.
-    n_beams:
-        The number of beams that will be steered.
-    n_ants:
-        The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
-    n_channels:
-        The number of frequency channels to be processed.
     """
 
     def __init__(
@@ -230,10 +181,10 @@ class BeamformCoeffsTemplate:
 
     def instantiate(self, command_queue: accel.AbstractCommandQueue):
         """Initialise the complex multiplication class."""
-        return BeamformCoeffs(self, command_queue)
+        return CoeffGenerator(self, command_queue)
 
 
-class BeamformCoeffs(Operation):
+class CoeffGenerator(Operation):
     """Class for beamform complex multiplication.
 
     .. rubric:: Slots
@@ -252,26 +203,59 @@ class BeamformCoeffs(Operation):
         CUDA command queue
     """
 
-    def __init__(self, template: BeamformCoeffsTemplate, command_queue: accel.AbstractCommandQueue):
+    def __init__(
+        self,
+        template: CoeffGeneratorTemplate,
+        command_queue: accel.AbstractCommandQueue,
+    ):
         super().__init__(command_queue)
         self.template = template
-
-        self.beamformcoeffkernel = BeamformCoeffKernel(
-            self.template.batches,
-            self.template.num_pols,
-            self.template.n_channels_per_stream,
-            self.template.n_channels,
-            self.template.n_blocks,
-            self.template.samples_per_block,
-            self.template.n_ants,
-            self.template.n_beams,
-            self.template.xeng_id,
-            self.template.sample_period,
+        self.slots["delay_vals"] = IOSlot(
+            dimensions=self.template.delay_vals_data_dimensions, dtype=np.float32
         )
-        self.slots["delay_vals"] = IOSlot(dimensions=self.template.delay_vals_data_dimensions, dtype=np.float32)
-        self.slots["outCoeffs"] = IOSlot(dimensions=self.template.coeff_data_dimensions, dtype=np.float32)
+        self.slots["outCoeffs"] = IOSlot(
+            dimensions=self.template.coeff_data_dimensions, dtype=np.float32
+        )
 
     def _run(self):
         """Run the beamform computation."""
+        threadsperblock = 128
+
+        # Calculate the number of thread blocks in the grid
+        blockspergrid = np.uint(
+            np.ceil(
+                self.template.batches
+                * self.template.num_pols
+                * self.template.n_channels
+                * self.template.n_beams
+                * self.template.n_ants
+                / threadsperblock
+            )
+        )
+
         with self.command_queue.context:
-            self.beamformcoeffkernel.coeff_gen(self.buffer("delay_vals").buffer, self.buffer("outCoeffs").buffer)
+
+            # Make the context associated with device device_id the current
+            # context.
+            # NOTE: Without doing this Numba will try execute kernel code on its
+            # own context which will throw an error as the device already has a
+            # context associated to it from katsdpsigproc command queue. This
+            # will make the context associated with the deivce device_id the
+            # current context.
+            cuda.select_device(0)
+
+            run_coeff_gen[blockspergrid, threadsperblock](
+                self.buffer("delay_vals").buffer,
+                self.template.batches,
+                self.template.num_pols,
+                self.template.n_channels_per_stream,
+                self.template.n_channels,
+                self.template.n_beams,
+                self.template.n_ants,
+                self.template.xeng_id,
+                self.template.sample_period,
+                self.buffer("outCoeffs").buffer,
+            )
+
+            # Wait for all commands in the stream to finish executing.
+            cuda.synchronize()

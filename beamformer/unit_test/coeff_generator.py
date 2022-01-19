@@ -62,100 +62,18 @@ class CoeffGenerator:
         self.num_beams = num_beams
         self.xeng_id = xeng_id
         self.sample_period = sample_period
-        self.total_length = self.batches * self.pols * self.num_channels * self.n_blocks * self.samples_per_block
+        self.total_length = (
+            self.batches
+            * self.pols
+            * self.num_channels
+            * self.n_blocks
+            * self.samples_per_block
+        )
         self.complexity = 2  # Always
 
         # Static coefficient values for testing
         self.real_coeff_value = 4
         self.imag_coeff_value = 1
-
-    def gpu_coeffs_cublas_fake(self):
-        """Generate coefficients for complex multiplication.
-
-        Note: This is for use in complex multiplication using two
-        real-valued arrays. For this reason the coefficients need to be
-        arranged as follows.
-
-        Coefficients Array:
-        [R00  I00
-         -I00 R00
-         R10  I10
-         -I10 R10
-         ...  ...]
-        Where:  R00 = Real coeff 0
-                I00 = Imag coeff 0
-        and the matrix is structured as a N x 2 array.
-
-        Returns
-        -------
-        coeffs: np.ndarray[np.float].
-            Output array of test coefficients.
-        """
-        coeffs = np.empty(((self.n_ants * 2) * 2 * self.total_length), dtype=np.float32).reshape(
-            self.total_length, 2, self.n_ants * 2
-        )
-        for i in range(coeffs.shape[0]):
-            for j in range(coeffs.shape[1]):
-                for k in range(coeffs.shape[2]):
-                    if j == 0:
-                        if k % 2:
-                            coeffs[i, j, k] = -1 * self.imag_coeff_value
-                        else:
-                            coeffs[i, j, k] = self.real_coeff_value
-                    else:
-                        if k % 2:
-                            coeffs[i, j, k] = self.real_coeff_value
-                        else:
-                            coeffs[i, j, k] = self.imag_coeff_value
-        return coeffs
-
-    def gpu_coeffs_kernel_fake(self):
-        """Generate fake coefficients for complex multiplication on the GPU.
-
-        Note: This is for use in complex multiplication using two
-        real-valued arrays. For this reason the coefficients need to be
-        arranged as follows.
-
-        Coefficients Array:
-        [R00  I00
-         -I00 R00
-         R10  I10
-         -I10 R10
-         ...  ...]
-        Where:  R00 = Real coeff 0
-                I00 = Imag coeff 0
-        and the matrix is structured as a N x 2 array.
-
-        Returns
-        -------
-        coeffs: np.ndarray[np.float32].
-            Output array of test coefficients.
-        """
-        coeffs = np.empty(((self.n_ants * 2) * 2 * self.total_length), dtype=np.float32).reshape(
-            self.total_length, 2, self.n_ants * 2
-        )
-        for i in range(coeffs.shape[0]):
-            for j in range(coeffs.shape[1]):
-                for k in range(coeffs.shape[2]):
-                    if j == 0:
-                        if k % 2:
-                            coeffs[i, j, k] = -1 * self.imag_coeff_value
-                        else:
-                            coeffs[i, j, k] = self.real_coeff_value
-                    else:
-                        if k % 2:
-                            coeffs[i, j, k] = self.real_coeff_value
-                        else:
-                            coeffs[i, j, k] = self.imag_coeff_value
-        return coeffs.reshape(
-            self.batches,
-            self.pols,
-            self.n_channels,
-            self.n_blocks,
-            self.samples_per_block,
-            2,
-            self.n_ants * self.complexity,
-        )
 
     def cpu_coeffs(self):
         """Generate coefficients for complex multiplication on the GPU.
@@ -182,11 +100,21 @@ class CoeffGenerator:
         cols = 2
 
         coeff_matrix = np.empty(
-            self.batches * self.pols * self.num_channels * self.n_ants * self.num_beams * self.complexity * cols,
+            self.batches
+            * self.pols
+            * self.num_channels
+            * self.n_ants
+            * self.num_beams
+            * self.complexity
+            * cols,
             dtype=np.float32,
         )
         coeff_matrix = coeff_matrix.reshape(
-            self.batches, self.pols, self.num_channels, self.n_ants * self.complexity, self.num_beams * cols
+            self.batches,
+            self.pols,
+            self.num_channels,
+            self.n_ants * self.complexity,
+            self.num_beams * cols,
         )
 
         for ibatchindex in range(self.batches):
@@ -194,9 +122,13 @@ class CoeffGenerator:
                 for ichannelindex in range(self.num_channels):
                     for ibeamindex in range(self.num_beams):
                         for iantindex in range(self.n_ants):
-                            delay_s = self.delay_vals[ichannelindex][ibeamindex][iantindex][0]
+                            delay_s = self.delay_vals[ichannelindex][ibeamindex][
+                                iantindex
+                            ][0]
                             # DelayRate_sps = self.delay_vals[ichannelindex][ibeamindex][iantindex][1]
-                            phase_rad = self.delay_vals[ichannelindex][ibeamindex][iantindex][2]
+                            phase_rad = self.delay_vals[ichannelindex][ibeamindex][
+                                iantindex
+                            ][2]
                             # PhaseRate_radps = self.delay_vals[ichannelindex][ibeamindex][iantindex][3]
 
                             # Compute actual channel index (i.e. channel in spectrum being computed on)
@@ -208,7 +140,10 @@ class CoeffGenerator:
                             # Part1:
                             # Take delay_CAM*channel_num_i*b-pi/(total_channels*sampling_rate_nanosec)+phase_offset_CAM
                             initial_phase = (
-                                delay_s * ichannel * (-np.math.pi) / (self.total_channels * self.sample_period)
+                                delay_s
+                                * ichannel
+                                * (-np.math.pi)
+                                / (self.total_channels * self.sample_period)
                                 + phase_rad
                             )
 
@@ -233,37 +168,17 @@ class CoeffGenerator:
                             ibeammatrix = ibeamindex * 2
 
                             # Part5: Store coeffs in return matrix
-                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][iantmatrix][
-                                ibeammatrix + 1
-                            ] = steering_coeff_correct_imag
-                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][iantmatrix][
-                                ibeammatrix
-                            ] = steering_coeff_correct_real
+                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][
+                                iantmatrix
+                            ][ibeammatrix + 1] = steering_coeff_correct_imag
+                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][
+                                iantmatrix
+                            ][ibeammatrix] = steering_coeff_correct_real
 
-                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][iantmatrix + 1][
-                                ibeammatrix + 1
-                            ] = steering_coeff_correct_real
-                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][iantmatrix + 1][
-                                ibeammatrix
-                            ] = -steering_coeff_correct_imag
+                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][
+                                iantmatrix + 1
+                            ][ibeammatrix + 1] = steering_coeff_correct_real
+                            coeff_matrix[ibatchindex][ipolindex][ichannelindex][
+                                iantmatrix + 1
+                            ][ibeammatrix] = -steering_coeff_correct_imag
         return coeff_matrix
-
-    def cpu_dummy_coeffs(self):
-        """Generate coefficients for complex multiplication on the CPU.
-
-        Note: This is for use in complex multiplication. The real and imaginary
-        values need to be interleaved as <real,imag>
-
-        Returns
-        -------
-        coeffs: np.ndarray[np.float32].
-            Output array of test coefficients.
-        """
-        coeffs = np.empty(self.n_ants * 2 * self.total_length, dtype=np.float32).reshape(
-            self.total_length, self.n_ants, 2
-        )
-        coeffs[:, :] = [self.real_coeff_value, self.imag_coeff_value]
-
-        return coeffs.reshape(
-            self.batches, self.pols, self.n_channels, self.n_blocks, self.samples_per_block, self.n_ants, 2
-        )

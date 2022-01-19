@@ -20,8 +20,8 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamform_reorder import reorder
-from beamform_reorder.prebeamform_reorder import PreBeamformReorderTemplate
+from beamforming import reorder
+from beamforming.prebeamform_reorder import PreBeamformReorderTemplate
 from katsdpsigproc import accel
 from unit_test import test_parameters
 
@@ -30,7 +30,9 @@ from unit_test import test_parameters
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
-def test_prebeamform_reorder_parametrised(batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int):
+def test_prebeamform_reorder_parametrised(
+    batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int
+):
     """
     Parametrised unit test of the Pre-beamform Reorder kernel.
 
@@ -70,7 +72,9 @@ def test_prebeamform_reorder_parametrised(batches: int, n_ants: int, n_channels:
     n_channels_per_stream = n_channels // n_ants // 4
 
     # 2. Initialise GPU kernels and buffers.
-    ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
+    ctx = accel.create_some_context(
+        device_filter=lambda x: x.is_cuda, interactive=False
+    )
     queue = ctx.create_command_queue()
 
     template = PreBeamformReorderTemplate(
@@ -96,7 +100,9 @@ def test_prebeamform_reorder_parametrised(batches: int, n_ants: int, n_channels:
     rng = np.random.default_rng(seed=2021)
 
     buf_samples_host[:] = rng.uniform(
-        np.iinfo(buf_samples_host.dtype).min, np.iinfo(buf_samples_host.dtype).max, buf_samples_host.shape
+        np.iinfo(buf_samples_host.dtype).min,
+        np.iinfo(buf_samples_host.dtype).max,
+        buf_samples_host.shape,
     ).astype(buf_samples_host.dtype)
 
     # 4. Transfer input sample array to the GPU, run kernel, transfer output Reordered array to the CPU.
