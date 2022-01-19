@@ -66,7 +66,6 @@ class BeamformSeqTemplate:
             n_samples_per_channel=n_samples_per_channel,
             n_beams=n_beams,
             batches=batches,
-            test_id="kernel",
         )
 
     def instantiate(self, queue):

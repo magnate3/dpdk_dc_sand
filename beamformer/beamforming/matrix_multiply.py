@@ -50,12 +50,6 @@ class MatrixMultiplyTemplate:
         Number of beams.
     batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
-    _sample_bitwidth: int
-        Number of bits per input sample. Fixed at 8.
-    n_pols: int
-        Number of polarisations. Always 2.
-    complexity: int
-        Constant for complex number dimensions. Always 2.
     """
 
     def __init__(
@@ -66,7 +60,6 @@ class MatrixMultiplyTemplate:
         n_samples_per_channel: int,
         n_beams: int,
         batches: int,
-        test_id,
     ) -> None:
         self.context = context
         self.n_ants = n_ants
@@ -77,7 +70,6 @@ class MatrixMultiplyTemplate:
         self.n_pols = 2  # Hardcoded to 2. No other values are supported
         self.complexity = 2
         self.beams = n_beams
-        self.test_id = test_id
 
         # This 128 is hardcoded in the original tensor core kernel. Likely to do with optimum thread-block size.
         # i.e. 4 warps totalling 128 threads per block.
@@ -110,20 +102,13 @@ class MatrixMultiplyTemplate:
             accel.Dimension(self.beams * self.complexity, exact=True),
         )
 
-        if test_id == "kernel":
-            self.coeff_data_dimensions = (
-                accel.Dimension(self.batches, exact=True),
-                accel.Dimension(self.n_pols, exact=True),
-                accel.Dimension(self.n_channels, exact=True),
-                accel.Dimension(self.n_ants * 2, exact=True),
-                accel.Dimension(self.beams * 2, exact=True),
-            )
-        elif test_id == "sgemm":
-            self.coeff_data_dimensions = (
-                accel.Dimension(self.length, exact=True),
-                accel.Dimension(self.complexity, exact=True),
-                accel.Dimension(self.n_ants * self.complexity, exact=True),
-            )
+        self.coeff_data_dimensions = (
+            accel.Dimension(self.batches, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
+            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_ants * 2, exact=True),
+            accel.Dimension(self.beams * 2, exact=True),
+        )
 
     def instantiate(self, command_queue: accel.AbstractCommandQueue):
         """Initialise the complex multiplication class."""
@@ -147,8 +132,6 @@ class MatrixMultiply(Operation):
         Template for multiplication class
     command_queue: accel.AbstractCommandQueue
         CUDA command queue
-    test_id: string
-        ID of the computation to run. This will be removed and is only for testing.
     """
 
     def __init__(
@@ -158,7 +141,6 @@ class MatrixMultiply(Operation):
     ):
         super().__init__(command_queue)
         self.template = template
-        self.test_id = template.test_id
 
         self.slots["inData"] = IOSlot(
             dimensions=self.template.input_data_dimensions, dtype=np.uint8
@@ -173,10 +155,9 @@ class MatrixMultiply(Operation):
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
-            if self.test_id == "kernel":
-                ComplexMultKernel.complex_mult(
-                    self,
-                    self.buffer("inData").buffer,
-                    self.buffer("inCoeffs").buffer,
-                    self.buffer("outData").buffer,
-                )
+            ComplexMultKernel.complex_mult(
+                self,
+                self.buffer("inData").buffer,
+                self.buffer("inCoeffs").buffer,
+                self.buffer("outData").buffer,
+            )
