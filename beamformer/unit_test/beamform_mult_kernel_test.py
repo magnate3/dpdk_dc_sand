@@ -19,8 +19,8 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamform_coeffs.beamform_coeffs import BeamformCoeffsTemplate
 from beamforming import matrix_multiply
+from beamforming.beamform_coeffs import BeamformCoeffsTemplate
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
 from unit_test.coeff_generator import CoeffGenerator
@@ -80,7 +80,10 @@ class BeamformSeq(accel.OperationSequence):
     def __init__(self, template, queue):
         self.beamform_coeff = template.coeff_template.instantiate(queue)
         self.beamform_mult = template.beamform_mult_template.instantiate(queue)
-        operations = [("beamform_coeff", self.beamform_coeff), ("beamform_mult", self.beamform_mult)]
+        operations = [
+            ("beamform_coeff", self.beamform_coeff),
+            ("beamform_mult", self.beamform_mult),
+        ]
         compounds = {
             "bufin_delay_vals": ["beamform_coeff:delay_vals"],
             "bufint": ["beamform_mult:inCoeffs", "beamform_coeff:outCoeffs"],
@@ -169,7 +172,9 @@ def test_beamform(
     delay_vals = delay_vals.reshape(n_channels_per_stream, n_beams, n_ants, 4)
 
     # 2. Initialise GPU kernels and buffers.
-    ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
+    ctx = accel.create_some_context(
+        device_filter=lambda x: x.is_cuda, interactive=False
+    )
     queue = ctx.create_command_queue()
 
     # Create compound
@@ -208,7 +213,9 @@ def test_beamform(
     rng = np.random.default_rng(seed=2021)
 
     host_data_in[:] = rng.uniform(
-        np.iinfo(host_data_in.dtype).min, np.iinfo(host_data_in.dtype).max, host_data_in.shape
+        np.iinfo(host_data_in.dtype).min,
+        np.iinfo(host_data_in.dtype).max,
+        host_data_in.shape,
     ).astype(host_data_in.dtype)
 
     # 4. Beamforming (Coefficient generation and Matrix Multiply):
@@ -246,7 +253,9 @@ def test_beamform(
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
-    np.testing.assert_allclose(beamform_data_cpu, host_beamform_data_out, rtol=1e-04, atol=1e-04)
+    np.testing.assert_allclose(
+        beamform_data_cpu, host_beamform_data_out, rtol=1e-04, atol=1e-04
+    )
 
 
 if __name__ == "__main__":

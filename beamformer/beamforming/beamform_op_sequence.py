@@ -8,12 +8,10 @@ passed to the kernel in a single array.
 """
 
 import numpy as np
-from beamform_coeffs import beamform_coeffs
 
 # Temp - for testing
 from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
-from beamform_reorder import prebeamform_reorder
-from beamforming import matrix_multiply
+from beamforming import beamform_coeffs, matrix_multiply, prebeamform_reorder
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 
@@ -79,10 +77,18 @@ class BeamformSeqTemplate:
             context, n_ants, n_channels, n_samples_per_channel, n_batches
         )
         self.beamformMult = matrix_multiply.MatrixMultiplyTemplate(
-            context, n_ants, n_channels, n_samples_per_channel, n_beams, n_batches, test_id
+            context,
+            n_ants,
+            n_channels,
+            n_samples_per_channel,
+            n_beams,
+            n_batches,
+            test_id,
         )
         # Beamformer coefficient generator. This requires time and delay values.
-        self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(context, delay, n_beams, n_ants, n_channels)
+        self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(
+            context, delay, n_beams, n_ants, n_channels
+        )
 
     def instantiate(self, queue, test_id):
         """Instantiate and return OpSequence object."""
@@ -111,7 +117,10 @@ class OpSequence(accel.OperationSequence):
         self.prebeamformReorder = template.preBeamformReorder.instantiate(queue)
         self.beamformMult = template.beamformMult.instantiate(queue, test_id)
         # self.beamformCoeffs = template.beamformCoeffs.instantiate(queue)
-        operations = [("reorder", self.prebeamformReorder), ("beamformMult", self.beamformMult)]
+        operations = [
+            ("reorder", self.prebeamformReorder),
+            ("beamformMult", self.beamformMult),
+        ]
         # operations = [("reorder", self.prebeamformReorder), ("coeffs", self.beamformCoeffs),
         # ("beamformMult", self.beamformMult)]
         compounds = {
@@ -200,10 +209,19 @@ if __name__ == "__main__":
         sample_period,
     )
 
-    ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda, interactive=False)
+    ctx = accel.create_some_context(
+        device_filter=lambda x: x.is_cuda, interactive=False
+    )
     queue = ctx.create_command_queue()
     op_template = BeamformSeqTemplate(
-        ctx, n_ants, n_channels_per_stream, num_samples_per_channel, batches, test_id, n_beams, delay_vals
+        ctx,
+        n_ants,
+        n_channels_per_stream,
+        num_samples_per_channel,
+        batches,
+        test_id,
+        n_beams,
+        delay_vals,
     )
     op = op_template.instantiate(queue, test_id)
     op.ensure_all_bound()

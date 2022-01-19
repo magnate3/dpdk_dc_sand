@@ -17,7 +17,16 @@ from numba import cuda
 
 @cuda.jit
 def run_coeff_gen(
-    delay_vals, batches, pols, n_channels, total_channels, n_beams, n_ants, xeng_id, sample_period, coeffs
+    delay_vals,
+    batches,
+    pols,
+    n_channels,
+    total_channels,
+    n_beams,
+    n_ants,
+    xeng_id,
+    sample_period,
+    coeffs,
 ):
     """Execute Beamforming steering coefficients."""
     # Compute flattened index inside the array
@@ -47,9 +56,17 @@ def run_coeff_gen(
         # relative channel in the spectrum the xeng GPU thread is working on.
         ichannel = ichannelindex + n_channels * xeng_id
 
-        initial_phase = delay_s * ichannel * (-np.math.pi) / (total_channels * sample_period) + phase_rad
+        initial_phase = (
+            delay_s * ichannel * (-np.math.pi) / (total_channels * sample_period)
+            + phase_rad
+        )
 
-        phase_correction_band_center = delay_s * (total_channels / 2) * (-np.math.pi) / (total_channels * sample_period)
+        phase_correction_band_center = (
+            delay_s
+            * (total_channels / 2)
+            * (-np.math.pi)
+            / (total_channels * sample_period)
+        )
 
         # Compute rotation value for steering coefficient computation
         rotation = initial_phase - phase_correction_band_center
@@ -74,11 +91,19 @@ def run_coeff_gen(
         iant_matrix = ibeamindex_rem * 2
 
         # Store steering coefficients in output matrix
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][ibeam_matrix] = steering_coeff_correct_real
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][ibeam_matrix + 1] = steering_coeff_correct_imag
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][
+            ibeam_matrix
+        ] = steering_coeff_correct_real
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix][
+            ibeam_matrix + 1
+        ] = steering_coeff_correct_imag
 
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][ibeam_matrix] = -steering_coeff_correct_imag
-        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][ibeam_matrix + 1] = steering_coeff_correct_real
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][
+            ibeam_matrix
+        ] = -steering_coeff_correct_imag
+        coeffs[ibatchindex][ipolindex][ichannelindex][iant_matrix + 1][
+            ibeam_matrix + 1
+        ] = steering_coeff_correct_real
 
 
 class BeamformCoeffKernel:
@@ -131,7 +156,13 @@ class BeamformCoeffKernel:
         self.n_beams = n_beams
         self.xeng_id = xeng_id
         self.sample_period = sample_period
-        self.total_length = self.batches * self.pols * self.n_channels * self.n_blocks * self.samples_per_block
+        self.total_length = (
+            self.batches
+            * self.pols
+            * self.n_channels
+            * self.n_blocks
+            * self.samples_per_block
+        )
         self.complexity = 2  # Always
 
     def coeff_gen(self, delay_vals, coeff_matrix):
@@ -140,7 +171,14 @@ class BeamformCoeffKernel:
 
         # Calculate the number of thread blocks in the grid
         blockspergrid = np.uint(
-            np.ceil(self.batches * self.pols * self.n_channels * self.n_beams * self.n_ants / threadsperblock)
+            np.ceil(
+                self.batches
+                * self.pols
+                * self.n_channels
+                * self.n_beams
+                * self.n_ants
+                / threadsperblock
+            )
         )
 
         # Make the context associated with device device_id the current context.
@@ -252,7 +290,11 @@ class BeamformCoeffs(Operation):
         CUDA command queue
     """
 
-    def __init__(self, template: BeamformCoeffsTemplate, command_queue: accel.AbstractCommandQueue):
+    def __init__(
+        self,
+        template: BeamformCoeffsTemplate,
+        command_queue: accel.AbstractCommandQueue,
+    ):
         super().__init__(command_queue)
         self.template = template
 
@@ -268,10 +310,16 @@ class BeamformCoeffs(Operation):
             self.template.xeng_id,
             self.template.sample_period,
         )
-        self.slots["delay_vals"] = IOSlot(dimensions=self.template.delay_vals_data_dimensions, dtype=np.float32)
-        self.slots["outCoeffs"] = IOSlot(dimensions=self.template.coeff_data_dimensions, dtype=np.float32)
+        self.slots["delay_vals"] = IOSlot(
+            dimensions=self.template.delay_vals_data_dimensions, dtype=np.float32
+        )
+        self.slots["outCoeffs"] = IOSlot(
+            dimensions=self.template.coeff_data_dimensions, dtype=np.float32
+        )
 
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
-            self.beamformcoeffkernel.coeff_gen(self.buffer("delay_vals").buffer, self.buffer("outCoeffs").buffer)
+            self.beamformcoeffkernel.coeff_gen(
+                self.buffer("delay_vals").buffer, self.buffer("outCoeffs").buffer
+            )

@@ -8,7 +8,6 @@ in a single array.
 """
 import numpy as np
 from beamforming.complex_mult_kernel import ComplexMultKernel
-from beamforming.cublas_SgemmBatched import cublas_SgemmBatched
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 from katsdpsigproc.accel import IOSlot, Operation
@@ -84,7 +83,13 @@ class MatrixMultiplyTemplate:
         # i.e. 4 warps totalling 128 threads per block.
         self.n_samples_per_block = 128 // self._sample_bitwidth
         self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
-        self.length = self.batches * self.n_pols * self.n_channels * self.n_blocks * self.n_samples_per_block
+        self.length = (
+            self.batches
+            * self.n_pols
+            * self.n_channels
+            * self.n_blocks
+            * self.n_samples_per_block
+        )
 
         self.input_data_dimensions = (
             accel.Dimension(self.batches, exact=True),
@@ -146,23 +151,32 @@ class MatrixMultiply(Operation):
         ID of the computation to run. This will be removed and is only for testing.
     """
 
-    def __init__(self, template: MatrixMultiplyTemplate, command_queue: accel.AbstractCommandQueue):
+    def __init__(
+        self,
+        template: MatrixMultiplyTemplate,
+        command_queue: accel.AbstractCommandQueue,
+    ):
         super().__init__(command_queue)
         self.template = template
         self.test_id = template.test_id
 
-        self.slots["inData"] = IOSlot(dimensions=self.template.input_data_dimensions, dtype=np.uint8)
-        self.slots["outData"] = IOSlot(dimensions=self.template.output_data_dimensions, dtype=np.float32)
-        self.slots["inCoeffs"] = IOSlot(dimensions=self.template.coeff_data_dimensions, dtype=np.float32)
+        self.slots["inData"] = IOSlot(
+            dimensions=self.template.input_data_dimensions, dtype=np.uint8
+        )
+        self.slots["outData"] = IOSlot(
+            dimensions=self.template.output_data_dimensions, dtype=np.float32
+        )
+        self.slots["inCoeffs"] = IOSlot(
+            dimensions=self.template.coeff_data_dimensions, dtype=np.float32
+        )
 
     def _run(self):
         """Run the beamform computation."""
         with self.command_queue.context:
-            if self.test_id == "sgemm":
-                cublas_SgemmBatched.cublas_SgemmBatched(
-                    self, self.buffer("inData").buffer, self.buffer("inCoeffs").buffer, self.buffer("outData").buffer
-                )
             if self.test_id == "kernel":
                 ComplexMultKernel.complex_mult(
-                    self, self.buffer("inData").buffer, self.buffer("inCoeffs").buffer, self.buffer("outData").buffer
+                    self,
+                    self.buffer("inData").buffer,
+                    self.buffer("inCoeffs").buffer,
+                    self.buffer("outData").buffer,
                 )

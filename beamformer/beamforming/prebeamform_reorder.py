@@ -38,7 +38,12 @@ class PreBeamformReorderTemplate:
     """
 
     def __init__(
-        self, context: AbstractContext, n_ants: int, n_channels: int, n_samples_per_channel: int, n_batches: int
+        self,
+        context: AbstractContext,
+        n_ants: int,
+        n_channels: int,
+        n_samples_per_channel: int,
+        n_batches: int,
     ) -> None:
         """Initialise the PreBeamformReorderTemplate class and compile the pre-beamform reorder kernel."""
         # 1. Set member variables that are used to calculate indices for the input and output buffers
@@ -55,7 +60,9 @@ class PreBeamformReorderTemplate:
         self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
 
         if self.n_samples_per_channel % self.n_blocks != 0:
-            raise ValueError(f"samples_per_channel must be divisible by {self.n_blocks}.")
+            raise ValueError(
+                f"samples_per_channel must be divisible by {self.n_blocks}."
+            )
 
         # 3. Declare the input and output data shapes
         self.inputDataShape = (
@@ -78,7 +85,12 @@ class PreBeamformReorderTemplate:
         )
 
         # The size of a data matrix required to be reordered is the same for Input or Output data shapes
-        self.matrix_size = self.n_ants * self.n_channels * self.n_samples_per_channel * self.n_polarisations
+        self.matrix_size = (
+            self.n_ants
+            * self.n_channels
+            * self.n_samples_per_channel
+            * self.n_polarisations
+        )
 
         # Maximum number of threads per block, as per Section I of Nvidia's CUDA Programming Guide
         threads_per_block: Final[int] = 1024
@@ -106,7 +118,9 @@ class PreBeamformReorderTemplate:
         )
         self.kernel = program.get_kernel("prebeamform_reorder")
 
-    def instantiate(self, command_queue: accel.AbstractCommandQueue) -> "PreBeamformReorder":
+    def instantiate(
+        self, command_queue: accel.AbstractCommandQueue
+    ) -> "PreBeamformReorder":
         """Create a PreBeamformReorder object using this template to build the kernel."""
         return PreBeamformReorder(self, command_queue)
 
@@ -139,14 +153,20 @@ class PreBeamformReorder(accel.Operation):
     Each input element is a complex 8-bit integer sample.
     """
 
-    def __init__(self, template: PreBeamformReorderTemplate, command_queue: accel.AbstractCommandQueue) -> None:
+    def __init__(
+        self,
+        template: PreBeamformReorderTemplate,
+        command_queue: accel.AbstractCommandQueue,
+    ) -> None:
         """Initialise the PreBeamformReorder class."""
         super().__init__(command_queue)
         self.template = template
         self.slots["inSamples"] = accel.IOSlot(
             dimensions=self.template.inputDataShape, dtype=np.uint8
         )  # TODO: This must depend on input bitwidth
-        self.slots["outReordered"] = accel.IOSlot(dimensions=self.template.outputDataShape, dtype=np.uint8)
+        self.slots["outReordered"] = accel.IOSlot(
+            dimensions=self.template.outputDataShape, dtype=np.uint8
+        )
 
     def _run(self) -> None:
         """Run the correlation kernel."""
