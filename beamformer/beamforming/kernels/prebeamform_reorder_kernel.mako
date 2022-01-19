@@ -15,7 +15,7 @@
  *   Currently, all dimension-strides are calculated within the kernel itself.
  *   - Granted, there are some redudancies/inefficiences in variable usage; however,
  *   - The kernel itself is operating as required.
- *   
+ *
  *   \param[in]  pu16Array           Pointer to a pre-populated input data array. The input array is one-dimensional but stores
  *                                   multidimensional data according to the format described above.
  *   \param[out] pu16ArrayReordered  Pointer to the memory allocated for the reordered output data. Once more, this 1D output array
@@ -46,14 +46,14 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
     // - Declaring in their order of dimensionality for the new matrix
     int iNewIndex, iNewChanOffset, iTimeOuterOffset, iNewAntOffset, iNewPolOffset;
     int iTimeOuterIndex, iTimeInnerIndex, iMatrixStride_y;
-    
+
     // 2. Calculate indices for reorder
     // 2.1. Calculate 'current'/original indices for each dimension
     //      - Matrix Stride should be the same value for Original and Reordered matrices
     iMatrixStride_y = yindex * NR_ANTENNAS * NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS;
     int iAntIndex = iThreadIndex_x / (NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS);
     int iRemIndex = iThreadIndex_x % (NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS);
-    
+
     iChanIndex = iRemIndex / (NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS);
     iRemIndex = iRemIndex % (NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS);
 
@@ -84,7 +84,7 @@ void prebeamform_reorder(uint16_t *pu16Array, uint16_t *pu16ArrayReordered)
 
     if (iThreadIndex_x < (NR_ANTENNAS * NR_CHANNELS * NR_SAMPLES_PER_CHANNEL * NR_POLARISATIONS))
     {
-        // 3.1. Read out from the original arrayNo 
+        // 3.1. Read out from the original arrayNo
         u16InputSample = *(pu16Array + iThreadIndex_x + iMatrixStride_y);
 
         // 3.2. Store at its reordered index

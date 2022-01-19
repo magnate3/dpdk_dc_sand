@@ -54,22 +54,24 @@ def run_reorder(
     # or
 
     # Option 2:
-    output_data[:] = input_data.reshape(batches, ants, n_channel, -1, n_samples_per_block, pols, complexity).transpose(
-        0, 5, 2, 3, 4, 1, 6
-    )
+    output_data[:] = input_data.reshape(
+        batches, ants, n_channel, -1, n_samples_per_block, pols, complexity
+    ).transpose(0, 5, 2, 3, 4, 1, 6)
     return output_data
 
 
-def reorder(input_data: np.ndarray, input_data_shape: tuple, output_data_shape: tuple) -> np.ndarray:
+def reorder(
+    input_data: np.ndarray, input_data_shape: tuple, output_data_shape: tuple
+) -> np.ndarray:
     """Reorder input data into provided datashape.
 
     Parameters
     ----------
-    input_data: np.ndarray of type uint16
+    input_data:
         Input data for reordering.
-    input_data_shape: tuple
+    input_data_shape:
         Input data shape.
-    output_data_shape: tuple
+    output_data_shape:
         Data shape to rehsape input data into.
 
     Returns
@@ -87,5 +89,15 @@ def reorder(input_data: np.ndarray, input_data_shape: tuple, output_data_shape: 
     n_samples_per_block = output_data_shape[4]
     complexity = input_data_shape[5]
 
-    run_reorder(input_data, output_data, batches, pols, n_channel, ants, samples_chan, n_samples_per_block, complexity)
+    run_reorder(
+        input_data,
+        output_data,
+        batches,
+        pols,
+        n_channel,
+        ants,
+        samples_chan,
+        n_samples_per_block,
+        complexity,
+    )
     return output_data

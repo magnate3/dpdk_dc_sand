@@ -4,20 +4,21 @@ Module for beamformer complex multiplication.
 The beamform multiplication kernel ingests data from the pre-beamform reorder and produces a beamformed product
 as per the shape descibed.
 """
+import numpy as np
 from numba import cuda, float32
 
 
 @cuda.jit
-def run_complex_mult(data_matrix, coeff_matrix, out):
+def run_complex_mult(data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.ndarray):
     """Execute complex multiplication.
 
     Parameters
     ----------
-    data_matrix: nd.array[np.uint8]
+    data_matrix:
         Data matrix on reordered data
-    coeff_matrix: nd.array[np.float32]
+    coeff_matrix:
         Coefficients for beamforming computation.
-    out: nd.array[np.float32]
+    out:
         Complex multipication product for beamforming computation.
 
     Note: This is for use in complex multiplication using two
@@ -39,47 +40,45 @@ def run_complex_mult(data_matrix, coeff_matrix, out):
     data and the coefficients used are complex valued requiring a complex multiplication.
     To utilise standard matrix mutliplication the coefficient matrix is constructed as detailed above.
     """
-    # # Compute flattened index inside the array
-    iThreadIndex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
+    # Compute flattened index inside the array
+    ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
+    batches = data_matrix.shape[0]
     pols = data_matrix.shape[1]
     n_channel = data_matrix.shape[2]
     blocks = data_matrix.shape[3]
     samples_per_block = data_matrix.shape[4]
     ants = data_matrix.shape[5]
+    complexity = 2
+    n_beams = coeff_matrix.shape[4] // complexity
 
-    iBatchIndex = iThreadIndex_x // (pols * n_channel * blocks * samples_per_block)
-    iRemIndex = iThreadIndex_x % (pols * n_channel * blocks * samples_per_block)
+    if ithreadindex_x <= (batches * pols * n_channel * blocks * samples_per_block * ants * complexity):
+        # Compute data matrix index
+        ibatchindex = ithreadindex_x // (pols * n_channel * blocks * samples_per_block * ants)
+        iremindex = ithreadindex_x % (pols * n_channel * blocks * samples_per_block * ants)
 
-    iPolIndex = iRemIndex // (n_channel * blocks * samples_per_block)
-    iRemIndex = iRemIndex % (n_channel * blocks * samples_per_block)
+        ipolindex = iremindex // (n_channel * blocks * samples_per_block * ants)
+        iremindex = iremindex % (n_channel * blocks * samples_per_block * ants)
 
-    iChanIndex = iRemIndex // (blocks * samples_per_block)
-    iRemIndex = iRemIndex % (blocks * samples_per_block)
+        ichanindex = iremindex // (blocks * samples_per_block * ants)
+        iremindex = iremindex % (blocks * samples_per_block * ants)
 
-    iBlockIndex = iRemIndex // (samples_per_block)
-    iRemIndex = iRemIndex % (samples_per_block)
+        iblockindex = iremindex // (samples_per_block * ants)
+        iremindex = iremindex % (samples_per_block * ants)
 
-    iSamplePerBlockIndex = iRemIndex
+        isample_per_block_index = iremindex // ants
 
-    for col in range(2):
-        tmp = float32(0)
-        for ant in range(ants):
-            coeff = coeff_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][col][ant]
-            data = data_matrix[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][ant]
+        for col in range(n_beams * 2):
+            tmp = float32(0)
+            for ant in range(ants):
+                coeff = coeff_matrix[ibatchindex][ipolindex][ichanindex][ant][col]
+                data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][ant]
+                tmp += data * coeff
 
-            tmp += data * coeff
-
-        # Copy computed weighted and summed ant samples to output
-        if col == 0:
-            # Computed sample is real component
-            out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][0] = tmp
-        else:
-            # Computed sample is imaginary component
-            out[iBatchIndex][iPolIndex][iChanIndex][iBlockIndex][iSamplePerBlockIndex][1] = tmp
+            out[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][col] = tmp
 
 
-class complex_mult_kernel:
+class ComplexMultKernel:
     """Class for beamform complex multiplication."""
 
     def complex_mult(self, data_matrix, coeff_matrix, out):
@@ -105,12 +104,13 @@ class complex_mult_kernel:
         # Reshape data to have ant real and imag data in one dimension
         data_matrix = data_matrix.reshape(batches, pols, n_channel, blocks, samples_per_block, (ants * complexity))
 
-        # Set the number of threads in a block
-        threadsperblock = 512
+        # Calculate the number of threads required.
+        total_threads = batches * pols * n_channel * blocks * samples_per_block * ants * complexity
 
-        # Calculate the number of thread blocks in the grid
-        ant_sample_blocks = data_matrix.size / (ants * complexity)
-        blockspergrid = int(ant_sample_blocks // threadsperblock)
+        threadsperblock = 128
+
+        # Calculate the number of blocks in a grid.
+        blockspergrid = np.uint(np.ceil(total_threads / threadsperblock))
 
         # Make the context associated with device device_id the current context.
         # NOTE: Without doing this Numba will try execute kernel code on it's own context which will throw an error as
