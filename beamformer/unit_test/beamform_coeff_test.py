@@ -133,19 +133,6 @@ def test_beamform_coeffs(
         xeng_id,
         sample_period,
     )
-    # gpu_coeff_gen = BeamformCoeffKernel(
-    #     delay_vals,
-    #     batches,
-    #     num_pols,
-    #     n_channels_per_stream,
-    #     n_channels,
-    #     n_blocks,
-    #     samples_per_block,
-    #     n_ants,
-    #     n_beams,
-    #     xeng_id,
-    #     sample_period,
-    # )
 
     # Create context and command queue
     ctx = accel.create_some_context(device_filter=lambda device: device.is_cuda)

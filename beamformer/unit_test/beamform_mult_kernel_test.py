@@ -27,7 +27,13 @@ from unit_test.coeff_generator import CoeffGenerator
 
 
 class BeamformSeqTemplate:
-    """Template class for beamform operational sequence."""
+    """Template class for beamform operational sequence.
+
+    This op sequence is defined here in order to test the specific combination of
+    the coeff generator and the matrix multiplier, just as an additional sanity
+    check. It's not intended as a deliverable, and so lacks the pre-beamform
+    reorder. See beamform_op_sequence.py for that.
+    """
 
     def __init__(
         self,
@@ -91,10 +97,6 @@ class BeamformSeq(accel.OperationSequence):
         }
         super().__init__(queue, operations, compounds)
         self.template = template
-
-    def __call__(self):
-        """Super call to parent class."""
-        super().__call__()
 
 
 @pytest.mark.parametrize("batches", test_parameters.batches)
