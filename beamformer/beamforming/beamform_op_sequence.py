@@ -86,7 +86,7 @@ class BeamformSeqTemplate:
             test_id,
         )
         # Beamformer coefficient generator. This requires time and delay values.
-        self.beamformCoeffs = beamform_coeffs.BeamformCoeffsTemplate(
+        self.beamformCoeffs = beamform_coeffs.CoeffGeneratorTemplate(
             context, delay, n_beams, n_ants, n_channels
         )
 

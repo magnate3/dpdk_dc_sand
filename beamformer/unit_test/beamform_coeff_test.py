@@ -19,7 +19,7 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamforming.beamform_coeffs import BeamformCoeffsTemplate
+from beamforming.beamform_coeffs import CoeffGeneratorTemplate
 from katsdpsigproc import accel
 
 # from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
@@ -152,7 +152,7 @@ def test_beamform_coeffs(
     queue = ctx.create_command_queue()
 
     # 3. Generate Coeffs on GPU
-    coeff_template = BeamformCoeffsTemplate(
+    coeff_template = CoeffGeneratorTemplate(
         ctx,
         batches,
         num_pols,
