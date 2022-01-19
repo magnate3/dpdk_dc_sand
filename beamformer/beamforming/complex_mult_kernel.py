@@ -52,19 +52,6 @@ def run_complex_mult(data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.
     complexity = 2
     n_beams = coeff_matrix.shape[4] // complexity
 
-
-    if ithreadindex_x <= 0:
-        print(  'thread:',ithreadindex_x,
-                'batches:', batches,
-                'pols:', pols,
-                'n_channel:', n_channel,
-                'blocks:', blocks,
-                'samples_per_block:', samples_per_block,
-                'ants:', ants,
-                'complexity:', complexity, 
-                'n_beams:', n_beams)
-    
-
     if ithreadindex_x <= (batches * pols * n_channel * blocks * samples_per_block * ants * complexity):
         # Compute data matrix index
         ibatchindex = ithreadindex_x // (pols * n_channel * blocks * samples_per_block * ants)
@@ -81,38 +68,12 @@ def run_complex_mult(data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.
 
         isample_per_block_index = iremindex // ants
 
-        # if ithreadindex_x == 0:
-        #     print('ants is:', ants)
-
         for col in range(n_beams * 2):
             tmp = float32(0)
             for ant in range(ants):
                 coeff = coeff_matrix[ibatchindex][ipolindex][ichanindex][ant][col]
                 data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][ant]
                 tmp += data * coeff
-
-                # if ithreadindex_x <= 0:
-                #     print('thread is:',ithreadindex_x,
-                #     'ibatchindex:', ibatchindex,
-                #     'ipolindex:', ipolindex,
-                #     'ichanindex:', ichanindex,
-                #     'iblockindex:', iblockindex,
-                #     'isample_per_block_index:', isample_per_block_index,
-                #     'ant:', ant,
-                #     'col:', col,
-                #     'tmp:', tmp,
-                #     'coeff:',coeff,
-                #     'data:', data)
-
-                # if ibatchindex == 0:
-                #     if ipolindex == 0:
-                #         if ichanindex == 0:
-                #             if iblockindex == 0:
-                #                 if isample_per_block_index == 0:
-                #                     if ant == 0:
-                #                         a = 1
-                                        # print(ithreadindex_x)
-                                        # print('col is:', col, 'and tmp is:', tmp, 'and coeff is:',coeff, 'and data is:', data)
 
             out[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][col] = tmp
 

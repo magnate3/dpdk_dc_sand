@@ -6,12 +6,14 @@ as per the shape descibed.
 Provision for batched operations is included, i.e. reordering multiple sets of data (matrices) passed to the kernel
 in a single array.
 """
-import numpy as np
 import math
-from numba import cuda
+
+import numpy as np
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 from katsdpsigproc.accel import IOSlot, Operation
+from numba import cuda
+
 
 @cuda.jit
 def run_coeff_gen(
@@ -80,15 +82,13 @@ def run_coeff_gen(
 
 
 class BeamformCoeffKernel:
-    """Class for beamform complex multiplication.
+    """Class for beamform coefficient kernel.
 
     Parameters
     ----------
-    delay_vals:
-        Data matrix of delay values.
     batches:
         Number of batches to process.
-    pols:
+    num_pols:
         Number of polarisations.
     n_channels_per_stream:
         The number of channels the XEng core will process.
@@ -110,7 +110,6 @@ class BeamformCoeffKernel:
 
     def __init__(
         self,
-        # delay_vals: np.ndarray,
         batches: int,
         num_pols: int,
         n_channels_per_stream: int,
@@ -122,7 +121,6 @@ class BeamformCoeffKernel:
         xeng_id: int,
         sample_period: int,
     ):
-        # self.delay_vals = delay_vals
         self.batches = batches
         self.pols = num_pols
         self.n_channels = n_channels_per_stream
@@ -168,6 +166,7 @@ class BeamformCoeffKernel:
         # Wait for all commands in the stream to finish executing.
         cuda.synchronize()
 
+
 class BeamformCoeffsTemplate:
     """
     Template class for beamform coeficient generator.
@@ -187,6 +186,7 @@ class BeamformCoeffsTemplate:
     n_channels:
         The number of frequency channels to be processed.
     """
+
     def __init__(
         self,
         context: AbstractContext,
@@ -199,7 +199,7 @@ class BeamformCoeffsTemplate:
         n_ants: int,
         n_beams: int,
         xeng_id: int,
-        sample_period: float
+        sample_period: float,
     ) -> None:
         self.context = context
         self.batches = batches
@@ -224,8 +224,8 @@ class BeamformCoeffsTemplate:
             accel.Dimension(self.batches, exact=True),
             accel.Dimension(self.num_pols, exact=True),
             accel.Dimension(self.n_channels_per_stream, exact=True),
-            accel.Dimension(self.n_ants*2, exact=True),
-            accel.Dimension(self.n_beams*2, exact=True),
+            accel.Dimension(self.n_ants * 2, exact=True),
+            accel.Dimension(self.n_beams * 2, exact=True),
         )
 
     def instantiate(self, command_queue: accel.AbstractCommandQueue):
@@ -255,7 +255,7 @@ class BeamformCoeffs(Operation):
     def __init__(self, template: BeamformCoeffsTemplate, command_queue: accel.AbstractCommandQueue):
         super().__init__(command_queue)
         self.template = template
-    
+
         self.beamformcoeffkernel = BeamformCoeffKernel(
             self.template.batches,
             self.template.num_pols,

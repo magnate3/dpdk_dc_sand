@@ -47,6 +47,8 @@ class MatrixMultiplyTemplate:
         The number of frequency channels to be processed.
     n_samples_per_channel: int
         The number of samples per channel.
+    n_beams: int
+        Number of beams.
     batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
     _sample_bitwidth: int

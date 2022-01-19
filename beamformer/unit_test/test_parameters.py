@@ -10,12 +10,13 @@ batches = [3]
 # run.
 # array_size = [4, 7, 8, 16, 32, 64, 80, 90, 128, 150, 256]
 # array_size = [7, 14, 21, 28]
-array_size = []
-array_min = 4
-for i in range(256):
-    array_size.append(array_min+i)
+# array_size = []
+# array_min = 4
+# for i in range(256):
+#     array_size.append(array_min+i)
+
 # array_size = [80]
-# array_size = [4, 8, 16, 32, 64, 84, 130, 192, 256, 5, 23, 61, 19]
+array_size = [4, 8, 16, 32, 64, 79, 80, 84, 130, 192, 256, 5, 23, 61, 19]
 
 """n_samples_per_channel: List of number of samples per channel."""
 # This is always set to 256 for the MeerKAT case and leads to packet sizes equal to 256 * 4 bytes per sample = 1 KiB.
@@ -25,8 +26,8 @@ n_samples_per_channel = [256]
 
 """n_channels: List of number of total channels per array."""
 # Number of FFT channels out of the F-Engine
-n_channels = [8192, 16384, 32768]
-
+n_channels = [1024, 2048, 4096, 8192, 16384, 32768]
+# n_channels = [1024]
 
 """n_beams: List of number of beams."""
 n_beams = [2]

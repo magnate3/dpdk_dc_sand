@@ -27,21 +27,26 @@ from unit_test.coeff_generator import CoeffGenerator
 
 
 class BeamformSeqTemplate:
-    def __init__(self, 
-        context, 
-        batches, 
-        num_pols, 
-        n_channels_per_stream, 
-        n_channels, 
-        n_blocks, 
-        samples_per_block, 
-        n_ants, n_beams, 
-        xeng_id, 
+    """Template class for beamform operational sequence."""
+
+    def __init__(
+        self,
+        context,
+        batches,
+        num_pols,
+        n_channels_per_stream,
+        n_channels,
+        n_blocks,
+        samples_per_block,
+        n_ants,
+        n_beams,
+        xeng_id,
         sample_period,
-        n_samples_per_channel):
+        n_samples_per_channel,
+    ):
 
         self.coeff_template = BeamformCoeffsTemplate(
-            context, 
+            context,
             batches,
             num_pols,
             n_channels_per_stream,
@@ -51,7 +56,8 @@ class BeamformSeqTemplate:
             n_ants,
             n_beams,
             xeng_id,
-            sample_period)
+            sample_period,
+        )
 
         self.beamform_mult_template = matrix_multiply.MatrixMultiplyTemplate(
             context,
@@ -61,29 +67,31 @@ class BeamformSeqTemplate:
             n_beams=n_beams,
             batches=batches,
             test_id="kernel",
-    )
+        )
 
     def instantiate(self, queue):
+        """Instantiate Beamform Sequence."""
         return BeamformSeq(self, queue)
 
+
 class BeamformSeq(accel.OperationSequence):
+    """Beamform operational sequence class. Coefficient generation and beamform multiplication operations are linked."""
+
     def __init__(self, template, queue):
         self.beamform_coeff = template.coeff_template.instantiate(queue)
         self.beamform_mult = template.beamform_mult_template.instantiate(queue)
-        operations = [
-            ('beamform_coeff', self.beamform_coeff),
-            ('beamform_mult', self.beamform_mult)
-        ]
+        operations = [("beamform_coeff", self.beamform_coeff), ("beamform_mult", self.beamform_mult)]
         compounds = {
-            'bufin_delay_vals': ['beamform_coeff:delay_vals' ],
-            'bufint': ['beamform_mult:inCoeffs','beamform_coeff:outCoeffs' ],
-            'bufin_data': ['beamform_mult:inData' ],
-            'bufout': ['beamform_mult:outData']
+            "bufin_delay_vals": ["beamform_coeff:delay_vals"],
+            "bufint": ["beamform_mult:inCoeffs", "beamform_coeff:outCoeffs"],
+            "bufin_data": ["beamform_mult:inData"],
+            "bufout": ["beamform_mult:outData"],
         }
         super().__init__(queue, operations, compounds)
         self.template = template
 
     def __call__(self):
+        """Super call to parent class."""
         super().__call__()
 
 
@@ -95,7 +103,7 @@ class BeamformSeq(accel.OperationSequence):
 @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
 @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
 @pytest.mark.parametrize("phase", test_parameters.phase)
-def test_beamform_parametrised(
+def test_beamform(
     batches: int,
     n_ants: int,
     n_channels: int,
@@ -140,8 +148,6 @@ def test_beamform_parametrised(
         4. Verify it relative to the input array using a reference computed on the host CPU.
     """
     # 1. Array parameters
-    # NOTE: test_id is a temporary inclusion meant to identify which complex multiply to call.
-    test_id = "kernel"
 
     n_channels_per_stream = n_channels // n_ants // 4
     samples_per_block = 16
@@ -167,25 +173,24 @@ def test_beamform_parametrised(
     queue = ctx.create_command_queue()
 
     # Create compound
-    op_template = BeamformSeqTemplate(ctx, 
-        batches, 
-        num_pols, 
-        n_channels_per_stream, 
-        n_channels, 
-        n_blocks, 
-        samples_per_block, 
-        n_ants, 
-        n_beams, 
-        xeng_id, 
-        sample_period, 
-        n_samples_per_channel)
+    op_template = BeamformSeqTemplate(
+        ctx,
+        batches,
+        num_pols,
+        n_channels_per_stream,
+        n_channels,
+        n_blocks,
+        samples_per_block,
+        n_ants,
+        n_beams,
+        xeng_id,
+        sample_period,
+        n_samples_per_channel,
+    )
 
     # Instantiate operational sequence
-    op = op_template.instantiate(queue)  
+    op = op_template.instantiate(queue)
     op.ensure_all_bound()
-
-    # Visualise the operation
-    # accel.visualize_operation(op, 'bf_vis')
 
     # Create host buffers
     buf_delay_vals_device = op.beamform_coeff.buffer("delay_vals")
@@ -198,9 +203,6 @@ def test_beamform_parametrised(
     buf_beamform_data_out_device = op.beamform_mult.buffer("outData")
     host_beamform_data_out = buf_beamform_data_out_device.empty_like()
 
-    # temp_out_device = op.beamform_mult.buffer("inData")
-    # host_temp = temp_out_device.empty_like()
-
     # 3.1 Generate random input data
     # Inject random data for test.
     rng = np.random.default_rng(seed=2021)
@@ -209,7 +211,7 @@ def test_beamform_parametrised(
         np.iinfo(host_data_in.dtype).min, np.iinfo(host_data_in.dtype).max, host_data_in.shape
     ).astype(host_data_in.dtype)
 
-    # 4. Beamforming (Coefficient generation and Matrix Multiply): 
+    # 4. Beamforming (Coefficient generation and Matrix Multiply):
     # 4.1 Transfer input sample array to GPU;
     # 4.2 Transfer delay_vals for coefficient computation;
     # 4.3 Run coefficient generation and complex multiply kernel;
@@ -219,8 +221,6 @@ def test_beamform_parametrised(
     buf_delay_vals_device.set(queue, host_delay_vals)
     op()
     buf_beamform_data_out_device.get(queue, host_beamform_data_out)
-
-    # temp_out_device.get(queue, host_temp)
 
     # 5. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeff_gen = CoeffGenerator(
@@ -251,7 +251,7 @@ def test_beamform_parametrised(
 
 if __name__ == "__main__":
     for _ in range(len(test_parameters.array_size)):
-        test_beamform_parametrised(
+        test_beamform(
             test_parameters.batches[0],
             test_parameters.array_size[0],
             test_parameters.n_channels[0],
