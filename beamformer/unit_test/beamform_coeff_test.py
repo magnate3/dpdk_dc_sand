@@ -19,7 +19,7 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamforming.beamform_coeffs import CoeffGeneratorTemplate
+from beamforming.coeff_generator import CoeffGeneratorTemplate
 from katsdpsigproc import accel
 
 # from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel

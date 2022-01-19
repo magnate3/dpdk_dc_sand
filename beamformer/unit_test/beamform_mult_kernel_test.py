@@ -20,7 +20,7 @@ Contains one test (parametrised):
 import numpy as np
 import pytest
 from beamforming import matrix_multiply
-from beamforming.beamform_coeffs import CoeffGeneratorTemplate
+from beamforming.coeff_generator import CoeffGeneratorTemplate
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
 from unit_test.coeff_generator import CoeffGenerator

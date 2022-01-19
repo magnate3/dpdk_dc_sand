@@ -11,7 +11,7 @@ import numpy as np
 
 # Temp - for testing
 from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
-from beamforming import beamform_coeffs, matrix_multiply, prebeamform_reorder
+from beamforming import coeff_generator, matrix_multiply, prebeamform_reorder
 from katsdpsigproc import accel
 from katsdpsigproc.abc import AbstractContext
 
@@ -86,7 +86,7 @@ class BeamformSeqTemplate:
             test_id,
         )
         # Beamformer coefficient generator. This requires time and delay values.
-        self.beamformCoeffs = beamform_coeffs.CoeffGeneratorTemplate(
+        self.beamformCoeffs = coeff_generator.CoeffGeneratorTemplate(
             context, delay, n_beams, n_ants, n_channels
         )
 
