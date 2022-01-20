@@ -26,12 +26,12 @@ from katsdpsigproc import accel
 from unit_test import test_parameters
 
 
-@pytest.mark.parametrize("batches", test_parameters.batches)
+@pytest.mark.parametrize("n_batches", test_parameters.n_batches)
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
 def test_prebeamform_reorder_parametrised(
-    batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int
+    n_batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int
 ):
     """
     Parametrised unit test of the Pre-beamform Reorder kernel.
@@ -42,7 +42,7 @@ def test_prebeamform_reorder_parametrised(
 
     Parameters
     ----------
-    batches:
+    n_batches:
         Number of batches to process.
     num_ants:
         The number of antennas from which data will be received.
@@ -80,9 +80,9 @@ def test_prebeamform_reorder_parametrised(
     template = PreBeamformReorderTemplate(
         ctx,
         n_ants=n_ants,
-        n_channels=n_channels_per_stream,
+        n_channels_per_stream=n_channels_per_stream,
         n_samples_per_channel=n_samples_per_channel,
-        n_batches=batches,
+        n_batches=n_batches,
     )
     pre_beamform_reorder = template.instantiate(queue)
     pre_beamform_reorder.ensure_all_bound()
@@ -125,7 +125,7 @@ def test_prebeamform_reorder_parametrised(
 if __name__ == "__main__":
     for a in range(len(test_parameters.array_size)):
         test_prebeamform_reorder_parametrised(
-            test_parameters.batches[0],
+            test_parameters.n_batches[0],
             test_parameters.array_size[a],
             test_parameters.n_channels[0],
             test_parameters.n_samples_per_channel[0],

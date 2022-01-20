@@ -23,10 +23,10 @@ class MatrixMultiplyTemplate:
     It is worth noting these matrices follow the C convention, with the fastest-changing dimension being
     the last on the list.
     The input sample buffer must have the shape:
-    [batch][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
+    [batch][polarizations][n_channels_per_stream][n_blocks][samples_per_block][n_ants][complexity]
 
     The output beamforming buffer must have the shape:
-    [batch][polarizations][n_channels][n_blocks][samples_per_block][complexity]
+    [batch][polarizations][n_channels_per_stream][n_blocks][samples_per_block][complexity]
 
     The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
     the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block).
@@ -42,13 +42,13 @@ class MatrixMultiplyTemplate:
         For the purposes of this python module the CUDA context is required.
     n_ants: int
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
-    n_channels: int
+    n_channels_per_stream: int
         The number of frequency channels to be processed.
     n_samples_per_channel: int
         The number of samples per channel.
     n_beams: int
         Number of beams.
-    batches: int
+    n_batches: int
         The number of matrices to be reordered, a single data matrix = one batch.
     """
 
@@ -56,16 +56,16 @@ class MatrixMultiplyTemplate:
         self,
         context: AbstractContext,
         n_ants: int,
-        n_channels: int,
+        n_channels_per_stream: int,
         n_samples_per_channel: int,
         n_beams: int,
-        batches: int,
+        n_batches: int,
     ) -> None:
         self.context = context
         self.n_ants = n_ants
-        self.n_channels = n_channels
+        self.n_channels_per_stream = n_channels_per_stream
         self.n_samples_per_channel = n_samples_per_channel
-        self.batches = batches
+        self.n_batches = n_batches
         self._sample_bitwidth = 8
         self.n_pols = 2  # Hardcoded to 2. No other values are supported
         self.complexity = 2
@@ -76,17 +76,17 @@ class MatrixMultiplyTemplate:
         self.n_samples_per_block = 128 // self._sample_bitwidth
         self.n_blocks = self.n_samples_per_channel // self.n_samples_per_block
         self.length = (
-            self.batches
+            self.n_batches
             * self.n_pols
-            * self.n_channels
+            * self.n_channels_per_stream
             * self.n_blocks
             * self.n_samples_per_block
         )
 
         self.input_data_dimensions = (
-            accel.Dimension(self.batches, exact=True),
+            accel.Dimension(self.n_batches, exact=True),
             accel.Dimension(self.n_pols, exact=True),
-            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
             accel.Dimension(self.n_ants, exact=True),
@@ -94,18 +94,18 @@ class MatrixMultiplyTemplate:
         )
 
         self.output_data_dimensions = (
-            accel.Dimension(self.batches, exact=True),
+            accel.Dimension(self.n_batches, exact=True),
             accel.Dimension(self.n_pols, exact=True),
-            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
             accel.Dimension(self.beams * self.complexity, exact=True),
         )
 
         self.coeff_data_dimensions = (
-            accel.Dimension(self.batches, exact=True),
+            accel.Dimension(self.n_batches, exact=True),
             accel.Dimension(self.n_pols, exact=True),
-            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_ants * 2, exact=True),
             accel.Dimension(self.beams * 2, exact=True),
         )
@@ -119,11 +119,11 @@ class MatrixMultiply(Operation):
     """Class for beamform complex multiplication.
 
     .. rubric:: Slots
-    **inData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+    **inData** : (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, n_ants, complexity), uint8
         Input reordered channelised data.
-    **outData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity), float32
+    **outData** : (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, complexity), float32
         Beamformed data.
-    **inCoeffs** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
+    **inCoeffs** : (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
         Beamforming coefficients.
 
     Parameters

@@ -29,7 +29,7 @@ class PreBeamformReorderTemplate:
     For the purposes of this python module the CUDA context is required.
     n_ants:
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
-    n_channels:
+    n_channels_per_stream:
         The number of frequency channels to be processed.
     n_samples_per_channel:
         The number of time samples to be processed per frequency channel.
@@ -41,14 +41,14 @@ class PreBeamformReorderTemplate:
         self,
         context: AbstractContext,
         n_ants: int,
-        n_channels: int,
+        n_channels_per_stream: int,
         n_samples_per_channel: int,
         n_batches: int,
     ) -> None:
         """Initialise the PreBeamformReorderTemplate class and compile the pre-beamform reorder kernel."""
         # 1. Set member variables that are used to calculate indices for the input and output buffers
         self.n_ants = n_ants
-        self.n_channels = n_channels
+        self.n_channels_per_stream = n_channels_per_stream
         self.n_samples_per_channel = n_samples_per_channel
         self.n_polarisations = 2  # Hardcoded to 2. No other values are supported
         self.n_batches = n_batches
@@ -68,7 +68,7 @@ class PreBeamformReorderTemplate:
         self.inputDataShape = (
             accel.Dimension(self.n_batches, exact=True),
             accel.Dimension(self.n_ants, exact=True),
-            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_samples_per_channel, exact=True),
             accel.Dimension(self.n_polarisations, exact=True),
             accel.Dimension(self.complexity, exact=True),
@@ -77,7 +77,7 @@ class PreBeamformReorderTemplate:
         self.outputDataShape = (
             accel.Dimension(self.n_batches, exact=True),
             accel.Dimension(self.n_polarisations, exact=True),
-            accel.Dimension(self.n_channels, exact=True),
+            accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
             accel.Dimension(self.n_ants, exact=True),
@@ -87,7 +87,7 @@ class PreBeamformReorderTemplate:
         # The size of a data matrix required to be reordered is the same for Input or Output data shapes
         self.matrix_size = (
             self.n_ants
-            * self.n_channels
+            * self.n_channels_per_stream
             * self.n_samples_per_channel
             * self.n_polarisations
         )
@@ -109,7 +109,7 @@ class PreBeamformReorderTemplate:
             "kernels/prebeamform_reorder_kernel.mako",
             {
                 "n_ants": self.n_ants,
-                "n_channels": self.n_channels,
+                "n_channels_per_stream": self.n_channels_per_stream,
                 "n_samples_per_channel": self.n_samples_per_channel,
                 "n_polarisations": self.n_polarisations,
                 "n_samples_per_block": self.n_samples_per_block,
@@ -130,9 +130,9 @@ class PreBeamformReorder(accel.Operation):
     Class containing a pre-beamform reorder kernel compiled from a PreBeamformReorderTemplate.
 
     .. rubric:: Slots
-    **inSamples**: (batches, n_ants, n_channels, n_samples_per_channel, n_polarisations, complexity), uint8
+    **inSamples**: (batches, n_ants, n_channels_per_stream, n_samples_per_channel, n_polarisations, complexity), uint8
         Input channelised data.
-    **outReordered**: (n_batches, n_polarisations, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+    **outReordered**: (n_batches, n_polarisations, n_channels_per_stream, n_blocks, n_samples_per_block, n_ants, complexity), uint8
         Output reordered data.
 
     This class specifies the shape of the input sample and output reordered buffers required by the kernel. The
@@ -141,10 +141,10 @@ class PreBeamformReorder(accel.Operation):
     It is worth noting these matrices follow the C convention, with the fastest-changing dimension being
     the last on the list.
     The input sample buffer must have the shape:
-    [batch][antennas][channels][samples_per_channel][polarisations][complexity]
+    [batch][antennas][n_channels_per_stream][samples_per_channel][polarisations][complexity]
 
     The output sample buffer must have the shape:
-    [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
+    [n_batches][polarizations][n_channels_per_stream][n_blocks][samples_per_block][n_ants][complexity]
 
     The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
     the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block). Times per block is calculated by

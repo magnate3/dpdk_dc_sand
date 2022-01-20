@@ -27,7 +27,7 @@ from unit_test import test_parameters
 from unit_test.coeff_generator import CoeffGenerator
 
 
-@pytest.mark.parametrize("batches", test_parameters.batches)
+@pytest.mark.parametrize("n_batches", test_parameters.n_batches)
 @pytest.mark.parametrize("n_ants", test_parameters.array_size)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
@@ -36,7 +36,7 @@ from unit_test.coeff_generator import CoeffGenerator
 @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
 @pytest.mark.parametrize("phase", test_parameters.phase)
 def test_beamform_coeffs(
-    batches: int,
+    n_batches: int,
     n_ants: int,
     n_channels: int,
     n_samples_per_channel: int,
@@ -54,7 +54,7 @@ def test_beamform_coeffs(
 
     Parameters
     ----------
-    batches:
+    n_batches:
         Number of batches to process.
     n_ants:
         The number of antennas from which data will be received.
@@ -122,7 +122,7 @@ def test_beamform_coeffs(
 
     cpu_coeff_gen = CoeffGenerator(
         delay_vals,
-        batches,
+        n_batches,
         num_pols,
         n_channels_per_stream,
         n_channels,
@@ -141,7 +141,7 @@ def test_beamform_coeffs(
     # 3. Generate Coeffs on GPU
     coeff_template = CoeffGeneratorTemplate(
         ctx,
-        batches,
+        n_batches,
         num_pols,
         n_channels_per_stream,
         n_channels,
@@ -184,7 +184,7 @@ def test_beamform_coeffs(
 if __name__ == "__main__":
     for _ in range(len(test_parameters.array_size)):
         test_beamform_coeffs(
-            test_parameters.batches[0],
+            test_parameters.n_batches[0],
             test_parameters.array_size[0],
             test_parameters.n_channels[0],
             test_parameters.n_samples_per_channel[0],

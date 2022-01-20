@@ -116,13 +116,13 @@ class CoeffGeneratorTemplate:
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
-    batches:
+    n_batches:
         Number of batches to process.
-    num_pols:
+    n_pols:
         Number of polarisations.
     n_channels_per_stream:
         The number of channels the XEng core will process.
-    total_channels:
+    n_channels:
         The total number of channels in the system.
     n_blocks:
         Number of blocks into which samples are divided in groups of 16
@@ -141,8 +141,8 @@ class CoeffGeneratorTemplate:
     def __init__(
         self,
         context: AbstractContext,
-        batches: int,
-        num_pols: int,
+        n_batches: int,
+        n_pols: int,
         n_channels_per_stream: int,
         n_channels: int,
         n_blocks: int,
@@ -153,8 +153,8 @@ class CoeffGeneratorTemplate:
         sample_period: float,
     ) -> None:
         self.context = context
-        self.batches = batches
-        self.num_pols = num_pols
+        self.n_batches = n_batches
+        self.n_pols = n_pols
         self.n_channels_per_stream = n_channels_per_stream
         self.n_channels = n_channels
         self.n_blocks = n_blocks
@@ -172,8 +172,8 @@ class CoeffGeneratorTemplate:
         )
 
         self.coeff_data_dimensions = (
-            accel.Dimension(self.batches, exact=True),
-            accel.Dimension(self.num_pols, exact=True),
+            accel.Dimension(self.n_batches, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
             accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_ants * 2, exact=True),
             accel.Dimension(self.n_beams * 2, exact=True),
@@ -185,15 +185,7 @@ class CoeffGeneratorTemplate:
 
 
 class CoeffGenerator(Operation):
-    """Class for beamform complex multiplication.
-
-    .. rubric:: Slots
-    **inData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
-        Input reordered channelised data.
-    **outData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity), float32
-        Beamformed data.
-    **inCoeffs** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
-        Beamforming coefficients.
+    """Class for beamform coefficient generation.
 
     Parameters
     ----------
@@ -224,8 +216,8 @@ class CoeffGenerator(Operation):
         # Calculate the number of thread blocks in the grid
         blockspergrid = np.uint(
             np.ceil(
-                self.template.batches
-                * self.template.num_pols
+                self.template.n_batches
+                * self.template.n_pols
                 * self.template.n_channels
                 * self.template.n_beams
                 * self.template.n_ants
@@ -246,8 +238,8 @@ class CoeffGenerator(Operation):
 
             run_coeff_gen[blockspergrid, threadsperblock](
                 self.buffer("delay_vals").buffer,
-                self.template.batches,
-                self.template.num_pols,
+                self.template.n_batches,
+                self.template.n_pols,
                 self.template.n_channels_per_stream,
                 self.template.n_channels,
                 self.template.n_beams,
