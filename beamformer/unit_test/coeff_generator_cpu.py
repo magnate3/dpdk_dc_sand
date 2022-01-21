@@ -14,7 +14,7 @@ class CoeffGenerator:
     ----------
     delay_vals: nd.array[float (single)]
         Data matrix of delay values.
-    batches: int
+    n_batches: int
         Number of batches to process.
     n_pols: int
         Number of polarisations.
@@ -76,7 +76,7 @@ class CoeffGenerator:
         self.imag_coeff_value = 1
 
     def cpu_coeffs(self):
-        """Generate coefficients for complex multiplication on the GPU.
+        """Generate coefficients for complex multiplication.
 
         Note: This is for use in complex multiplication using two
         real-valued arrays. For this reason the coefficients need to be
@@ -135,7 +135,10 @@ class CoeffGenerator:
                             # This is needed when computing the rotation value before the cos/sin lookup.
                             # There are n_channels per xeng so adding n_channels * xeng_id gives the
                             # relative channel in the spectrum the xeng GPU thread is working on.
-                            ichannel = ichannelindex + self.n_channels_per_stream * self.xeng_id
+                            ichannel = (
+                                ichannelindex
+                                + self.n_channels_per_stream * self.xeng_id
+                            )
 
                             # Part1:
                             # Take delay_CAM*channel_num_i*b-pi/(total_channels*sampling_rate_nanosec)+phase_offset_CAM

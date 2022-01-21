@@ -50,7 +50,7 @@ class PreBeamformReorderTemplate:
         self.n_ants = n_ants
         self.n_channels_per_stream = n_channels_per_stream
         self.n_samples_per_channel = n_samples_per_channel
-        self.n_polarisations = 2  # Hardcoded to 2. No other values are supported
+        self.n_pols = 2  # Hardcoded to 2. No other values are supported
         self.n_batches = n_batches
         self._sample_bitwidth = 8
         self.complexity = 2
@@ -70,13 +70,13 @@ class PreBeamformReorderTemplate:
             accel.Dimension(self.n_ants, exact=True),
             accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_samples_per_channel, exact=True),
-            accel.Dimension(self.n_polarisations, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
             accel.Dimension(self.complexity, exact=True),
         )
 
         self.outputDataShape = (
             accel.Dimension(self.n_batches, exact=True),
-            accel.Dimension(self.n_polarisations, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
             accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_blocks, exact=True),
             accel.Dimension(self.n_samples_per_block, exact=True),
@@ -89,7 +89,7 @@ class PreBeamformReorderTemplate:
             self.n_ants
             * self.n_channels_per_stream
             * self.n_samples_per_channel
-            * self.n_polarisations
+            * self.n_pols
         )
 
         # Maximum number of threads per block, as per Section I of Nvidia's CUDA Programming Guide
@@ -111,7 +111,7 @@ class PreBeamformReorderTemplate:
                 "n_ants": self.n_ants,
                 "n_channels_per_stream": self.n_channels_per_stream,
                 "n_samples_per_channel": self.n_samples_per_channel,
-                "n_polarisations": self.n_polarisations,
+                "n_pols": self.n_pols,
                 "n_samples_per_block": self.n_samples_per_block,
             },
             extra_dirs=[pkg_resources.resource_filename(__name__, "")],
@@ -130,9 +130,9 @@ class PreBeamformReorder(accel.Operation):
     Class containing a pre-beamform reorder kernel compiled from a PreBeamformReorderTemplate.
 
     .. rubric:: Slots
-    **inSamples**: (batches, n_ants, n_channels_per_stream, n_samples_per_channel, n_polarisations, complexity), uint8
+    inSamples: (n_batches, n_ants, n_channels_per_stream, n_samples_per_channel, n_pols, complexity), uint8
         Input channelised data.
-    **outReordered**: (n_batches, n_polarisations, n_channels_per_stream, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+    outReordered: (n_batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, n_ants, complexity), uint8
         Output reordered data.
 
     This class specifies the shape of the input sample and output reordered buffers required by the kernel. The
@@ -141,13 +141,13 @@ class PreBeamformReorder(accel.Operation):
     It is worth noting these matrices follow the C convention, with the fastest-changing dimension being
     the last on the list.
     The input sample buffer must have the shape:
-    [batch][antennas][n_channels_per_stream][samples_per_channel][polarisations][complexity]
+    [n_batches][antennas][n_channels_per_stream][n_samples_per_channel][n_pols][complexity]
 
     The output sample buffer must have the shape:
-    [n_batches][polarizations][n_channels_per_stream][n_blocks][samples_per_block][n_ants][complexity]
+    [n_batches][n_pols][n_channels_per_stream][n_blocks][n_samples_per_block][n_ants][complexity]
 
-    The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
-    the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block). Times per block is calculated by
+    The n_samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
+    the inner index from 0 to n_samples_per_channel//n_blocks (i.e n_samples_per_block). Times per block calculated by
     the PreBeamformReorderTemplate object.
 
     Each input element is a complex 8-bit integer sample.

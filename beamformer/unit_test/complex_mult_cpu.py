@@ -20,18 +20,20 @@ def complex_mult(
         Input data for reordering.
     output_data:
         Reordered data.
-    batches:
+    n_batches:
         Number of batches to process.
-    pols:
+    n_pols:
         Numer of polarisations. Always 2.
-    n_channel:
-        Number of total channels per array.
-    ants:
-        Number of antennas in array.
-    samples_chan:
-        Number of samples per channels.
+    n_channels_per_stream:
+        The number of channels the XEng core will process.
+    n_blocks:
+        Number of blocks into which samples are divided in groups of 16
     n_samples_per_block:
-        Number of samples per block.
+        Number of samples to process per sample-block
+    n_ants:
+        Number of antennas in array.
+    n_beams:
+        The number of beams that will be steered.
 
     Returns
     -------

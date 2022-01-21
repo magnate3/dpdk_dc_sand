@@ -1,16 +1,7 @@
 """
 Module for performing unit tests on the beamform operation using a Numba-based kernel.
 
-The beamform operation occurs on a reordered block of data with the following dimensions:
-    - uint16_t [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
-
-    - Typical values for the dimensions
-        - n_antennas (a) = 64
-        - n_channels (c) = 128
-        - n_samples_per_channel (t) = 256
-        - polarisations (p) = 2, always
-        - n_blocks = 16, always
-        - samples_per_block calculated as n_samples_per_channel // n_blocks
+The coefficient generation operation occurs on a set of delay values, namely 'samples_delay' and 'phase'.
 
 Contains one test (parametrised):
     1. The first test uses the list of values present in test/test_parameters.py to run the
@@ -24,11 +15,11 @@ from katsdpsigproc import accel
 
 # from beamform_coeffs.beamformcoeff_kernel import BeamformCoeffKernel
 from unit_test import test_parameters
-from unit_test.coeff_generator import CoeffGenerator
+from unit_test.coeff_generator_cpu import CoeffGenerator
 
 
 @pytest.mark.parametrize("n_batches", test_parameters.n_batches)
-@pytest.mark.parametrize("n_ants", test_parameters.array_size)
+@pytest.mark.parametrize("n_ants", test_parameters.n_ants)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
 @pytest.mark.parametrize("n_beams", test_parameters.n_beams)
@@ -50,7 +41,7 @@ def test_beamform_coeffs(
 
     This unit test runs the generation on a combination of parameters indicated in test_parameters.py. The values
     parametrised are indicated in the parameter list, operating on a multiple batches. This unit test also invokes
-    verification of the beamformed data.
+    verification of the coefficient data.
 
     Parameters
     ----------
@@ -182,10 +173,10 @@ def test_beamform_coeffs(
 
 
 if __name__ == "__main__":
-    for _ in range(len(test_parameters.array_size)):
+    for _ in range(len(test_parameters.n_ants)):
         test_beamform_coeffs(
             test_parameters.n_batches[0],
-            test_parameters.array_size[0],
+            test_parameters.n_ants[0],
             test_parameters.n_channels[0],
             test_parameters.n_samples_per_channel[0],
             test_parameters.n_beams[0],

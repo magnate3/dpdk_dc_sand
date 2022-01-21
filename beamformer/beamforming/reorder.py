@@ -7,11 +7,10 @@ from numba import njit
 def run_reorder(
     input_data: np.ndarray,
     output_data: np.ndarray,
-    batches: int,
-    pols: int,
+    n_batches: int,
+    n_pols: int,
     n_channel: int,
-    ants: int,
-    samples_chan: int,
+    n_ants: int,
     n_samples_per_block: int,
     complexity: int,
 ):
@@ -23,16 +22,14 @@ def run_reorder(
         Input data for reordering.
     output_data: np.ndarray of type uint16
         Reordered data.
-    batches: int
+    n_batches: int
         Number of batches to process.
-    pols: int
+    n_pols: int
         Numer of polarisations. Always 2.
     n_channel: int
         Number of total channels per array.
-    ants: int
+    n_ants: int
         Number of antennas in array.
-    samples_chan: int
-        Number of samples per channels.
     n_samples_per_block: int
         Number of samples per block.
     Returns
@@ -40,22 +37,8 @@ def run_reorder(
     np.ndarray of type uint16
         Output array of reshaped data.
     """
-    # Option 1:
-    # for b in range(batches):
-    #     for p in range(pols):
-    #         for c in range(n_channel):
-    #             for a in range(ants):
-    #                 for s in range(samples_chan):
-    #                     for cmplx in range(complexity):
-    #                         to = int(s / n_samples_per_block) # to = timeOuter
-    #                         ti = int(s % n_samples_per_block) # ti = timeInner
-    #                         output_data[b, p, c, to, ti, a, cmplx] = input_data[b, a, c, s, p, cmplx]
-
-    # or
-
-    # Option 2:
     output_data[:] = input_data.reshape(
-        batches, ants, n_channel, -1, n_samples_per_block, pols, complexity
+        n_batches, n_ants, n_channel, -1, n_samples_per_block, n_pols, complexity
     ).transpose(0, 5, 2, 3, 4, 1, 6)
     return output_data
 
@@ -81,22 +64,20 @@ def reorder(
     """
     output_data = np.empty(output_data_shape).astype(np.uint8)
 
-    batches = input_data_shape[0]
-    ants = input_data_shape[1]
+    n_batches = input_data_shape[0]
+    n_ants = input_data_shape[1]
     n_channel = input_data_shape[2]
-    samples_chan = input_data_shape[3]
-    pols = input_data_shape[4]
+    n_pols = input_data_shape[4]
     n_samples_per_block = output_data_shape[4]
     complexity = input_data_shape[5]
 
     run_reorder(
         input_data,
         output_data,
-        batches,
-        pols,
+        n_batches,
+        n_pols,
         n_channel,
-        ants,
-        samples_chan,
+        n_ants,
         n_samples_per_block,
         complexity,
     )

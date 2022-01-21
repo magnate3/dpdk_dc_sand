@@ -1,11 +1,12 @@
 """
-Module wrapping the pre-beamform reorder Kernel and beamformer multiplication.
+Module wrapping the pre-beamform reorder Kernel, coefficient generation and beamformer multiplication.
 
 The pre-beamform reorder kernel operates on a set of data with dimensions explained (and in its _kernel.mako file).
 The beamform multiplication kernel ingests data from the pre-beamform reorder and produces a beamformed product as
 per the shape descibed. Provision for batched operations is included, i.e. reordering multiple sets of data (matrices)
 passed to the kernel in a single array.
 """
+
 from beamforming.coeff_generator import CoeffGeneratorTemplate
 from beamforming.matrix_multiply import MatrixMultiplyTemplate
 from beamforming.prebeamform_reorder import PreBeamformReorderTemplate
@@ -17,19 +18,19 @@ class OpSequenceTemplate:
     Template class for compiling beamform reorder, coefficient generation and beamform multiplication.
 
     This class specifies the shape of the input sample and output beamformed data.
-    The parameters specified in the PreBeamformReorderTemplate object and beamformMult object
+    The parameters specified in the PreBeamformReorderTemplate, CoeffGeneratorTemplate, and beamformMult objects
     are used to determine the shape of the buffers.
 
     It is worth noting these matrices follow the C convention, with the fastest-changing dimension being
     the last on the list.
     The input sample buffer must have the shape:
-    [batch][antennas][channels][samples_per_channel][polarisations][complexity]
+    [n_batches][antennas][n_channels][samples_per_channel][polarisations][complexity]
 
     The output beamforming buffer must have the shape:
     [n_batches][polarizations][n_channels][n_blocks][samples_per_block][complexity]
 
     The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
-    the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block). Times per block is calculated by
+    the inner index from 0 to n_samples_per_channel//n_blocks (i.e sample_per_block). Times per block is calculated by
     the PreBeamformReorderTemplate object.
 
     Each input element is a complex 8-bit integer sample.
@@ -51,7 +52,7 @@ class OpSequenceTemplate:
         The total number of frequency channels out of the FFT.
     n_blocks:
         Number of blocks into which samples are divided in groups of 16
-    samples_per_block:
+    n_samples_per_block:
         Number of samples to process per sample-block
     n_ants: int
         The number of antennas that will be used in beamforming. Each antennas is expected to produce two polarisations.
@@ -73,15 +74,14 @@ class OpSequenceTemplate:
         n_channels_per_stream,
         n_channels,
         n_blocks,
-        samples_per_block,
+        n_samples_per_block,
         n_ants,
         n_beams,
         xeng_id,
         sample_period,
         n_samples_per_channel,
     ) -> None:
-        """Initialise the BeamformSeqTemplate class."""
-
+        """Initialise the OpSequenceTemplate class."""
         self.preBeamformReorder_template = PreBeamformReorderTemplate(
             context, n_ants, n_channels_per_stream, n_samples_per_channel, n_batches
         )
@@ -93,7 +93,7 @@ class OpSequenceTemplate:
             n_channels_per_stream,
             n_channels,
             n_blocks,
-            samples_per_block,
+            n_samples_per_block,
             n_ants,
             n_beams,
             xeng_id,
@@ -116,15 +116,16 @@ class OpSequenceTemplate:
 
 class OpSequence(accel.OperationSequence):
     """
-    Class for OpSequence. This will link the following operations:
+    Class for OpSequence. This will link the following operations.
+
     1. pre-beamform reorder.
     2. beamform coeff generator.
     3. beamforming.
 
     Parameters
     ----------
-    template: PostprocTemplate
-        The template for the post-processing operation.
+    template: OpSequenceTemplate
+        The template for the operational sequence operations.
     command_queue: AbstractCommandQueue
         The GPU command queue (typically this will be a CUDA Stream) on which
         actual processing operations are to be scheduled.

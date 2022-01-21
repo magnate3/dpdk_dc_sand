@@ -1,5 +1,5 @@
 """
-Module for performing unit tests on the beamform operation using a Numba-based kernel.
+Module for performing unit tests on the complete beamform operation using a Numba-based kernel.
 
 The beamform operation occurs on a reordered block of data with the following dimensions:
     - uint16_t [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
@@ -19,16 +19,15 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-
-from katsdpsigproc import accel
-from beamforming.beamform_op_sequence import OpSequenceTemplate
-
 from beamforming import reorder as cpu_reorder
+from beamforming.beamform_op_sequence import OpSequenceTemplate
+from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
-from unit_test.coeff_generator import CoeffGenerator
+from unit_test.coeff_generator_cpu import CoeffGenerator
+
 
 @pytest.mark.parametrize("n_batches", test_parameters.n_batches)
-@pytest.mark.parametrize("n_ants", test_parameters.array_size)
+@pytest.mark.parametrize("n_ants", test_parameters.n_ants)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
 @pytest.mark.parametrize("n_beams", test_parameters.n_beams)
@@ -75,7 +74,9 @@ def test_beamform_op_sequence(
 
     This test:
         1. Populate a host-side array with random data in the range of the relevant dtype.
-        2. Instantiate the beamformer complex multiplication and pass this input data to it.
+        2. Instantiate the pre-beamform reorder and pass data to it.
+        3. Instantiate the beamform coefficient generator.
+        2. Instantiate the beamformer complex multiplication.
         3. Grab the output, beamformed data.
         4. Verify it relative to the input array using a reference computed on the host CPU.
     """
@@ -125,21 +126,18 @@ def test_beamform_op_sequence(
     # Instantiate operational sequence
     op = op_template.instantiate(queue)
     op.ensure_all_bound()
-    
+
     # Create host buffers
     buf_delay_vals_device = op.beamform_coeff.buffer("delay_vals")
     host_delay_vals = buf_delay_vals_device.empty_like()
     host_delay_vals[:] = delay_vals
-
-    # buf_data_in_device = op.beamform_mult.buffer("inData")
-    # host_data_in = buf_data_in_device.empty_like()
 
     buf_data_in_device = op.prebeamform_reorder.buffer("inSamples")
     host_data_in = buf_data_in_device.empty_like()
 
     buf_beamform_data_out_device = op.beamform_mult.buffer("outData")
     host_beamform_data_out = buf_beamform_data_out_device.empty_like()
- 
+
     # 3.1 Generate random input data
     # Inject random data for test.
     rng = np.random.default_rng(seed=2021)
@@ -153,15 +151,18 @@ def test_beamform_op_sequence(
     # 4. Beamforming (Coefficient generation and Matrix Multiply):
     # 4.1 Transfer input sample array to GPU;
     # 4.2 Transfer delay_vals for coefficient computation;
-    # 4.3 Run coefficient generation and complex multiply kernel;
+    # 4.3 Run pre-beamform reorder, coefficient generation, and complex multiply kernel;
     # 4.3 Transfer output array to CPU.
     buf_data_in_device.set(queue, host_data_in)
-
     buf_delay_vals_device.set(queue, host_delay_vals)
+
+    # Run the operational sequence
     op()
+
+    # Grab the beamformed data
     buf_beamform_data_out_device.get(queue, host_beamform_data_out)
 
-    # 5. Run CPU coeff generator, reorder and beamformer 
+    # 5. Run CPU coeff generator, reorder and beamformer
     # Run CPU coeff generator.
     cpu_coeff_gen = CoeffGenerator(
         delay_vals,
@@ -200,10 +201,10 @@ def test_beamform_op_sequence(
 
 
 if __name__ == "__main__":
-    for _ in range(len(test_parameters.array_size)):
+    for _ in range(len(test_parameters.n_ants)):
         test_beamform_op_sequence(
             test_parameters.n_batches[0],
-            test_parameters.array_size[0],
+            test_parameters.n_ants[0],
             test_parameters.n_channels[0],
             test_parameters.n_samples_per_channel[0],
             test_parameters.n_beams[0],

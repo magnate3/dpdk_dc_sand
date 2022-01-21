@@ -23,13 +23,13 @@ class MatrixMultiplyTemplate:
     It is worth noting these matrices follow the C convention, with the fastest-changing dimension being
     the last on the list.
     The input sample buffer must have the shape:
-    [batch][polarizations][n_channels_per_stream][n_blocks][samples_per_block][n_ants][complexity]
+    [batch][polarizations][n_channels_per_stream][n_blocks][n_samples_per_channel][n_ants][complexity]
 
     The output beamforming buffer must have the shape:
-    [batch][polarizations][n_channels_per_stream][n_blocks][samples_per_block][complexity]
+    [batch][polarizations][n_channels_per_stream][n_blocks][n_samples_per_channel][complexity]
 
     The samples_per_channel index is split over two different indices. The outer index ranges from 0 to n_blocks and
-    the inner index from 0 to samples_per_channel//n_blocks (i.e sample_per_block).
+    the inner index from 0 to n_samples_per_channel//n_blocks (i.e sample_per_block).
 
     Each input element is a complex 8-bit integer sample.
     Each output sample is a complex 32b float.
@@ -119,16 +119,16 @@ class MatrixMultiply(Operation):
     """Class for beamform complex multiplication.
 
     .. rubric:: Slots
-    **inData** : (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, n_ants, complexity), uint8
+    inData: (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, n_ants, complexity), uint8
         Input reordered channelised data.
-    **outData** : (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, complexity), float32
+    outData: (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, complexity), float32
         Beamformed data.
-    **inCoeffs** : (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
+    inCoeffs: (batches, n_pols, n_channels_per_stream, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
         Beamforming coefficients.
 
     Parameters
     ----------
-    template: MultiplyTemplate
+    template: MatrixMultiplyTemplate
         Template for multiplication class
     command_queue: accel.AbstractCommandQueue
         CUDA command queue

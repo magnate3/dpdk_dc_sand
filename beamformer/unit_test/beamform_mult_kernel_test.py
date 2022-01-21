@@ -1,5 +1,5 @@
 """
-Module for performing unit tests on the beamform operation using a Numba-based kernel.
+Module for performing unit tests on the beamform multiplication operation using a Numba-based kernel.
 
 The beamform operation occurs on a reordered block of data with the following dimensions:
     - uint16_t [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
@@ -23,7 +23,7 @@ from beamforming import matrix_multiply
 from beamforming.coeff_generator import CoeffGeneratorTemplate
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
-from unit_test.coeff_generator import CoeffGenerator
+from unit_test.coeff_generator_cpu import CoeffGenerator
 
 
 class BeamformSeqTemplate:
@@ -100,7 +100,7 @@ class BeamformSeq(accel.OperationSequence):
 
 
 @pytest.mark.parametrize("n_batches", test_parameters.n_batches)
-@pytest.mark.parametrize("n_ants", test_parameters.array_size)
+@pytest.mark.parametrize("n_ants", test_parameters.n_ants)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
 @pytest.mark.parametrize("n_beams", test_parameters.n_beams)
@@ -147,9 +147,10 @@ def test_beamform(
 
     This test:
         1. Populate a host-side array with random data in the range of the relevant dtype.
-        2. Instantiate the beamformer complex multiplication and pass this input data to it.
-        3. Grab the output, beamformed data.
-        4. Verify it relative to the input array using a reference computed on the host CPU.
+        2. Instantiate the coefficient generator and pass delay values to it.
+        3. Instantiate the beamformer complex multiplication and pass this input data to it.
+        4. Grab the output, beamformed data.
+        5. Verify it relative to the input array using a reference computed on the host CPU.
     """
     # 1. Array parameters
 
@@ -260,10 +261,10 @@ def test_beamform(
 
 
 if __name__ == "__main__":
-    for _ in range(len(test_parameters.array_size)):
+    for _ in range(len(test_parameters.n_ants)):
         test_beamform(
             test_parameters.n_batches[0],
-            test_parameters.array_size[0],
+            test_parameters.n_ants[0],
             test_parameters.n_channels[0],
             test_parameters.n_samples_per_channel[0],
             test_parameters.n_beams[0],

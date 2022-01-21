@@ -2,14 +2,14 @@
  *  This kernel aims to carry out the reorder functionality required by katxgpu beamformer.
  *  This GPU-side reorder makes provision for batched operations (i.e. reordering batches of matrices),
  *  and transforms a 1D block of data in the following matrix format:
- *  - uint16_t [n_batches][n_antennas][n_channels_per_stream][n_samples_per_channel][polarizations]
+ *  - uint16_t [n_batches][n_ants][n_channels_per_stream][n_samples_per_channel][polarizations]
  *    transposed to
  *    uint16_t [n_batches][polarizations][n_channels_per_stream][n_blocks][samples_per_channel//n_blocks][n_ants]
  *  - Typical values for the dimensions
- *      - n_antennas (a) = 64
+ *      - n_ants (a) = 64
  *      - n_channels_per_stream (c) = 128
  *      - n_samples_per_channel (t) = 256
- *      - polarisations (p) = 2, always
+ *      - n_pols (p) = 2, always
  *      - times_per_block = 16
  *
  *   Currently, all dimension-strides are calculated within the kernel itself.
@@ -31,7 +31,7 @@
 #define NR_ANTENNAS ${n_ants}
 #define NR_CHANNELS ${n_channels_per_stream}
 #define NR_SAMPLES_PER_CHANNEL ${n_samples_per_channel}
-#define NR_POLARISATIONS ${n_polarisations}
+#define NR_POLARISATIONS ${n_pols}
 #define NR_SAMPLES_PER_BLOCK ${n_samples_per_block}
 
 __global__
