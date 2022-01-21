@@ -72,13 +72,13 @@ def test_beamform_op_sequence(
     phase:
         Phase value in radians to be applied.
 
-    This test:
+    This test will:
         1. Populate a host-side array with random data in the range of the relevant dtype.
         2. Instantiate the pre-beamform reorder and pass data to it.
         3. Instantiate the beamform coefficient generator.
-        2. Instantiate the beamformer complex multiplication.
-        3. Grab the output, beamformed data.
-        4. Verify it relative to the input array using a reference computed on the host CPU.
+        4. Instantiate the beamformer complex multiplication.
+        5. Grab the output, beamformed data.
+        6. Verify it relative to the input array using a reference computed on the host CPU.
     """
     # 1. Array parameters
 
