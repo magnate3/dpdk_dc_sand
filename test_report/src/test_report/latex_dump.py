@@ -238,6 +238,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     with doc.create(Section("Result Summary")) as summary_section:
         with summary_section.create(LongTable(r"|r|l|r|")) as summary_table:
             total_duration: float = 0.0
+            passed = 0
+            failed = 0
             summary_table.add_hline()
             for result in results:
                 summary_table.add_row(
@@ -251,6 +253,11 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                 )
                 summary_table.add_hline()
                 total_duration += result.duration
+                if result.outcome == "passed":
+                    passed += 1
+                else:
+                    failed += 1
+        summary_section.append(f"{len(results)} tests run, with {passed} passing and {failed} failing.\n")
         summary_section.append(f"Total test duration: {readable_duration(total_duration)}")
 
     with doc.create(Section("Detailed Test Results")) as section:
