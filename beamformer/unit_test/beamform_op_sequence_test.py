@@ -1,5 +1,5 @@
 """
-Module for performing unit tests on the beamform multiplication operation using a Numba-based kernel.
+Module for performing unit tests on the complete beamform operation using a Numba-based kernel.
 
 The beamform operation occurs on a reordered block of data with the following dimensions:
     - uint16_t [n_batches][polarizations][n_channels][n_blocks][samples_per_block][n_ants][complexity]
@@ -19,84 +19,11 @@ Contains one test (parametrised):
 
 import numpy as np
 import pytest
-from beamforming import matrix_multiply
-from beamforming.coeff_generator import CoeffGeneratorTemplate
+from beamforming import reorder as cpu_reorder
+from beamforming.beamform_op_sequence import OpSequenceTemplate
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
 from unit_test.coeff_generator_cpu import CoeffGenerator
-
-
-class BeamformSeqTemplate:
-    """Template class for beamform operational sequence.
-
-    This op sequence is defined here in order to test the specific combination of
-    the coeff generator and the matrix multiplier, just as an additional sanity
-    check. It's not intended as a deliverable, and so lacks the pre-beamform
-    reorder. See beamform_op_sequence.py for that.
-    """
-
-    def __init__(
-        self,
-        context,
-        n_batches,
-        n_pols,
-        n_channels_per_stream,
-        n_channels,
-        n_blocks,
-        samples_per_block,
-        n_ants,
-        n_beams,
-        xeng_id,
-        sample_period,
-        n_samples_per_channel,
-    ):
-
-        self.coeff_template = CoeffGeneratorTemplate(
-            context,
-            n_batches,
-            n_pols,
-            n_channels_per_stream,
-            n_channels,
-            n_blocks,
-            samples_per_block,
-            n_ants,
-            n_beams,
-            xeng_id,
-            sample_period,
-        )
-
-        self.beamform_mult_template = matrix_multiply.MatrixMultiplyTemplate(
-            context,
-            n_ants=n_ants,
-            n_channels_per_stream=n_channels_per_stream,
-            n_samples_per_channel=n_samples_per_channel,
-            n_beams=n_beams,
-            n_batches=n_batches,
-        )
-
-    def instantiate(self, queue):
-        """Instantiate Beamform Sequence."""
-        return BeamformSeq(self, queue)
-
-
-class BeamformSeq(accel.OperationSequence):
-    """Beamform operational sequence class. Coefficient generation and beamform multiplication operations are linked."""
-
-    def __init__(self, template, queue):
-        self.beamform_coeff = template.coeff_template.instantiate(queue)
-        self.beamform_mult = template.beamform_mult_template.instantiate(queue)
-        operations = [
-            ("beamform_coeff", self.beamform_coeff),
-            ("beamform_mult", self.beamform_mult),
-        ]
-        compounds = {
-            "bufin_delay_vals": ["beamform_coeff:delay_vals"],
-            "bufint": ["beamform_mult:inCoeffs", "beamform_coeff:outCoeffs"],
-            "bufin_data": ["beamform_mult:inData"],
-            "bufout": ["beamform_mult:outData"],
-        }
-        super().__init__(queue, operations, compounds)
-        self.template = template
 
 
 @pytest.mark.parametrize("n_batches", test_parameters.n_batches)
@@ -107,7 +34,7 @@ class BeamformSeq(accel.OperationSequence):
 @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
 @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
 @pytest.mark.parametrize("phase", test_parameters.phase)
-def test_beamform(
+def test_beamform_op_sequence(
     n_batches: int,
     n_ants: int,
     n_channels: int,
@@ -145,12 +72,13 @@ def test_beamform(
     phase:
         Phase value in radians to be applied.
 
-    This test:
+    This test will:
         1. Populate a host-side array with random data in the range of the relevant dtype.
-        2. Instantiate the coefficient generator and pass delay values to it.
-        3. Instantiate the beamformer complex multiplication and pass this input data to it.
-        4. Grab the output, beamformed data.
-        5. Verify it relative to the input array using a reference computed on the host CPU.
+        2. Instantiate the pre-beamform reorder and pass data to it.
+        3. Instantiate the beamform coefficient generator.
+        4. Instantiate the beamformer complex multiplication.
+        5. Grab the output, beamformed data.
+        6. Verify it relative to the input array using a reference computed on the host CPU.
     """
     # 1. Array parameters
 
@@ -180,7 +108,7 @@ def test_beamform(
     queue = ctx.create_command_queue()
 
     # Create compound
-    op_template = BeamformSeqTemplate(
+    op_template = OpSequenceTemplate(
         ctx,
         n_batches,
         n_pols,
@@ -204,7 +132,7 @@ def test_beamform(
     host_delay_vals = buf_delay_vals_device.empty_like()
     host_delay_vals[:] = delay_vals
 
-    buf_data_in_device = op.beamform_mult.buffer("inData")
+    buf_data_in_device = op.prebeamform_reorder.buffer("inSamples")
     host_data_in = buf_data_in_device.empty_like()
 
     buf_beamform_data_out_device = op.beamform_mult.buffer("outData")
@@ -223,15 +151,19 @@ def test_beamform(
     # 4. Beamforming (Coefficient generation and Matrix Multiply):
     # 4.1 Transfer input sample array to GPU;
     # 4.2 Transfer delay_vals for coefficient computation;
-    # 4.3 Run coefficient generation and complex multiply kernel;
+    # 4.3 Run pre-beamform reorder, coefficient generation, and complex multiply kernel;
     # 4.3 Transfer output array to CPU.
     buf_data_in_device.set(queue, host_data_in)
-
     buf_delay_vals_device.set(queue, host_delay_vals)
+
+    # Run the operational sequence
     op()
+
+    # Grab the beamformed data
     buf_beamform_data_out_device.get(queue, host_beamform_data_out)
 
-    # 5. Run CPU version. This will be used to verify GPU reorder.
+    # 5. Run CPU coeff generator, reorder and beamformer
+    # Run CPU coeff generator.
     cpu_coeff_gen = CoeffGenerator(
         delay_vals,
         n_batches,
@@ -247,8 +179,16 @@ def test_beamform(
     )
     cpu_coeffs = cpu_coeff_gen.cpu_coeffs()
 
-    beamform_data_cpu = complex_mult_cpu.complex_mult(
+    # Run CPU reorder.
+    reorder_output_data_cpu = cpu_reorder.reorder(
         input_data=host_data_in,
+        input_data_shape=host_data_in.shape,
+        output_data_shape=op.beamform_mult.buffer("inData").shape,
+    )
+
+    # Run CPU beamformer.
+    beamform_data_cpu = complex_mult_cpu.complex_mult(
+        input_data=reorder_output_data_cpu,
         coeffs=cpu_coeffs,
         output_data_shape=host_beamform_data_out.shape,
     )
@@ -262,7 +202,7 @@ def test_beamform(
 
 if __name__ == "__main__":
     for _ in range(len(test_parameters.n_ants)):
-        test_beamform(
+        test_beamform_op_sequence(
             test_parameters.n_batches[0],
             test_parameters.n_ants[0],
             test_parameters.n_channels[0],

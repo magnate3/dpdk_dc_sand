@@ -26,12 +26,12 @@ from katsdpsigproc import accel
 from unit_test import test_parameters
 
 
-@pytest.mark.parametrize("batches", test_parameters.batches)
-@pytest.mark.parametrize("n_ants", test_parameters.array_size)
+@pytest.mark.parametrize("n_batches", test_parameters.n_batches)
+@pytest.mark.parametrize("n_ants", test_parameters.n_ants)
 @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
 @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
 def test_prebeamform_reorder_parametrised(
-    batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int
+    n_batches: int, n_ants: int, n_channels: int, n_samples_per_channel: int
 ):
     """
     Parametrised unit test of the Pre-beamform Reorder kernel.
@@ -42,15 +42,15 @@ def test_prebeamform_reorder_parametrised(
 
     Parameters
     ----------
-    batches:
+    n_batches:
         Number of batches to process.
-    num_ants:
+    n_ants:
         The number of antennas from which data will be received.
-    num_channels:
+    n_channels:
         The number of frequency channels out of the FFT.
         NB: This is not the number of FFT channels per stream.
         The number of channels per stream is calculated from this value.
-    num_samples_per_channel:
+    n_samples_per_channel:
         The number of time samples per frequency channel.
     n_samples_per_block:
         Number of samples per block.
@@ -66,7 +66,7 @@ def test_prebeamform_reorder_parametrised(
     # - Will be {ants, chans, samples_per_chan, batches}
     # - Will pass num_{ants, samples_per_channel} parameters straight into Template instantiation
 
-    # This integer division is so that when num_ants % num_channels !=0 then the remainder will be dropped.
+    # This integer division is so that when n_ants % n_channels !=0 then the remainder will be dropped.
     # - This will only occur in the MeerKAT Extension correlator.
     # TODO: Need to consider case where we round up as some X-Engines will need to do this to capture all the channels.
     n_channels_per_stream = n_channels // n_ants // 4
@@ -80,9 +80,9 @@ def test_prebeamform_reorder_parametrised(
     template = PreBeamformReorderTemplate(
         ctx,
         n_ants=n_ants,
-        n_channels=n_channels_per_stream,
+        n_channels_per_stream=n_channels_per_stream,
         n_samples_per_channel=n_samples_per_channel,
-        n_batches=batches,
+        n_batches=n_batches,
     )
     pre_beamform_reorder = template.instantiate(queue)
     pre_beamform_reorder.ensure_all_bound()
@@ -123,10 +123,10 @@ def test_prebeamform_reorder_parametrised(
 
 
 if __name__ == "__main__":
-    for a in range(len(test_parameters.array_size)):
+    for a in range(len(test_parameters.n_ants)):
         test_prebeamform_reorder_parametrised(
-            test_parameters.batches[0],
-            test_parameters.array_size[a],
+            test_parameters.n_batches[0],
+            test_parameters.n_ants[a],
             test_parameters.n_channels[0],
             test_parameters.n_samples_per_channel[0],
         )

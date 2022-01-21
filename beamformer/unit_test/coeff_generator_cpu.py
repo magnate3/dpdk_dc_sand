@@ -14,21 +14,21 @@ class CoeffGenerator:
     ----------
     delay_vals: nd.array[float (single)]
         Data matrix of delay values.
-    batches: int
+    n_batches: int
         Number of batches to process.
-    pols: int
+    n_pols: int
         Number of polarisations.
-    num_channels: int
+    n_channels_per_stream: int
         The number of channels the XEng core will process.
-    total_channels: int
-        The total number of channels in the system.
+    n_channels: int
+        The total number of channels out of the FFT.
     n_blocks: int
         Number of blocks into which samples are divided in groups of 16
     samples_per_block: int
         Number of samples to process per sample-block
     n_ants: int
         The number of antennas from which data will be received.
-    num_beams: int
+    n_beams: int
          Number of beams to be steered.
     xeng_id: int
         Identify of the XEngine. This is used to compute the actual channel numbers processed per engine.
@@ -39,33 +39,33 @@ class CoeffGenerator:
     def __init__(
         self,
         delay_vals,
-        batches,
-        num_pols,
+        n_batches,
+        n_pols,
         n_channels_per_stream,
-        total_channels,
+        n_channels,
         n_blocks,
         samples_per_block,
         n_ants,
-        num_beams,
+        n_beams,
         xeng_id,
         sample_period,
     ):
         """Initialise the coefficient generation class."""
         self.delay_vals = delay_vals
-        self.batches = batches
-        self.pols = num_pols
-        self.num_channels = n_channels_per_stream
-        self.total_channels = total_channels
+        self.n_batches = n_batches
+        self.n_pols = n_pols
+        self.n_channels_per_stream = n_channels_per_stream
+        self.n_channels = n_channels
         self.n_blocks = n_blocks
         self.samples_per_block = samples_per_block
         self.n_ants = n_ants
-        self.num_beams = num_beams
+        self.n_beams = n_beams
         self.xeng_id = xeng_id
         self.sample_period = sample_period
         self.total_length = (
-            self.batches
-            * self.pols
-            * self.num_channels
+            self.n_batches
+            * self.n_pols
+            * self.n_channels_per_stream
             * self.n_blocks
             * self.samples_per_block
         )
@@ -76,7 +76,7 @@ class CoeffGenerator:
         self.imag_coeff_value = 1
 
     def cpu_coeffs(self):
-        """Generate coefficients for complex multiplication on the GPU.
+        """Generate coefficients for complex multiplication.
 
         Note: This is for use in complex multiplication using two
         real-valued arrays. For this reason the coefficients need to be
@@ -100,27 +100,27 @@ class CoeffGenerator:
         cols = 2
 
         coeff_matrix = np.empty(
-            self.batches
-            * self.pols
-            * self.num_channels
+            self.n_batches
+            * self.n_pols
+            * self.n_channels_per_stream
             * self.n_ants
-            * self.num_beams
+            * self.n_beams
             * self.complexity
             * cols,
             dtype=np.float32,
         )
         coeff_matrix = coeff_matrix.reshape(
-            self.batches,
-            self.pols,
-            self.num_channels,
+            self.n_batches,
+            self.n_pols,
+            self.n_channels_per_stream,
             self.n_ants * self.complexity,
-            self.num_beams * cols,
+            self.n_beams * cols,
         )
 
-        for ibatchindex in range(self.batches):
-            for ipolindex in range(self.pols):
-                for ichannelindex in range(self.num_channels):
-                    for ibeamindex in range(self.num_beams):
+        for ibatchindex in range(self.n_batches):
+            for ipolindex in range(self.n_pols):
+                for ichannelindex in range(self.n_channels_per_stream):
+                    for ibeamindex in range(self.n_beams):
                         for iantindex in range(self.n_ants):
                             delay_s = self.delay_vals[ichannelindex][ibeamindex][
                                 iantindex
@@ -135,7 +135,10 @@ class CoeffGenerator:
                             # This is needed when computing the rotation value before the cos/sin lookup.
                             # There are n_channels per xeng so adding n_channels * xeng_id gives the
                             # relative channel in the spectrum the xeng GPU thread is working on.
-                            ichannel = ichannelindex + self.num_channels * self.xeng_id
+                            ichannel = (
+                                ichannelindex
+                                + self.n_channels_per_stream * self.xeng_id
+                            )
 
                             # Part1:
                             # Take delay_CAM*channel_num_i*b-pi/(total_channels*sampling_rate_nanosec)+phase_offset_CAM
@@ -143,7 +146,7 @@ class CoeffGenerator:
                                 delay_s
                                 * ichannel
                                 * (-np.math.pi)
-                                / (self.total_channels * self.sample_period)
+                                / (self.n_channels * self.sample_period)
                                 + phase_rad
                             )
 
@@ -152,9 +155,9 @@ class CoeffGenerator:
                             # Compute as Delay_CAM * (total_channels/2) * -pi / (total_channels * sampling_rate_nanosec)
                             phase_correction_band_center = (
                                 delay_s
-                                * (self.total_channels / 2)
+                                * (self.n_channels / 2)
                                 * (-np.math.pi)
-                                / (self.total_channels * self.sample_period)
+                                / (self.n_channels * self.sample_period)
                             )
 
                             # Part3: Calculate rotation value

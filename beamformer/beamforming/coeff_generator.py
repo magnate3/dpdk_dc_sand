@@ -1,11 +1,5 @@
-"""
-Module for beamformer multiplication.
+"""Module for beamformer coefficient generation."""
 
-The beamform multiplication kernel ingests data from the pre-beamform reorder and produces a beamformed product
-as per the shape descibed.
-Provision for batched operations is included, i.e. reordering multiple sets of data (matrices) passed to the kernel
-in a single array.
-"""
 import math
 
 import numpy as np
@@ -18,10 +12,10 @@ from numba import cuda
 @cuda.jit
 def run_coeff_gen(
     delay_vals,
-    batches,
-    pols,
+    n_batches,
+    n_pols,
+    n_channels_per_stream,
     n_channels,
-    total_channels,
     n_beams,
     n_ants,
     xeng_id,
@@ -32,11 +26,13 @@ def run_coeff_gen(
     # Compute flattened index inside the array
     ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
-    if ithreadindex_x < (batches * pols * n_channels * n_beams * n_ants):
+    if ithreadindex_x < (n_batches * n_pols * n_channels_per_stream * n_beams * n_ants):
         # Compute indexes for delay_vals matrix
-        ibatchindex_rem = ithreadindex_x % (pols * n_channels * n_beams * n_ants)
+        ibatchindex_rem = ithreadindex_x % (
+            n_pols * n_channels_per_stream * n_beams * n_ants
+        )
 
-        ipolindex_rem = ibatchindex_rem % (n_channels * n_beams * n_ants)
+        ipolindex_rem = ibatchindex_rem % (n_channels_per_stream * n_beams * n_ants)
 
         ichannelindex = ipolindex_rem // (n_beams * n_ants)
         ichannelindex_rem = ipolindex_rem % (n_beams * n_ants)
@@ -54,18 +50,15 @@ def run_coeff_gen(
         # This is needed when computing the rotation value before the cos/sin lookup.
         # There are n_channels per xeng so adding n_channels * xeng_id gives the
         # relative channel in the spectrum the xeng GPU thread is working on.
-        ichannel = ichannelindex + n_channels * xeng_id
+        ichannel = ichannelindex + n_channels_per_stream * xeng_id
 
         initial_phase = (
-            delay_s * ichannel * (-np.math.pi) / (total_channels * sample_period)
+            delay_s * ichannel * (-np.math.pi) / (n_channels * sample_period)
             + phase_rad
         )
 
         phase_correction_band_center = (
-            delay_s
-            * (total_channels / 2)
-            * (-np.math.pi)
-            / (total_channels * sample_period)
+            delay_s * (n_channels / 2) * (-np.math.pi) / (n_channels * sample_period)
         )
 
         # Compute rotation value for steering coefficient computation
@@ -75,11 +68,15 @@ def run_coeff_gen(
         steering_coeff_correct_imag = math.sin(rotation)
 
         # Compute indexes for output matrix
-        ibatchindex = ithreadindex_x // (pols * n_channels * n_beams * n_ants)
-        ibatchindex_rem = ithreadindex_x % (pols * n_channels * n_beams * n_ants)
+        ibatchindex = ithreadindex_x // (
+            n_pols * n_channels_per_stream * n_beams * n_ants
+        )
+        ibatchindex_rem = ithreadindex_x % (
+            n_pols * n_channels_per_stream * n_beams * n_ants
+        )
 
-        ipolindex = ibatchindex_rem // (n_channels * n_beams * n_ants)
-        ipolindex_rem = ibatchindex_rem % (n_channels * n_beams * n_ants)
+        ipolindex = ibatchindex_rem // (n_channels_per_stream * n_beams * n_ants)
+        ipolindex_rem = ibatchindex_rem % (n_channels_per_stream * n_beams * n_ants)
 
         ichannelindex = ipolindex_rem // (n_beams * n_ants)
         ichannelindex_rem = ipolindex_rem % (n_beams * n_ants)
@@ -116,17 +113,17 @@ class CoeffGeneratorTemplate:
         The GPU device's context provided by katsdpsigproc's abstraction of PyCUDA.
         A context is associated with a single device and 'owns' all memory allocations.
         For the purposes of this python module the CUDA context is required.
-    batches:
+    n_batches:
         Number of batches to process.
-    num_pols:
+    n_pols:
         Number of polarisations.
     n_channels_per_stream:
         The number of channels the XEng core will process.
-    total_channels:
+    n_channels:
         The total number of channels in the system.
     n_blocks:
         Number of blocks into which samples are divided in groups of 16
-    samples_per_block:
+    n_samples_per_block:
         Number of samples to process per sample-block
     n_ants:
         The number of antennas from which data will be received.
@@ -141,24 +138,24 @@ class CoeffGeneratorTemplate:
     def __init__(
         self,
         context: AbstractContext,
-        batches: int,
-        num_pols: int,
+        n_batches: int,
+        n_pols: int,
         n_channels_per_stream: int,
         n_channels: int,
         n_blocks: int,
-        samples_per_block: int,
+        n_samples_per_block: int,
         n_ants: int,
         n_beams: int,
         xeng_id: int,
         sample_period: float,
     ) -> None:
         self.context = context
-        self.batches = batches
-        self.num_pols = num_pols
+        self.n_batches = n_batches
+        self.n_pols = n_pols
         self.n_channels_per_stream = n_channels_per_stream
         self.n_channels = n_channels
         self.n_blocks = n_blocks
-        self.samples_per_block = samples_per_block
+        self.n_samples_per_block = n_samples_per_block
         self.n_ants = n_ants
         self.n_beams = n_beams
         self.xeng_id = xeng_id
@@ -172,32 +169,24 @@ class CoeffGeneratorTemplate:
         )
 
         self.coeff_data_dimensions = (
-            accel.Dimension(self.batches, exact=True),
-            accel.Dimension(self.num_pols, exact=True),
+            accel.Dimension(self.n_batches, exact=True),
+            accel.Dimension(self.n_pols, exact=True),
             accel.Dimension(self.n_channels_per_stream, exact=True),
             accel.Dimension(self.n_ants * 2, exact=True),
             accel.Dimension(self.n_beams * 2, exact=True),
         )
 
     def instantiate(self, command_queue: accel.AbstractCommandQueue):
-        """Initialise the complex multiplication class."""
+        """Initialise the coefficient generation class."""
         return CoeffGenerator(self, command_queue)
 
 
 class CoeffGenerator(Operation):
-    """Class for beamform complex multiplication.
-
-    .. rubric:: Slots
-    **inData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, n_ants, complexity), uint8
-        Input reordered channelised data.
-    **outData** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity), float32
-        Beamformed data.
-    **inCoeffs** : (batches, n_pols, n_channels, n_blocks, n_samples_per_block, complexity, n_ants, 2), float32
-        Beamforming coefficients.
+    """Class for beamform coefficient generation.
 
     Parameters
     ----------
-    template: BeamformCoeffsTemplate
+    template: CoeffGeneratorTemplate
         Template for beamform coefficients class
     command_queue: accel.AbstractCommandQueue
         CUDA command queue
@@ -218,14 +207,14 @@ class CoeffGenerator(Operation):
         )
 
     def _run(self):
-        """Run the beamform computation."""
+        """Run the coefficient generation."""
         threadsperblock = 128
 
         # Calculate the number of thread blocks in the grid
         blockspergrid = np.uint(
             np.ceil(
-                self.template.batches
-                * self.template.num_pols
+                self.template.n_batches
+                * self.template.n_pols
                 * self.template.n_channels
                 * self.template.n_beams
                 * self.template.n_ants
@@ -246,8 +235,8 @@ class CoeffGenerator(Operation):
 
             run_coeff_gen[blockspergrid, threadsperblock](
                 self.buffer("delay_vals").buffer,
-                self.template.batches,
-                self.template.num_pols,
+                self.template.n_batches,
+                self.template.n_pols,
                 self.template.n_channels_per_stream,
                 self.template.n_channels,
                 self.template.n_beams,

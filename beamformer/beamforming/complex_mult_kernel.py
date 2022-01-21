@@ -9,7 +9,9 @@ from numba import cuda, float32
 
 
 @cuda.jit
-def run_complex_mult(data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.ndarray):
+def run_complex_mult(
+    data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.ndarray
+):
     """Execute complex multiplication.
 
     Parameters
@@ -43,39 +45,59 @@ def run_complex_mult(data_matrix: np.ndarray, coeff_matrix: np.ndarray, out: np.
     # Compute flattened index inside the array
     ithreadindex_x = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
-    batches = data_matrix.shape[0]
-    pols = data_matrix.shape[1]
-    n_channel = data_matrix.shape[2]
-    blocks = data_matrix.shape[3]
-    samples_per_block = data_matrix.shape[4]
-    ants = data_matrix.shape[5]
+    n_batches = data_matrix.shape[0]
+    n_pols = data_matrix.shape[1]
+    n_channels_per_stream = data_matrix.shape[2]
+    n_blocks = data_matrix.shape[3]
+    n_samples_per_block = data_matrix.shape[4]
+    n_ants = data_matrix.shape[5]
     complexity = 2
     n_beams = coeff_matrix.shape[4] // complexity
 
-    if ithreadindex_x <= (batches * pols * n_channel * blocks * samples_per_block * ants * complexity):
+    if ithreadindex_x <= (
+        n_batches
+        * n_pols
+        * n_channels_per_stream
+        * n_blocks
+        * n_samples_per_block
+        * n_ants
+        * complexity
+    ):
         # Compute data matrix index
-        ibatchindex = ithreadindex_x // (pols * n_channel * blocks * samples_per_block * ants)
-        iremindex = ithreadindex_x % (pols * n_channel * blocks * samples_per_block * ants)
+        ibatchindex = ithreadindex_x // (
+            n_pols * n_channels_per_stream * n_blocks * n_samples_per_block * n_ants
+        )
+        iremindex = ithreadindex_x % (
+            n_pols * n_channels_per_stream * n_blocks * n_samples_per_block * n_ants
+        )
 
-        ipolindex = iremindex // (n_channel * blocks * samples_per_block * ants)
-        iremindex = iremindex % (n_channel * blocks * samples_per_block * ants)
+        ipolindex = iremindex // (
+            n_channels_per_stream * n_blocks * n_samples_per_block * n_ants
+        )
+        iremindex = iremindex % (
+            n_channels_per_stream * n_blocks * n_samples_per_block * n_ants
+        )
 
-        ichanindex = iremindex // (blocks * samples_per_block * ants)
-        iremindex = iremindex % (blocks * samples_per_block * ants)
+        ichanindex = iremindex // (n_blocks * n_samples_per_block * n_ants)
+        iremindex = iremindex % (n_blocks * n_samples_per_block * n_ants)
 
-        iblockindex = iremindex // (samples_per_block * ants)
-        iremindex = iremindex % (samples_per_block * ants)
+        iblockindex = iremindex // (n_samples_per_block * n_ants)
+        iremindex = iremindex % (n_samples_per_block * n_ants)
 
-        isample_per_block_index = iremindex // ants
+        isample_per_block_index = iremindex // n_ants
 
         for col in range(n_beams * 2):
             tmp = float32(0)
-            for ant in range(ants):
+            for ant in range(n_ants):
                 coeff = coeff_matrix[ibatchindex][ipolindex][ichanindex][ant][col]
-                data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][ant]
+                data = data_matrix[ibatchindex][ipolindex][ichanindex][iblockindex][
+                    isample_per_block_index
+                ][ant]
                 tmp += data * coeff
 
-            out[ibatchindex][ipolindex][ichanindex][iblockindex][isample_per_block_index][col] = tmp
+            out[ibatchindex][ipolindex][ichanindex][iblockindex][
+                isample_per_block_index
+            ][col] = tmp
 
 
 class ComplexMultKernel:
@@ -93,19 +115,34 @@ class ComplexMultKernel:
         out: nd.array[np.float32]
             Complex multipication product for beamforming computation.
         """
-        batches = data_matrix.shape[0]
-        pols = data_matrix.shape[1]
-        n_channel = data_matrix.shape[2]
-        blocks = data_matrix.shape[3]
-        samples_per_block = data_matrix.shape[4]
-        ants = data_matrix.shape[5]
+        n_batches = data_matrix.shape[0]
+        n_pols = data_matrix.shape[1]
+        n_channels_per_stream = data_matrix.shape[2]
+        n_blocks = data_matrix.shape[3]
+        n_samples_per_block = data_matrix.shape[4]
+        n_ants = data_matrix.shape[5]
         complexity = 2  # always
 
         # Reshape data to have ant real and imag data in one dimension
-        data_matrix = data_matrix.reshape(batches, pols, n_channel, blocks, samples_per_block, (ants * complexity))
+        data_matrix = data_matrix.reshape(
+            n_batches,
+            n_pols,
+            n_channels_per_stream,
+            n_blocks,
+            n_samples_per_block,
+            (n_ants * complexity),
+        )
 
         # Calculate the number of threads required.
-        total_threads = batches * pols * n_channel * blocks * samples_per_block * ants * complexity
+        total_threads = (
+            n_batches
+            * n_pols
+            * n_channels_per_stream
+            * n_blocks
+            * n_samples_per_block
+            * n_ants
+            * complexity
+        )
 
         threadsperblock = 128
 
