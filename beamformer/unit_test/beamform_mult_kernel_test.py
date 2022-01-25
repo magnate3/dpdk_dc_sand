@@ -24,7 +24,6 @@ from beamforming.coeff_generator import CoeffGeneratorTemplate
 from katsdpsigproc import accel
 from unit_test import complex_mult_cpu, test_parameters
 from unit_test.coeff_generator_cpu import CoeffGenerator
-import time
 
 
 class BeamformSeqTemplate:
@@ -232,8 +231,6 @@ def test_beamform(
     op()
     buf_beamform_data_out_device.get(queue, host_beamform_data_out)
 
-
-    tic = time.perf_counter()
     # 5. Run CPU version. This will be used to verify GPU reorder.
     cpu_coeff_gen = CoeffGenerator(
         delay_vals,
@@ -255,8 +252,6 @@ def test_beamform(
         coeffs=cpu_coeffs,
         output_data_shape=host_beamform_data_out.shape,
     )
-    toc = time.perf_counter()
-    print(f"Time:{toc - tic:0.4f} seconds")
 
     # 6. Verify the processed/returned result
     #    - Both the input and output data are ultimately of type np.int8
