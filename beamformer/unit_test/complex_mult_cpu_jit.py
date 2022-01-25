@@ -7,6 +7,7 @@ as per the shape descibed.
 import numpy as np
 from numba import njit
 
+
 @njit
 def run_cpu_cmplxmult(
     n_batches,
@@ -26,19 +27,25 @@ def run_cpu_cmplxmult(
             for c in range(n_channels_per_stream):
                 for block in range(n_blocks):
                     for s in range(n_samples_per_block):
-                        d_cmplx = np.zeros(n_ants*2).astype(np.float32)
-                        c_cmplx = np.zeros(n_ants*2*2).astype(np.float32).reshape(n_ants*2,2)
-                        
+                        d_cmplx = np.zeros(n_ants * 2).astype(np.float32)
+                        c_cmplx = (
+                            np.zeros(n_ants * 2 * 2)
+                            .astype(np.float32)
+                            .reshape(n_ants * 2, 2)
+                        )
+
                         for beam in range(n_beams // 2):
                             for a in range(n_ants):
-                                d_cmplx[a*2] = input_data[b, p, c, block, s, a, 0]
-                                d_cmplx[a*2+1] = input_data[b, p, c, block, s, a, 1]
+                                d_cmplx[a * 2] = input_data[b, p, c, block, s, a, 0]
+                                d_cmplx[a * 2 + 1] = input_data[b, p, c, block, s, a, 1]
 
-                                c_cmplx[a*2,0] = coeffs[b, p, c, a*2, 0]
-                                c_cmplx[a*2,0+1] = coeffs[b, p, c, a*2, 0 + 1]
+                                c_cmplx[a * 2, 0] = coeffs[b, p, c, a * 2, 0]
+                                c_cmplx[a * 2, 0 + 1] = coeffs[b, p, c, a * 2, 0 + 1]
 
-                                c_cmplx[a*2+1,0] = -1*coeffs[b, p, c, a*2, 0 + 1]
-                                c_cmplx[a*2+1,0+1] = coeffs[b, p, c, a*2, 0]    
+                                c_cmplx[a * 2 + 1, 0] = (
+                                    -1 * coeffs[b, p, c, a * 2, 0 + 1]
+                                )
+                                c_cmplx[a * 2 + 1, 0 + 1] = coeffs[b, p, c, a * 2, 0]
 
                             # Compute
                             c_prod = np.dot(d_cmplx, c_cmplx)
