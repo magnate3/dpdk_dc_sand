@@ -99,14 +99,12 @@ class BeamformSeq(accel.OperationSequence):
         self.template = template
 
 
-# @pytest.mark.parametrize("n_batches", test_parameters.n_batches)
-# @pytest.mark.parametrize("n_ants", test_parameters.n_ants)
-# @pytest.mark.parametrize("n_channels", test_parameters.n_channels)
-# @pytest.mark.parametrize("n_samples_per_channel", test_parameters.n_samples_per_channel)
-# @pytest.mark.parametrize("n_beams", test_parameters.n_beams)
-# @pytest.mark.parametrize("xeng_id", test_parameters.xeng_id)
-# @pytest.mark.parametrize("samples_delay", test_parameters.samples_delay)
-# @pytest.mark.parametrize("phase", test_parameters.phase)
+"""
+Use for all combinations: pytest -v beamform_mult_kernel_test.py --all-combinations
+Use for selective combinations: pytest -v beamform_mult_kernel_test.py
+"""
+
+
 @pytest.mark.combinations(
     "n_batches, n_ants, n_channels, n_samples_per_channel, n_beams, xeng_id, samples_delay, phase",
     test_parameters.n_batches,
