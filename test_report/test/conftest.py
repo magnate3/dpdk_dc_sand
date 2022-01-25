@@ -3,12 +3,23 @@
 Commented out functions are there to remind me that the hooks exist, in case I
 should need them in future tinkerings.
 """
+import subprocess
 import time
 from typing import List, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
 import pytest
+
+
+def pytest_report_collectionfinish(config):
+    # Using this hook to collect configuration information, because it's run
+    # once, after collection but before the actual tests. Couldn't really find a
+    # better place, and I did look around quite a bit.
+    git_information = subprocess.check_output(["git", "describe", "--tags", "--dirty"]).decode()
+    config._report_log_plugin._write_json_data(
+        {"$report_type": "TestConfiguration", "Test Suite Git Info": git_information}
+    )
 
 
 class Reporter:
@@ -19,7 +30,7 @@ class Reporter:
         self._cur_step: Optional[list] = None
 
     def config(self, **kwargs) -> None:
-        """Report the test cconfiguration."""
+        """Report the test configuration."""
         test_config = {"$msg_type": "config"}
         test_config.update(kwargs)
         self._data.append(test_config)

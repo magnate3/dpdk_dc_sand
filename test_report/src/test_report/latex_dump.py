@@ -6,7 +6,7 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import List, Literal, Optional, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -114,8 +114,21 @@ class Result:
     config: dict = field(default_factory=dict)
 
 
-def parse(input_data: list) -> List[Result]:
+@dataclass
+class ConfigParam:
+    """A configuration parameter describing software / hardware used in the test run."""
+
+    name: str
+    value: str
+
+
+def parse(input_data: list) -> Tuple[List[ConfigParam], List[Result]]:
     """Parse the data written by pytest-reportlog.
+
+    .. todo::
+
+        flake8 complains that this function is too complex. It may have a point.
+        It may be worthwhile breaking it up into smaller functions.
 
     Parameters
     ----------
@@ -125,11 +138,18 @@ def parse(input_data: list) -> List[Result]:
 
     Returns
     -------
-    A list of :class:`Result` objects representing the results of all the tests
-    logged in the JSON input.
+    Lists of :class:`ConfigParam` and :class:`Result` objects representing the
+    test configuration and the results of all the tests logged in the JSON input.
     """
+    test_configuration: list[ConfigParam] = []
     results: list[Result] = []
     for line in input_data:
+        if line["$report_type"] == "TestConfiguration":
+            # Tabulate this somehow. It'll need to modify the return.
+            line.pop("$report_type")
+            for config_param_name, config_param_value in line.items():
+                test_configuration.append(ConfigParam(config_param_name, config_param_value))
+            continue
         if line["$report_type"] != "TestReport":
             continue
         nodeid = line["nodeid"]
@@ -188,7 +208,7 @@ def parse(input_data: list) -> List[Result]:
             # TODO: if multiple phases have failure messages, we probably want to
             # collect them all. We could also collect the more detailed messages.
             result.failure_message = failure_message
-    return results
+    return test_configuration, results
 
 
 def fix_test_name(test_name: str) -> str:
@@ -218,7 +238,7 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     except TypeError:
         result_list = input_data
 
-    results = parse(result_list)
+    test_configuration, results = parse(result_list)
 
     # Get information from the .env file, such as tester's name, which shouldn't
     # really be in git. Allow environment to override
@@ -235,11 +255,30 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     doc.append(Command("title", "Integration Test Report"))
     doc.append(Command("makekatdocbeginning"))
 
+    with doc.create(Section("Test Configuration")) as config_section:
+        with config_section.create(LongTable(r"|r|l|")) as config_table:
+            config_table.add_hline()
+            config_table.add_row([bold("Configuration Parameter"), bold("Value")])
+            config_table.add_hline()
+            for config_param in test_configuration:
+                config_table.add_row([config_param.name, config_param.value])
+                config_table.add_hline()
+            config_table.add_row(["Some other software version", "x.y.ZZ"])
+            config_table.add_hline()
+
     with doc.create(Section("Result Summary")) as summary_section:
         with summary_section.create(LongTable(r"|r|l|r|")) as summary_table:
             total_duration: float = 0.0
             passed = 0
             failed = 0
+            summary_table.add_hline()
+            summary_table.add_row(
+                [
+                    bold("Test"),
+                    bold("Result"),
+                    bold("Duration"),
+                ]
+            )
             summary_table.add_hline()
             for result in results:
                 summary_table.add_row(
