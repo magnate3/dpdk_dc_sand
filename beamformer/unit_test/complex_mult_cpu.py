@@ -25,12 +25,26 @@ def run_cpu_cmplxmult(
 
     Parameters
     ----------
+    n_batches:
+        Number of batches to process.
+    n_pols:
+        Numer of polarisations. Always 2.
+    n_channels_per_stream:
+        The number of channels the XEng core will process.
+    n_blocks:
+        Number of blocks into which samples are divided in groups of 16
+    n_samples_per_block:
+        Number of samples to process per sample-block
+    n_beams:
+        The number of beams that will be steered.
+    n_ants:
+        Number of antennas in array.
     input_data:
-        input_data (reordered data).
+        Input data from reordering.
     coeffs:
-        Coefficients for beamforming computation.
+        Coefficients used for beamforming.
     output_data:
-        Complex multipication product for beamforming computation.
+        Beamformed data.
 
     Note: This is for use in complex multiplication using two
     real-valued arrays. For this reason the coefficients need to be
@@ -73,16 +87,12 @@ def run_cpu_cmplxmult(
                                 ]
 
                                 coeff_cmplx[a * 2, 0] = coeffs[b, p, c, a * 2, 0]
-                                coeff_cmplx[a * 2, 0 + 1] = coeffs[
-                                    b, p, c, a * 2, 0 + 1
-                                ]
+                                coeff_cmplx[a * 2, 1] = coeffs[b, p, c, a * 2, 1]
 
                                 coeff_cmplx[a * 2 + 1, 0] = (
-                                    -1 * coeffs[b, p, c, a * 2, 0 + 1]
+                                    -1 * coeffs[b, p, c, a * 2, 1]
                                 )
-                                coeff_cmplx[a * 2 + 1, 0 + 1] = coeffs[
-                                    b, p, c, a * 2, 0
-                                ]
+                                coeff_cmplx[a * 2 + 1, 1] = coeffs[b, p, c, a * 2, 0]
 
                             # Compute
                             cmplx_prod = np.dot(data_cmplx, coeff_cmplx)
@@ -102,28 +112,16 @@ def complex_mult(
     Parameters
     ----------
     input_data:
-        Input data from reordering.
-    output_data:
-        Beamformed data.
-    n_batches:
-        Number of batches to process.
-    n_pols:
-        Numer of polarisations. Always 2.
-    n_channels_per_stream:
-        The number of channels the XEng core will process.
-    n_blocks:
-        Number of blocks into which samples are divided in groups of 16
-    n_samples_per_block:
-        Number of samples to process per sample-block
-    n_ants:
-        Number of antennas in array.
-    n_beams:
-        The number of beams that will be steered.
+        input_data (reordered data).
+    coeffs:
+        Coefficients for beamforming computation.
+    output_data_shape:
+        Matrix dimensions which output data needs to match. .
 
     Returns
     -------
-    np.ndarray of type float
-        Output array of beamformed data.
+    output_data: np.ndarray of type float
+        Complex multipication product for beamforming computation.
     """
     output_data = np.empty(output_data_shape, dtype=np.float32)
     n_batches = np.shape(input_data)[0]
