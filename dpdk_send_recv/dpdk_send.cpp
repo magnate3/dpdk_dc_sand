@@ -3,11 +3,16 @@
  */
 
 #include <iostream>
+#include <cstring>
+#include <cstdint>
 #include <net/if.h>
 
 #include <rte_eal.h>
 #include <rte_debug.h>
 #include <rte_ethdev.h>
+#include <rte_ether.h>
+#include <rte_ip.h>
+#include <rte_byteorder.h>
 
 int main(int argc, char **argv)
 {
@@ -40,6 +45,11 @@ int main(int argc, char **argv)
     if (!found)
         rte_panic("no devices found\n");
 
+    rte_ether_addr mac;
+    ret = rte_eth_macaddr_get(port_id, &mac);
+    if (ret != 0)
+        rte_panic("rte_eth_macaddr_get failed\n");
+
     rte_eth_conf eth_conf = {};
     ret = rte_eth_dev_configure(port_id, 1, 1, &eth_conf);
     if (ret != 0)
@@ -49,9 +59,14 @@ int main(int argc, char **argv)
     uint16_t nb_tx_desc = 128;
     rte_eth_dev_adjust_nb_rx_tx_desc(port_id, &nb_rx_desc, &nb_tx_desc);
 
+    // * 2 - 1 to hopefully get one less than a power of 2, which is apparently optimal
+    int socket_id = rte_eth_dev_socket_id(port_id);
+    rte_mempool *send_mb_pool = rte_pktmbuf_pool_create("send", nb_tx_desc * 2 - 1, 0, 0, 16384, socket_id);
+    if (!send_mb_pool)
+        rte_panic("rte_pktmbuf_pool_create failed");
     // TODO: does IP checksum offload need to be enabled?
-    rte_eth_txconf tx_conf = {};
-    ret = rte_eth_tx_queue_setup(port_id, 0, nb_tx_desc, rte_socket_id(), &tx_conf);
+    rte_eth_txconf tx_conf = {};  // TODO use dev_info.default_txconf?
+    ret = rte_eth_tx_queue_setup(port_id, 0, nb_tx_desc, socket_id, &tx_conf);
     if (ret != 0)
         rte_panic("rte_eth_tx_queue_setup failed\n");
 
@@ -69,6 +84,52 @@ int main(int argc, char **argv)
     ret = rte_eth_dev_start(port_id);
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
+
+    for (std::uint64_t payload = 0; ; payload++)
+    {
+        rte_mbuf *mbuf = rte_pktmbuf_alloc(send_mb_pool);
+        rte_pktmbuf_reset(mbuf);
+
+        const std::uint16_t payload_size = sizeof(payload);
+
+        // TODO: src, dst ether addr
+        rte_ether_hdr ether_hdr = {
+            .dst_addr = mac,
+            .src_addr = mac,
+            .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
+        };
+
+        rte_ipv4_hdr ipv4_hdr = {
+            .version_ihl = 0x54,  // version 4, 20-byte header
+            .total_length = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr) + sizeof(rte_ipv4_hdr)),
+            .time_to_live = 4,
+            .next_proto_id = IPPROTO_UDP,
+            // TODO: set don't-fragment flag?
+            .src_addr = rte_cpu_to_be_32(RTE_IPV4(127, 0, 0, 1)),
+            .dst_addr = rte_cpu_to_be_32(RTE_IPV4(239, 102, 17, 18))
+        };
+        ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
+
+        rte_udp_hdr udp_hdr = {
+            .src_port = rte_cpu_to_be_16(1234),
+            .dst_port = rte_cpu_to_be_16(8888),
+            .dgram_len = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr)),
+            .dgram_cksum = 0
+        };
+
+        char *mbuf_ether_hdr = rte_pktmbuf_append(mbuf, sizeof(ether_hdr));
+        std::memcpy(mbuf_ether_hdr, &ether_hdr, sizeof(ether_hdr));
+        char *mbuf_ipv4_hdr = rte_pktmbuf_append(mbuf, sizeof(ipv4_hdr));
+        std::memcpy(mbuf_ipv4_hdr, &ipv4_hdr, sizeof(ipv4_hdr));
+        char *mbuf_udp_hdr = rte_pktmbuf_append(mbuf, sizeof(udp_hdr));
+        std::memcpy(mbuf_udp_hdr, &udp_hdr, sizeof(udp_hdr));
+        char *mbuf_payload = rte_pktmbuf_append(mbuf, payload_size);
+        std::memcpy(mbuf_payload, &payload, sizeof(payload));
+
+        ret = rte_eth_tx_burst(port_id, 0, &mbuf, 1);
+        if (ret == 0)
+            rte_pktmbuf_free(mbuf);
+    }
 
     rte_eal_cleanup();
     return 0;
