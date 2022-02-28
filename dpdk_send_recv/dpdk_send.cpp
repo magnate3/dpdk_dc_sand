@@ -100,7 +100,7 @@ int main(int argc, char **argv)
         rte_ether_unformat_addr("01:00:5E:66:11:12", &ether_hdr.dst_addr);
 
         rte_ipv4_hdr ipv4_hdr = {
-            .version_ihl = 0x54,  // version 4, 20-byte header
+            .version_ihl = 0x45,  // version 4, 20-byte header
             .total_length = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr) + sizeof(rte_ipv4_hdr)),
             .time_to_live = 4,
             .next_proto_id = IPPROTO_UDP,
