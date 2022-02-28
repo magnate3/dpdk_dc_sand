@@ -92,12 +92,12 @@ int main(int argc, char **argv)
 
         const std::uint16_t payload_size = sizeof(payload);
 
-        // TODO: src, dst ether addr
+        // TODO: move all these initialisations out of the hot loop
         rte_ether_hdr ether_hdr = {
-            .dst_addr = mac,
             .src_addr = mac,
             .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
         };
+        rte_ether_unformat_addr("01:00:5E:66:11:12", &ether_hdr.dst_addr);
 
         rte_ipv4_hdr ipv4_hdr = {
             .version_ihl = 0x54,  // version 4, 20-byte header
