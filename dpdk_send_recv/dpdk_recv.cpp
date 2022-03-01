@@ -141,6 +141,12 @@ int main(int argc, char **argv)
         if (pkts)
         {
             std::cout << "Received burst of " << pkts << " packets\n";
+            for (int i = 0; i < pkts; i++)
+            {
+                char buf[128];
+                rte_get_rx_ol_flag_list(rx_pkts[i]->ol_flags, buf, sizeof(buf));
+                std::cout << "Packet with length " << rx_pkts[i]->pkt_len << ", flags " << buf << '\n';
+            }
             rte_pktmbuf_free_bulk(rx_pkts, pkts);
         }
     }
