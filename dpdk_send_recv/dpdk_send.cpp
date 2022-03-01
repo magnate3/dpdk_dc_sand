@@ -5,8 +5,6 @@
 #include <iostream>
 #include <cstring>
 #include <cstdint>
-#include <net/if.h>
-#include <ifaddrs.h>
 
 #include <rte_eal.h>
 #include <rte_debug.h>
@@ -15,80 +13,37 @@
 #include <rte_ip.h>
 #include <rte_byteorder.h>
 
+#include "dpdk_common.h"
+
 int main(int argc, char **argv)
 {
     int ret;
-    uint16_t port_id;
-    bool found = false;
 
     ret = rte_eal_init(argc, argv);
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
 
-    char ifname_storage[IF_NAMESIZE];
-    const char *ifname = NULL;
-    RTE_ETH_FOREACH_DEV(port_id)
-    {
-        rte_eth_dev_info dev_info;
-        ret = rte_eth_dev_info_get(port_id, &dev_info);
-        if (ret != 0)
-            rte_panic("rte_eth_dev_info_get failed\n");
-        const char *ifname = NULL;
-        if (dev_info.if_index > 0)
-        {
-            ifname = if_indextoname(dev_info.if_index, ifname_storage);
-        }
-        if (ifname == NULL)
-            ifname = "none";
-        std::cout << "Found device with driver name " << dev_info.driver_name << ", interface " << (ifname ? ifname : "none") << "\n";
-        found = true;
-        break;
-    }
-    if (!found)
-        rte_panic("no devices found\n");
-
-    rte_ether_addr mac;
-    ret = rte_eth_macaddr_get(port_id, &mac);
-    if (ret != 0)
-        rte_panic("rte_eth_macaddr_get failed\n");
-
-    /* Try to find an IPv4 address for the interface. */
-    rte_be32_t src_ip_addr = RTE_BE32(RTE_IPV4_LOOPBACK);
-    if (ifname)
-    {
-        ifaddrs *ifap = NULL;
-        ret = getifaddrs(&ifap);
-        if (ret != 0)
-            rte_panic("getifaddrs failed\n");
-        for (ifaddrs *i = ifap; i; i = i->ifa_next)
-        {
-            if (std::strcmp(i->ifa_name, ifname) == 0
-                && i->ifa_addr->sa_family == AF_INET)
-            {
-                src_ip_addr = ((struct sockaddr_in *) i->ifa_addr)->sin_addr.s_addr;
-                break;
-            }
-        }
-        free(ifap);
-    }
+    device_info info = choose_device();
+    std::cout << "Found device with driver name " << info.dev_info.driver_name
+        << ", interface " << (info.ifname.empty() ? "none" : info.ifname) << "\n";
 
     rte_eth_conf eth_conf = {};
-    ret = rte_eth_dev_configure(port_id, 1, 1, &eth_conf);
+    ret = rte_eth_dev_configure(info.port_id, 1, 1, &eth_conf);
     if (ret != 0)
         rte_panic("rte_eth_dev_configure failed\n");
 
     uint16_t nb_rx_desc = 1;
     uint16_t nb_tx_desc = 128;
-    rte_eth_dev_adjust_nb_rx_tx_desc(port_id, &nb_rx_desc, &nb_tx_desc);
+    rte_eth_dev_adjust_nb_rx_tx_desc(info.port_id, &nb_rx_desc, &nb_tx_desc);
 
     // * 2 - 1 to hopefully get one less than a power of 2, which is apparently optimal
-    int socket_id = rte_eth_dev_socket_id(port_id);
+    int socket_id = rte_eth_dev_socket_id(info.port_id);
     rte_mempool *send_mb_pool = rte_pktmbuf_pool_create("send", nb_tx_desc * 2 - 1, 0, 0, 16384, socket_id);
     if (!send_mb_pool)
         rte_panic("rte_pktmbuf_pool_create failed");
     // TODO: does IP checksum offload need to be enabled?
     rte_eth_txconf tx_conf = {};  // TODO use dev_info.default_txconf?
-    ret = rte_eth_tx_queue_setup(port_id, 0, nb_tx_desc, socket_id, &tx_conf);
+    ret = rte_eth_tx_queue_setup(info.port_id, 0, nb_tx_desc, socket_id, &tx_conf);
     if (ret != 0)
         rte_panic("rte_eth_tx_queue_setup failed\n");
 
@@ -99,11 +54,11 @@ int main(int argc, char **argv)
     rte_mempool *recv_mb_pool = rte_pktmbuf_pool_create("recv", 127, 0, 0, 16384, SOCKET_ID_ANY);
     if (!recv_mb_pool)
         rte_panic("rte_pktmbuf_pool_create failed");
-    ret = rte_eth_rx_queue_setup(port_id, 0, nb_rx_desc, SOCKET_ID_ANY, NULL, recv_mb_pool);
+    ret = rte_eth_rx_queue_setup(info.port_id, 0, nb_rx_desc, SOCKET_ID_ANY, NULL, recv_mb_pool);
     if (ret != 0)
         rte_panic("rte_eth_rx_queue_setup failed\n");
 
-    ret = rte_eth_dev_start(port_id);
+    ret = rte_eth_dev_start(info.port_id);
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
@@ -118,7 +73,7 @@ int main(int argc, char **argv)
 
         // TODO: move all these initialisations out of the hot loop
         rte_ether_hdr ether_hdr = {
-            .src_addr = mac,
+            .src_addr = info.mac,
             .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
         };
         rte_ether_unformat_addr("01:00:5E:66:11:12", &ether_hdr.dst_addr);
@@ -129,7 +84,7 @@ int main(int argc, char **argv)
             .fragment_offset = RTE_BE16(0x4000),    // Don't-fragment
             .time_to_live = 4,
             .next_proto_id = IPPROTO_UDP,
-            .src_addr = rte_cpu_to_be_32(src_ip_addr),
+            .src_addr = rte_cpu_to_be_32(info.ipv4_addr),
             .dst_addr = rte_cpu_to_be_32(RTE_IPV4(239, 102, 17, 18))
         };
         ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
@@ -150,7 +105,7 @@ int main(int argc, char **argv)
         char *mbuf_payload = rte_pktmbuf_append(mbuf, payload_size);
         std::memcpy(mbuf_payload, &payload, sizeof(payload));
 
-        ret = rte_eth_tx_burst(port_id, 0, &mbuf, 1);
+        ret = rte_eth_tx_burst(info.port_id, 0, &mbuf, 1);
         if (ret == 0)
             rte_pktmbuf_free(mbuf);
     }
