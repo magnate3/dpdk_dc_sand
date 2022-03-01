@@ -1,3 +1,4 @@
 - mempool caches
+- mempool flags for single-producer or single-consumer
 - checksum offload
 - pre-populate mempool with prepared packets

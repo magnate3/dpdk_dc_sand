@@ -31,13 +31,13 @@ int main(int argc, char **argv)
         if (ret != 0)
             rte_panic("rte_eth_dev_info_get failed\n");
         char ifname_storage[IF_NAMESIZE];
-        const char *ifname;
+        const char *ifname = NULL;
         if (dev_info.if_index > 0)
         {
             ifname = if_indextoname(dev_info.if_index, ifname_storage);
-            if (ifname == NULL)
-                ifname = "none";
         }
+        if (ifname == NULL)
+            ifname = "none";
         std::cout << "Found device with driver name " << dev_info.driver_name << ", interface " << ifname << "\n";
         found = true;
         break;
@@ -85,11 +85,13 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
-    for (std::uint64_t payload = 0; ; payload++)
+    for (std::uint64_t cnt = 0; ; cnt++)
     {
         rte_mbuf *mbuf = rte_pktmbuf_alloc(send_mb_pool);
         rte_pktmbuf_reset(mbuf);
 
+        std::uint64_t payload[4];
+        payload[0] = cnt;
         const std::uint16_t payload_size = sizeof(payload);
 
         // TODO: move all these initialisations out of the hot loop
@@ -102,10 +104,11 @@ int main(int argc, char **argv)
         rte_ipv4_hdr ipv4_hdr = {
             .version_ihl = 0x45,  // version 4, 20-byte header
             .total_length = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr) + sizeof(rte_ipv4_hdr)),
+            .fragment_offset = RTE_BE16(0x4000),    // Don't-fragment
             .time_to_live = 4,
             .next_proto_id = IPPROTO_UDP,
-            // TODO: set don't-fragment flag?
-            .src_addr = rte_cpu_to_be_32(RTE_IPV4(127, 0, 0, 1)),
+            // TODO: get from network interface
+            .src_addr = rte_cpu_to_be_32(RTE_IPV4(10, 100, 80, 1)),
             .dst_addr = rte_cpu_to_be_32(RTE_IPV4(239, 102, 17, 18))
         };
         ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
