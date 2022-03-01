@@ -13,6 +13,76 @@
 
 #include "dpdk_common.h"
 
+static rte_flow *create_flow(std::uint16_t port_id, rte_flow_error *flow_error)
+{
+    const rte_flow_attr flow_attr = {.ingress = 1};
+    const rte_flow_item_eth eth_spec = {
+        .hdr = {
+            .dst_addr = {{0x01, 0x00, 0x5E, 0x66, 0x11, 0x12}},
+            .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
+        }
+    };
+    const rte_flow_item_eth eth_mask = {
+        .hdr = {
+            .dst_addr = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
+            .ether_type = RTE_BE16(0xffff)
+        },
+    };
+    const rte_flow_item_ipv4 ipv4_spec = {
+        .hdr = {
+            .dst_addr = RTE_BE32(RTE_IPV4(239, 102, 17, 18))
+        }
+    };
+    const rte_flow_item_ipv4 ipv4_mask = {
+        .hdr = {
+            .dst_addr = RTE_BE32(0xffffffff)
+        }
+    };
+    const rte_flow_item_udp udp_spec = {
+        .hdr = {
+            .dst_port = RTE_BE16(8888)
+        }
+    };
+    const rte_flow_item_udp udp_mask = {
+        .hdr = {
+            .dst_port = RTE_BE16(0xffff)
+        }
+    };
+    const rte_flow_item pattern[] = {
+        {
+            .type = RTE_FLOW_ITEM_TYPE_ETH,
+            .spec = &eth_spec,
+            .mask = &eth_mask
+        },
+        {
+            .type = RTE_FLOW_ITEM_TYPE_IPV4,
+            .spec = &ipv4_spec,
+            .mask = &ipv4_mask
+        },
+        {
+            .type = RTE_FLOW_ITEM_TYPE_UDP,
+            .spec = &udp_spec,
+            .mask = &udp_mask
+        },
+        {
+            .type = RTE_FLOW_ITEM_TYPE_END
+        }
+    };
+    const rte_flow_action_queue queue_action = {
+        .index = 0   // rx queue index
+    };
+    const rte_flow_action action[] = {
+        {
+            .type = RTE_FLOW_ACTION_TYPE_QUEUE,
+            .conf = &queue_action
+        },
+        {
+            .type = RTE_FLOW_ACTION_TYPE_END
+        }
+    };
+    return rte_flow_create(port_id, &flow_attr, pattern, action, flow_error);
+}
+
 int main(int argc, char **argv)
 {
     int ret;
@@ -54,44 +124,8 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
-    /* Set up flow rule */
-    rte_flow_attr flow_attr = {.ingress = 1};
-    rte_flow_item_eth eth_spec = {
-        .hdr = {
-            .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
-        }
-    };
-    rte_ether_unformat_addr("01:00:5E:66:11:12", &eth_spec.hdr.dst_addr);
-    rte_flow_item_eth eth_mask = {
-        .hdr = {
-            .dst_addr = {{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}},
-            .ether_type = RTE_BE16(0xffff)
-        },
-    };
-    rte_flow_item pattern[] = {
-        {
-            .type = RTE_FLOW_ITEM_TYPE_ETH,
-            .spec = &eth_spec,
-            .mask = &eth_mask
-        },
-        {
-            .type = RTE_FLOW_ITEM_TYPE_END
-        }
-    };
-    rte_flow_action_queue queue_action = {
-        .index = 0   // rx queue index
-    };
-    rte_flow_action action[] = {
-        {
-            .type = RTE_FLOW_ACTION_TYPE_QUEUE,
-            .conf = &queue_action
-        },
-        {
-            .type = RTE_FLOW_ACTION_TYPE_END
-        }
-    };
     rte_flow_error flow_error;
-    rte_flow *flow = rte_flow_create(info.port_id, &flow_attr, pattern, action, &flow_error);
+    rte_flow *flow = create_flow(info.port_id, &flow_error);
     if (!flow)
     {
         std::cerr << "cause: " << flow_error.cause << '\n'
