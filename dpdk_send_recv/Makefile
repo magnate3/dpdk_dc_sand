@@ -2,7 +2,7 @@ CXX = g++ -std=c++17
 CFLAGS = -Wall -g $(shell pkg-config --cflags libdpdk)
 LIBS = $(shell pkg-config --libs libdpdk)
 SOURCES = $(wildcard *.cpp)
-TARGETS = dpdk_send  # dpdk_recv
+TARGETS = dpdk_send dpdk_recv
 
 all: $(TARGETS)
 

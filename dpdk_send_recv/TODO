@@ -1,4 +1,9 @@
 - mempool caches
 - mempool flags for single-producer or single-consumer
-- checksum offload
 - pre-populate mempool with prepared packets
+
+Tx:
+Offloads:
+- checksum
+- fast mbuf free
+- free Tx mbuf on demand?

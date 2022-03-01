@@ -6,12 +6,13 @@
 #include <cstring>
 #include <cstdint>
 
-#include <rte_eal.h>
+#include <rte_byteorder.h>
 #include <rte_debug.h>
+#include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
+#include <rte_flow.h>
 #include <rte_ip.h>
-#include <rte_byteorder.h>
 
 #include "dpdk_common.h"
 
@@ -27,6 +28,10 @@ int main(int argc, char **argv)
     std::cout << "Found device with driver name " << info.dev_info.driver_name
         << ", interface " << (info.ifname.empty() ? "none" : info.ifname) << "\n";
 
+    ret = rte_flow_isolate(info.port_id, 1, NULL);
+    if (ret != 0)
+        rte_panic("rte_flow_isolate failed\n");
+
     rte_eth_conf eth_conf = {};
     ret = rte_eth_dev_configure(info.port_id, 1, 1, &eth_conf);
     if (ret != 0)
@@ -40,7 +45,7 @@ int main(int argc, char **argv)
     int socket_id = rte_eth_dev_socket_id(info.port_id);
     rte_mempool *send_mb_pool = rte_pktmbuf_pool_create("send", nb_tx_desc * 2 - 1, 0, 0, 16384, socket_id);
     if (!send_mb_pool)
-        rte_panic("rte_pktmbuf_pool_create failed");
+        rte_panic("rte_pktmbuf_pool_create failed\n");
     // TODO: does IP checksum offload need to be enabled?
     rte_eth_txconf tx_conf = {};  // TODO use dev_info.default_txconf?
     ret = rte_eth_tx_queue_setup(info.port_id, 0, nb_tx_desc, socket_id, &tx_conf);
@@ -53,7 +58,7 @@ int main(int argc, char **argv)
      */
     rte_mempool *recv_mb_pool = rte_pktmbuf_pool_create("recv", 127, 0, 0, 16384, SOCKET_ID_ANY);
     if (!recv_mb_pool)
-        rte_panic("rte_pktmbuf_pool_create failed");
+        rte_panic("rte_pktmbuf_pool_create failed\n");
     ret = rte_eth_rx_queue_setup(info.port_id, 0, nb_rx_desc, SOCKET_ID_ANY, NULL, recv_mb_pool);
     if (ret != 0)
         rte_panic("rte_eth_rx_queue_setup failed\n");
