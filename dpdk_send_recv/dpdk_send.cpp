@@ -85,12 +85,12 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
+    std::uint64_t payload[4] = {};
     for (std::uint64_t cnt = 0; ; cnt++)
     {
         rte_mbuf *mbuf = rte_pktmbuf_alloc(send_mb_pool);
         rte_pktmbuf_reset(mbuf);
 
-        std::uint64_t payload[4];
         payload[0] = cnt;
         const std::uint16_t payload_size = sizeof(payload);
 
