@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cstdint>
 #include <net/if.h>
+#include <ifaddrs.h>
 
 #include <rte_eal.h>
 #include <rte_debug.h>
@@ -24,13 +25,14 @@ int main(int argc, char **argv)
     if (ret < 0)
         rte_panic("Cannot init EAL\n");
 
+    char ifname_storage[IF_NAMESIZE];
+    const char *ifname = NULL;
     RTE_ETH_FOREACH_DEV(port_id)
     {
         rte_eth_dev_info dev_info;
         ret = rte_eth_dev_info_get(port_id, &dev_info);
         if (ret != 0)
             rte_panic("rte_eth_dev_info_get failed\n");
-        char ifname_storage[IF_NAMESIZE];
         const char *ifname = NULL;
         if (dev_info.if_index > 0)
         {
@@ -38,7 +40,7 @@ int main(int argc, char **argv)
         }
         if (ifname == NULL)
             ifname = "none";
-        std::cout << "Found device with driver name " << dev_info.driver_name << ", interface " << ifname << "\n";
+        std::cout << "Found device with driver name " << dev_info.driver_name << ", interface " << (ifname ? ifname : "none") << "\n";
         found = true;
         break;
     }
@@ -49,6 +51,26 @@ int main(int argc, char **argv)
     ret = rte_eth_macaddr_get(port_id, &mac);
     if (ret != 0)
         rte_panic("rte_eth_macaddr_get failed\n");
+
+    /* Try to find an IPv4 address for the interface. */
+    rte_be32_t src_ip_addr = RTE_BE32(RTE_IPV4_LOOPBACK);
+    if (ifname)
+    {
+        ifaddrs *ifap = NULL;
+        ret = getifaddrs(&ifap);
+        if (ret != 0)
+            rte_panic("getifaddrs failed\n");
+        for (ifaddrs *i = ifap; i; i = i->ifa_next)
+        {
+            if (std::strcmp(i->ifa_name, ifname) == 0
+                && i->ifa_addr->sa_family == AF_INET)
+            {
+                src_ip_addr = ((struct sockaddr_in *) i->ifa_addr)->sin_addr.s_addr;
+                break;
+            }
+        }
+        free(ifap);
+    }
 
     rte_eth_conf eth_conf = {};
     ret = rte_eth_dev_configure(port_id, 1, 1, &eth_conf);
@@ -107,8 +129,7 @@ int main(int argc, char **argv)
             .fragment_offset = RTE_BE16(0x4000),    // Don't-fragment
             .time_to_live = 4,
             .next_proto_id = IPPROTO_UDP,
-            // TODO: get from network interface
-            .src_addr = rte_cpu_to_be_32(RTE_IPV4(10, 100, 80, 1)),
+            .src_addr = rte_cpu_to_be_32(src_ip_addr),
             .dst_addr = rte_cpu_to_be_32(RTE_IPV4(239, 102, 17, 18))
         };
         ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
