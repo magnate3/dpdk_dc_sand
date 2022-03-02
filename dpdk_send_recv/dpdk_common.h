@@ -19,4 +19,6 @@ struct device_info
 
 device_info choose_device();
 
+static constexpr rte_be32_t MULTICAST_GROUP = RTE_BE32(RTE_IPV4(239, 102, 17, 18));
+
 #endif // DPDK_COMMON_H

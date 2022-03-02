@@ -90,7 +90,7 @@ int main(int argc, char **argv)
             .time_to_live = 4,
             .next_proto_id = IPPROTO_UDP,
             .src_addr = rte_cpu_to_be_32(info.ipv4_addr),
-            .dst_addr = rte_cpu_to_be_32(RTE_IPV4(239, 102, 17, 18))
+            .dst_addr = MULTICAST_GROUP
         };
         ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
 

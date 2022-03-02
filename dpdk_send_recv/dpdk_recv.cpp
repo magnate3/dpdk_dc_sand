@@ -4,6 +4,11 @@
  */
 
 #include <iostream>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/epoll.h>
+#include <netinet/ip.h>
 
 #include <rte_byteorder.h>
 #include <rte_debug.h>
@@ -12,6 +17,40 @@
 #include <rte_flow.h>
 
 #include "dpdk_common.h"
+
+/* Subscribes to an IPv4 multicast group for its lifetime */
+class multicast_subscriber
+{
+private:
+    int sock;
+
+public:
+    // addresses must be in network order
+    multicast_subscriber(const in_addr &interface, const in_addr &group);
+    ~multicast_subscriber();
+};
+
+multicast_subscriber::multicast_subscriber(const in_addr &interface, const in_addr &group)
+{
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0)
+        rte_panic("socket failed\n");
+    sockaddr_in addr = {};
+    addr.sin_family = AF_INET;
+    addr.sin_port = 0;
+    addr.sin_addr = interface;
+    ip_mreqn opt = {};
+    opt.imr_multiaddr = group;
+    opt.imr_address = interface;
+    int ret = setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &opt, sizeof(opt));
+    if (ret != 0)
+        rte_panic("setsockopt failed\n");
+}
+
+multicast_subscriber::~multicast_subscriber()
+{
+    close(sock);
+}
 
 static rte_flow *create_flow(std::uint16_t port_id, rte_flow_error *flow_error)
 {
@@ -30,7 +69,7 @@ static rte_flow *create_flow(std::uint16_t port_id, rte_flow_error *flow_error)
     };
     const rte_flow_item_ipv4 ipv4_spec = {
         .hdr = {
-            .dst_addr = RTE_BE32(RTE_IPV4(239, 102, 17, 18))
+            .dst_addr = MULTICAST_GROUP
         }
     };
     const rte_flow_item_ipv4 ipv4_mask = {
@@ -95,11 +134,15 @@ int main(int argc, char **argv)
     std::cout << "Found device with driver name " << info.dev_info.driver_name
         << ", interface " << (info.ifname.empty() ? "none" : info.ifname) << "\n";
 
+    // Note: this uses the kernel interface, so will only work with a bifurcated PMD
+    multicast_subscriber subscriber(in_addr{info.ipv4_addr}, in_addr{MULTICAST_GROUP});
+
     ret = rte_flow_isolate(info.port_id, 1, NULL);
     if (ret != 0)
         rte_panic("rte_flow_isolate failed\n");
 
     rte_eth_conf eth_conf = {};
+    eth_conf.intr_conf.rxq = 1;
     ret = rte_eth_dev_configure(info.port_id, 1, 1, &eth_conf);
     if (ret != 0)
         rte_panic("rte_eth_dev_configure failed\n");
@@ -133,6 +176,12 @@ int main(int argc, char **argv)
         rte_panic("rte_flow_create failed\n");
     }
 
+    int epfd = epoll_create1(EPOLL_CLOEXEC);
+    if (epfd < 0)
+        rte_panic("epoll_create1 failed\n");
+    ret = rte_eth_dev_rx_intr_ctl_q(info.port_id, 0, epfd, RTE_INTR_EVENT_ADD, NULL);
+    if (ret != 0)
+        rte_panic("rte_eth_dev_rx_intr_ctl_q failed\n");
     while (true)
     {
         constexpr int max_pkts = 32;
@@ -148,6 +197,18 @@ int main(int argc, char **argv)
                 std::cout << "Packet with length " << rx_pkts[i]->pkt_len << ", flags " << buf << '\n';
             }
             rte_pktmbuf_free_bulk(rx_pkts, pkts);
+        }
+        else
+        {
+            rte_eth_dev_rx_intr_enable(info.port_id, 0);
+            epoll_event event;
+            do
+            {
+                ret = epoll_wait(epfd, &event, 1, -1);
+                if (ret < 0 && errno != EINTR)
+                    rte_panic("epoll_wait failed\n");
+            } while (ret != 1);
+            rte_eth_dev_rx_intr_disable(info.port_id, 0);
         }
     }
 

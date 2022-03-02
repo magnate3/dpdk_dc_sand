@@ -1,12 +1,14 @@
-Rx:
-- do IGMP setup
-
 - mempool caches
 - mempool flags for single-producer or single-consumer
-- pre-populate mempool with prepared packets
 
 Tx:
+- pre-populate mempool with prepared packets
 Offloads:
 - checksum
 - fast mbuf free
 - free Tx mbuf on demand?
+
+Rx:
+- flow filter for valid packets
+- checksum offload
+- multi-packet receive queues?
