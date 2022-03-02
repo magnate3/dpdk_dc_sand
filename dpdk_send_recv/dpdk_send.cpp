@@ -78,10 +78,10 @@ int main(int argc, char **argv)
 
         // TODO: move all these initialisations out of the hot loop
         rte_ether_hdr ether_hdr = {
+            .dst_addr = MULTICAST_MAC,
             .src_addr = info.mac,
             .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
         };
-        rte_ether_unformat_addr("01:00:5E:66:11:12", &ether_hdr.dst_addr);
 
         rte_ipv4_hdr ipv4_hdr = {
             .version_ihl = 0x45,  // version 4, 20-byte header

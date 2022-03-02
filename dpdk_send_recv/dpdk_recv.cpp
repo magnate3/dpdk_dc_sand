@@ -57,7 +57,7 @@ static rte_flow *create_flow(std::uint16_t port_id, rte_flow_error *flow_error)
     const rte_flow_attr flow_attr = {.ingress = 1};
     const rte_flow_item_eth eth_spec = {
         .hdr = {
-            .dst_addr = {{0x01, 0x00, 0x5E, 0x66, 0x11, 0x12}},
+            .dst_addr = MULTICAST_MAC,
             .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
         }
     };
