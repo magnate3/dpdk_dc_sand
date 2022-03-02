@@ -2,6 +2,7 @@
 - mempool flags for single-producer or single-consumer
 
 Tx:
+- register external memory region
 - pre-populate mempool with prepared packets
 Offloads:
 - checksum
