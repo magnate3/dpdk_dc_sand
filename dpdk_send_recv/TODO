@@ -1,3 +1,6 @@
+Rx:
+- do IGMP setup
+
 - mempool caches
 - mempool flags for single-producer or single-consumer
 - pre-populate mempool with prepared packets
