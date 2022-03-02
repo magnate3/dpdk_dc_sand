@@ -28,6 +28,9 @@ int main(int argc, char **argv)
     std::cout << "Found device with driver name " << info.dev_info.driver_name
         << ", interface " << (info.ifname.empty() ? "none" : info.ifname) << "\n";
 
+    /* Ignore any rx traffic which doesn't match a flow rule
+     * (i.e., all of it, since none get set up).
+     */
     ret = rte_flow_isolate(info.port_id, 1, NULL);
     if (ret != 0)
         rte_panic("rte_flow_isolate failed\n");
@@ -94,9 +97,10 @@ int main(int argc, char **argv)
         };
         ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
 
+        // TODO: get a valid src port number from the kernel?
         rte_udp_hdr udp_hdr = {
             .src_port = rte_cpu_to_be_16(1234),
-            .dst_port = rte_cpu_to_be_16(8888),
+            .dst_port = MULTICAST_PORT,
             .dgram_len = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr)),
             .dgram_cksum = 0
         };
@@ -110,9 +114,16 @@ int main(int argc, char **argv)
         char *mbuf_payload = rte_pktmbuf_append(mbuf, payload_size);
         std::memcpy(mbuf_payload, &payload, sizeof(payload));
 
+        /* Send 1 packet. If the queue is full, it just gets dropped
+         * (hence the rte_pktmbuf_free call).
+         */
         ret = rte_eth_tx_burst(info.port_id, 0, &mbuf, 1);
         if (ret == 0)
+        {
+            // Packet couldn't be sent. For now just drop it.
+            // TODO: at least print a warning, ideally try again.
             rte_pktmbuf_free(mbuf);
+        }
     }
 
     rte_eal_cleanup();

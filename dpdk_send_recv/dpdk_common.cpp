@@ -16,6 +16,7 @@ device_info choose_device()
         ret = rte_eth_dev_info_get(port_id, &info.dev_info);
         if (ret != 0)
             rte_panic("rte_eth_dev_info_get failed\n");
+        // If it corresponds to a kernel interface, we can get the name
         if (info.dev_info.if_index > 0)
         {
             char ifname_storage[IF_NAMESIZE];
@@ -30,11 +31,12 @@ device_info choose_device()
     if (!found)
         rte_panic("no devices found\n");
 
+    // Get the MAC address
     ret = rte_eth_macaddr_get(info.port_id, &info.mac);
     if (ret != 0)
         rte_panic("rte_eth_macaddr_get failed\n");
 
-    /* Try to find an IPv4 address for the interface. */
+    // Try to find an IPv4 address, defaulting to 127.0.0.1
     info.ipv4_addr = RTE_BE32(RTE_IPV4_LOOPBACK);
     if (!info.ifname.empty())
     {
@@ -42,6 +44,9 @@ device_info choose_device()
         ret = getifaddrs(&ifap);
         if (ret != 0)
             rte_panic("getifaddrs failed\n");
+        /* ifap points at a list of all addresses on the system. Try to find
+         * one that's IPv4 with the right interface name.
+         */
         for (ifaddrs *i = ifap; i; i = i->ifa_next)
         {
             if (std::string_view(i->ifa_name) == info.ifname

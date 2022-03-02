@@ -22,5 +22,6 @@ device_info choose_device();
 
 static constexpr rte_ether_addr MULTICAST_MAC = {{0x01, 0x00, 0x5E, 0x66, 0x11, 0x12}};
 static constexpr rte_be32_t MULTICAST_GROUP = RTE_BE32(RTE_IPV4(239, 102, 17, 18));
+static constexpr rte_be16_t MULTICAST_PORT = RTE_BE16(8888);
 
 #endif // DPDK_COMMON_H
