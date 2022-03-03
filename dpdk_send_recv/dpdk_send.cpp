@@ -59,7 +59,10 @@ static void prepare_mbuf(rte_mempool *mp, void *data, void *obj, unsigned obj_id
         .src_port = rte_cpu_to_be_16(1234),
         .dst_port = MULTICAST_PORT,
         .dgram_len = rte_cpu_to_be_16(ctx.payload_size + sizeof(rte_udp_hdr)),
-        .dgram_cksum = 0
+        .dgram_cksum = rte_ipv4_phdr_cksum(
+            &ipv4_hdr,
+            RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM
+        )
     };
 
     rte_pktmbuf_reset(mbuf);
