@@ -53,7 +53,6 @@ static void prepare_mbuf(rte_mempool *mp, void *data, void *obj, unsigned obj_id
         .src_addr = rte_cpu_to_be_32(ctx.info->ipv4_addr),
         .dst_addr = MULTICAST_GROUP
     };
-    ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
 
     // TODO: get a valid src port number from the kernel?
     rte_udp_hdr udp_hdr = {
@@ -80,6 +79,8 @@ int main(int argc, char **argv)
     device_info info = choose_device();
     std::cout << "Found device with driver name " << info.dev_info.driver_name
         << ", interface " << (info.ifname.empty() ? "none" : info.ifname) << "\n";
+    std::cout << "Tx offload caps: " << std::hex << info.dev_info.tx_offload_capa << std::dec << '\n';
+    std::cout << "Tx queue offload caps: " << std::hex << info.dev_info.tx_queue_offload_capa << std::dec << '\n';
 
     /* Ignore any rx traffic which doesn't match a flow rule
      * (i.e., all of it, since none get set up).
@@ -89,6 +90,7 @@ int main(int argc, char **argv)
         rte_panic("rte_flow_isolate failed\n");
 
     rte_eth_conf eth_conf = {};
+    eth_conf.txmode.offloads |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_UDP_CKSUM;
     ret = rte_eth_dev_configure(info.port_id, 1, 1, &eth_conf);
     if (ret != 0)
         rte_panic("rte_eth_dev_configure failed\n");
@@ -106,9 +108,7 @@ int main(int argc, char **argv)
     prepare_mbuf_context ctx = {&info, sizeof(payload)};
     rte_mempool_obj_iter(send_mb_pool, prepare_mbuf, &ctx);
 
-    // TODO: does IP checksum offload need to be enabled?
-    rte_eth_txconf tx_conf = {};  // TODO use dev_info.default_txconf?
-    ret = rte_eth_tx_queue_setup(info.port_id, 0, nb_tx_desc, socket_id, &tx_conf);
+    ret = rte_eth_tx_queue_setup(info.port_id, 0, nb_tx_desc, socket_id, NULL);
     if (ret != 0)
         rte_panic("rte_eth_tx_queue_setup failed\n");
 
@@ -142,6 +142,9 @@ int main(int argc, char **argv)
             rte_pktmbuf_append(mbufs[i], sizeof(rte_ether_hdr) + sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr));
             /* Add the payload */
             append_to_mbuf(mbufs[i], &payload, sizeof(payload));
+            mbufs[i]->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
+            mbufs[i]->l2_len = sizeof(rte_ether_hdr);
+            mbufs[i]->l3_len = sizeof(rte_ipv4_hdr);
         }
         // Send the packets. If the queue is full, try again.
         int rem = max_burst;
