@@ -16,6 +16,59 @@
 
 #include "dpdk_common.h"
 
+static void append_to_mbuf(rte_mbuf *mbuf, const void *data, std::size_t size)
+{
+    void *ptr = rte_pktmbuf_append(mbuf, size);
+    if (!ptr)
+        rte_panic("rte_pktmbuf_append failed\n");
+    std::memcpy(ptr, data, size);
+}
+
+struct prepare_mbuf_context
+{
+    const device_info *info;
+    std::uint16_t payload_size;
+};
+
+/* Fill in L2-L4 headers. The signature is to conform to the callback for
+ * rte_mempool_obj_iter.
+ */
+static void prepare_mbuf(rte_mempool *mp, void *data, void *obj, unsigned obj_idx)
+{
+    rte_mbuf *mbuf = (rte_mbuf *) obj;
+    const prepare_mbuf_context &ctx = *(prepare_mbuf_context *) data;
+
+    rte_ether_hdr ether_hdr = {
+        .dst_addr = MULTICAST_MAC,
+        .src_addr = ctx.info->mac,
+        .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
+    };
+
+    rte_ipv4_hdr ipv4_hdr = {
+        .version_ihl = 0x45,  // version 4, 20-byte header
+        .total_length = rte_cpu_to_be_16(ctx.payload_size + sizeof(rte_udp_hdr) + sizeof(rte_ipv4_hdr)),
+        .fragment_offset = RTE_BE16(0x4000),    // Don't-fragment
+        .time_to_live = 4,
+        .next_proto_id = IPPROTO_UDP,
+        .src_addr = rte_cpu_to_be_32(ctx.info->ipv4_addr),
+        .dst_addr = MULTICAST_GROUP
+    };
+    ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
+
+    // TODO: get a valid src port number from the kernel?
+    rte_udp_hdr udp_hdr = {
+        .src_port = rte_cpu_to_be_16(1234),
+        .dst_port = MULTICAST_PORT,
+        .dgram_len = rte_cpu_to_be_16(ctx.payload_size + sizeof(rte_udp_hdr)),
+        .dgram_cksum = 0
+    };
+
+    rte_pktmbuf_reset(mbuf);
+    append_to_mbuf(mbuf, &ether_hdr, sizeof(ether_hdr));
+    append_to_mbuf(mbuf, &ipv4_hdr, sizeof(ipv4_hdr));
+    append_to_mbuf(mbuf, &udp_hdr, sizeof(udp_hdr));
+}
+
 int main(int argc, char **argv)
 {
     int ret;
@@ -49,6 +102,10 @@ int main(int argc, char **argv)
     rte_mempool *send_mb_pool = rte_pktmbuf_pool_create("send", nb_tx_desc * 2 - 1, 0, 0, 16384, socket_id);
     if (!send_mb_pool)
         rte_panic("rte_pktmbuf_pool_create failed\n");
+    std::uint64_t payload[4] = {};
+    prepare_mbuf_context ctx = {&info, sizeof(payload)};
+    rte_mempool_obj_iter(send_mb_pool, prepare_mbuf, &ctx);
+
     // TODO: does IP checksum offload need to be enabled?
     rte_eth_txconf tx_conf = {};  // TODO use dev_info.default_txconf?
     ret = rte_eth_tx_queue_setup(info.port_id, 0, nb_tx_desc, socket_id, &tx_conf);
@@ -70,60 +127,22 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
-    std::uint64_t payload[4] = {};
     for (std::uint64_t cnt = 0; ; cnt++)
     {
+        payload[0] = cnt;
+
         rte_mbuf *mbuf = rte_pktmbuf_alloc(send_mb_pool);
         rte_pktmbuf_reset(mbuf);
+        /* Extend data pointer to encompass the pre-written headers */
+        rte_pktmbuf_append(mbuf, sizeof(rte_ether_hdr) + sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr));
+        append_to_mbuf(mbuf, &payload, sizeof(payload));
 
-        payload[0] = cnt;
-        const std::uint16_t payload_size = sizeof(payload);
-
-        // TODO: move all these initialisations out of the hot loop
-        rte_ether_hdr ether_hdr = {
-            .dst_addr = MULTICAST_MAC,
-            .src_addr = info.mac,
-            .ether_type = RTE_BE16(RTE_ETHER_TYPE_IPV4)
-        };
-
-        rte_ipv4_hdr ipv4_hdr = {
-            .version_ihl = 0x45,  // version 4, 20-byte header
-            .total_length = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr) + sizeof(rte_ipv4_hdr)),
-            .fragment_offset = RTE_BE16(0x4000),    // Don't-fragment
-            .time_to_live = 4,
-            .next_proto_id = IPPROTO_UDP,
-            .src_addr = rte_cpu_to_be_32(info.ipv4_addr),
-            .dst_addr = MULTICAST_GROUP
-        };
-        ipv4_hdr.hdr_checksum = rte_ipv4_cksum(&ipv4_hdr);
-
-        // TODO: get a valid src port number from the kernel?
-        rte_udp_hdr udp_hdr = {
-            .src_port = rte_cpu_to_be_16(1234),
-            .dst_port = MULTICAST_PORT,
-            .dgram_len = rte_cpu_to_be_16(payload_size + sizeof(rte_udp_hdr)),
-            .dgram_cksum = 0
-        };
-
-        char *mbuf_ether_hdr = rte_pktmbuf_append(mbuf, sizeof(ether_hdr));
-        std::memcpy(mbuf_ether_hdr, &ether_hdr, sizeof(ether_hdr));
-        char *mbuf_ipv4_hdr = rte_pktmbuf_append(mbuf, sizeof(ipv4_hdr));
-        std::memcpy(mbuf_ipv4_hdr, &ipv4_hdr, sizeof(ipv4_hdr));
-        char *mbuf_udp_hdr = rte_pktmbuf_append(mbuf, sizeof(udp_hdr));
-        std::memcpy(mbuf_udp_hdr, &udp_hdr, sizeof(udp_hdr));
-        char *mbuf_payload = rte_pktmbuf_append(mbuf, payload_size);
-        std::memcpy(mbuf_payload, &payload, sizeof(payload));
-
-        /* Send 1 packet. If the queue is full, it just gets dropped
-         * (hence the rte_pktmbuf_free call).
+        /* Send 1 packet. If the queue is full, try again.
          */
-        ret = rte_eth_tx_burst(info.port_id, 0, &mbuf, 1);
-        if (ret == 0)
+        do
         {
-            // Packet couldn't be sent. For now just drop it.
-            // TODO: at least print a warning, ideally try again.
-            rte_pktmbuf_free(mbuf);
-        }
+            ret = rte_eth_tx_burst(info.port_id, 0, &mbuf, 1);
+        } while (ret == 0);
     }
 
     rte_eal_cleanup();
