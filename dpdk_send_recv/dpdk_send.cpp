@@ -102,7 +102,7 @@ int main(int argc, char **argv)
     rte_mempool *send_mb_pool = rte_pktmbuf_pool_create("send", nb_tx_desc * 2 - 1, 0, 0, 16384, socket_id);
     if (!send_mb_pool)
         rte_panic("rte_pktmbuf_pool_create failed\n");
-    std::uint64_t payload[4] = {};
+    std::uint64_t payload[128] = {};
     prepare_mbuf_context ctx = {&info, sizeof(payload)};
     rte_mempool_obj_iter(send_mb_pool, prepare_mbuf, &ctx);
 
@@ -127,22 +127,31 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
-    for (std::uint64_t cnt = 0; ; cnt++)
+    constexpr int max_burst = 32;
+    for (std::uint64_t cnt = 0; ; cnt += max_burst)
     {
-        payload[0] = cnt;
+        rte_mbuf *mbufs[max_burst];
+        ret = rte_pktmbuf_alloc_bulk(send_mb_pool, mbufs, max_burst);
+        if (ret != 0)
+            rte_panic("rte_pktmbuf_alloc_bulk failed\n");
 
-        rte_mbuf *mbuf = rte_pktmbuf_alloc(send_mb_pool);
-        rte_pktmbuf_reset(mbuf);
-        /* Extend data pointer to encompass the pre-written headers */
-        rte_pktmbuf_append(mbuf, sizeof(rte_ether_hdr) + sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr));
-        append_to_mbuf(mbuf, &payload, sizeof(payload));
-
-        /* Send 1 packet. If the queue is full, try again.
-         */
-        do
+        for (int i = 0; i < max_burst; i++)
         {
-            ret = rte_eth_tx_burst(info.port_id, 0, &mbuf, 1);
-        } while (ret == 0);
+            payload[0] = cnt + i;
+            /* Extend data pointer to encompass the pre-written headers */
+            rte_pktmbuf_append(mbufs[i], sizeof(rte_ether_hdr) + sizeof(rte_ipv4_hdr) + sizeof(rte_udp_hdr));
+            /* Add the payload */
+            append_to_mbuf(mbufs[i], &payload, sizeof(payload));
+        }
+        // Send the packets. If the queue is full, try again.
+        int rem = max_burst;
+        rte_mbuf **next = mbufs;
+        while (rem > 0)
+        {
+            ret = rte_eth_tx_burst(info.port_id, 0, next, rem);
+            rem -= ret;
+            next += ret;
+        }
     }
 
     rte_eal_cleanup();
