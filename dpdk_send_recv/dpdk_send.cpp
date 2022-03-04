@@ -50,7 +50,7 @@ static void prepare_mbuf(rte_mempool *mp, void *data, void *obj, unsigned obj_id
         .fragment_offset = RTE_BE16(0x4000),    // Don't-fragment
         .time_to_live = 4,
         .next_proto_id = IPPROTO_UDP,
-        .src_addr = rte_cpu_to_be_32(ctx.info->ipv4_addr),
+        .src_addr = ctx.info->ipv4_addr,
         .dst_addr = MULTICAST_GROUP
     };
 
