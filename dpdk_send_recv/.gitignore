@@ -1,2 +1,3 @@
-dpdk_send
 dpdk_recv
+dpdk_send
+dpdk_send_demo
