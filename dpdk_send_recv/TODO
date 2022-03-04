@@ -4,6 +4,8 @@
 Tx:
 - register external memory region
 - pre-populate mempool with prepared packets
+- burst packets
+- deal with transmission failures
 Offloads:
 - checksum
 - fast mbuf free
