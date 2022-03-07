@@ -197,7 +197,7 @@ int main(int argc, char **argv)
     size_t ext_size = 2 * 1024 * 1024;
     void *ext = mmap(NULL, ext_size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_POPULATE | MAP_LOCKED, -1, 0);
-    if (!ext)
+    if (ext == MAP_FAILED)
         rte_panic("mmap failed");
     rte_extmem_register(ext, ext_size, NULL, 0, ext_size);
 
