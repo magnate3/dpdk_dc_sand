@@ -4,7 +4,11 @@
  * regular mbuf and the payload in a chained external mbuf.
  */
 
-#define USE_EXTERNAL 1
+/* 0 = do not use external memory
+ * 1 = use rte_pktmbuf_pool_create_extbuf (fails on 21.11 due to Bugzilla 949, works on HEAD)
+ * 2 = use rte_pktmbuf_attach_extbuf directly (fails on HEAD)
+ */
+#define USE_EXTERNAL 2
 
 #include <string.h>
 #include <stdint.h>
@@ -152,6 +156,11 @@ static void setup_rx(uint16_t port_id, uint16_t nb_rx_desc)
         rte_panic("rte_eth_rx_queue_setup failed\n");
 }
 
+static void free_cb(void *addr, void *opaque)
+{
+    munmap(addr, (uintptr_t) opaque);
+}
+
 int main(int argc, char **argv)
 {
     int ret;
@@ -201,6 +210,7 @@ int main(int argc, char **argv)
         rte_panic("mmap failed");
     rte_extmem_register(ext, ext_size, NULL, 0, ext_size);
 
+#if USE_EXTERNAL == 1
     const struct rte_pktmbuf_extmem ext_mem =
     {
         .buf_ptr = ext,
@@ -213,13 +223,24 @@ int main(int argc, char **argv)
         4096,
         socket_id,
         &ext_mem, 1);
-#else
+#else // USE_EXTERNAL == 1
+    // The mbufs hold no data since they're just going to point to the external memory
+    payload_pool = rte_pktmbuf_pool_create(
+        "payload", nb_tx_desc * 2 - 1, 0, 0, 0, socket_id
+    );
+    struct rte_mbuf_ext_shared_info shinfo = {};
+    shinfo.free_cb = free_cb;
+    shinfo.fcb_opaque = (void *) (uintptr_t) ext_size;
+    // Just set a big refcount and leak it - don't care for this demo
+    rte_mbuf_ext_refcnt_set(&shinfo, 10000);
+#endif // USE_EXTERNAL == 1
+#else // USE_EXTERNAL
     payload_pool = rte_pktmbuf_pool_create(
         "payload", nb_tx_desc * 2 - 1, 0, 0,
         4096,
         socket_id
     );
-#endif
+#endif  // USE_EXTERNAL
     if (!payload_pool)
         rte_panic("rte_pktmbuf_pool_create failed (payload_pool)\n");
     struct prepare_mbuf_context ctx = {mac, ipv4_addr};
@@ -252,6 +273,10 @@ int main(int argc, char **argv)
         header_mbuf->l2_len = sizeof(struct rte_ether_hdr);
         header_mbuf->l3_len = sizeof(struct rte_ipv4_hdr);
         /* Add the payload */
+#if USE_EXTERNAL == 2
+        void *addr = RTE_PTR_ADD(ext, i * PAYLOAD_SIZE);
+        rte_pktmbuf_attach_extbuf(payload_mbuf, addr, (rte_iova_t) addr, PAYLOAD_SIZE, &shinfo);
+#endif
         rte_pktmbuf_append(payload_mbuf, PAYLOAD_SIZE);
         /* Chain the buffers */
         rte_pktmbuf_chain(header_mbuf, payload_mbuf);
