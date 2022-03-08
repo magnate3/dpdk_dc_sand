@@ -31,6 +31,7 @@
 static constexpr int CHUNK_SIZE = 4 * 1024 * 1024;
 static constexpr int PAYLOAD_SIZE = 4096;
 static constexpr int N_CHUNKS = 2;
+static constexpr int PASSES = 50;
 
 class munmap_deleter
 {
@@ -71,7 +72,7 @@ public:
         *(bool *) opaque = false;
     }
 
-    explicit chunk(rte_device *device) :
+    chunk(rte_device *device, std::uint64_t chunk_id) :
         data(make_unique_huge<std::uint64_t>(CHUNK_SIZE / sizeof(data[0]))),
         device(device)
     {
@@ -94,6 +95,11 @@ public:
         ret = rte_dev_dma_map(device, data.get(), (uintptr_t) data.get(), CHUNK_SIZE);
         if (ret != 0)
             rte_panic("rte_dev_dma_map failed");
+        /* Put a pattern into the payload: sequence number in lower 32 bits,
+         * chunk ID in upper 32.
+         */
+        for (std::size_t i = 0; i < CHUNK_SIZE / sizeof(data[0]); i++)
+            data[i] = i | (chunk_id << 32);
     }
 
     /* Note: the presence of the destructor makes the non-movable. If you
@@ -239,10 +245,11 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
-    std::deque<chunk> chunks;
+    std::deque<chunk> chunks;  // deque not vector because deque doesn't require move constructor
     for (int i = 0; i < N_CHUNKS; i++)
-        chunks.emplace_back(info.dev_info.device);
-    for (std::uint64_t chunk_id = 0; ; chunk_id++)
+        chunks.emplace_back(info.dev_info.device, i);
+    std::uint64_t packet_counter = 0;
+    for (std::uint64_t chunk_id = 0; chunk_id < PASSES; chunk_id++)
     {
         chunk &cur_chunk = chunks[chunk_id % N_CHUNKS];
         constexpr int num_packets = CHUNK_SIZE / PAYLOAD_SIZE;
@@ -252,8 +259,11 @@ int main(int argc, char **argv)
         while (cur_chunk.active)
         {
             rte_pause();
-            rte_eth_tx_done_cleanup(info.port_id, 0, 0);
-            //std::cerr << rte_mbuf_ext_refcnt_read(&cur_chunk.shared_info) << '\n';
+            if (rte_eth_tx_done_cleanup(info.port_id, 0, 0) < 0)
+            {
+                // Has the same effect on mlx5, which doesn't implement tx_done_cleanup
+                rte_eth_tx_descriptor_status(info.port_id, 0, 0);
+            }
         }
         cur_chunk.active = true;
         /* Set the refcount for the full number of packets we're going to
@@ -282,8 +292,11 @@ int main(int argc, char **argv)
                 header_mbufs[j]->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_UDP_CKSUM;
                 header_mbufs[j]->l2_len = sizeof(rte_ether_hdr);
                 header_mbufs[j]->l3_len = sizeof(rte_ipv4_hdr);
-                /* Add the payload */
+                /* Add the payload, and set a counter in the payload to verify that packets
+                 * aren't getting mixed up.
+                 */
                 char *payload_ptr = offset + (char *) cur_chunk.data.get();
+                *reinterpret_cast<std::uint64_t *>(payload_ptr) = packet_counter++;
                 // TODO: this just assumes IOVA == VA
                 rte_pktmbuf_attach_extbuf(ext_mbufs[j], payload_ptr, (uintptr_t) payload_ptr, PAYLOAD_SIZE, &cur_chunk.shared_info);
                 rte_pktmbuf_append(ext_mbufs[j], PAYLOAD_SIZE);
@@ -302,7 +315,10 @@ int main(int argc, char **argv)
         }
         std::cerr << ".";
     }
+    std::cerr << "\n";
 
+    rte_eth_dev_stop(info.port_id);
+    chunks.clear();  // to release all the resources before rte_eal_cleanup
     rte_eal_cleanup();
     return 0;
 }
