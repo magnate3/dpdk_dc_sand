@@ -15,6 +15,8 @@
 #include <stdexcept>
 #include <sys/mman.h>
 
+#define ALLOW_EXPERIMENTAL_API  // needed for rte_dev_dma_map
+
 #include <rte_byteorder.h>
 #include <rte_debug.h>
 #include <rte_eal.h>
@@ -94,6 +96,11 @@ public:
             rte_panic("rte_dev_dma_map failed");
     }
 
+    /* Note: the presence of the destructor makes the non-movable. If you
+     * write a move constructor, it needs to adjust shred_info.fcb_opaque
+     * (also you shouldn't move a chunk after there are mbufs pointing at
+     * it).
+     */
     ~chunk()
     {
         if (data)
