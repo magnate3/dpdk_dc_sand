@@ -33,23 +33,22 @@ static const rte_be32_t MULTICAST_GROUP = RTE_BE32(RTE_IPV4(239, 102, 17, 18));
 static const rte_be16_t MULTICAST_PORT = RTE_BE16(8888);
 static const rte_be16_t SRC_PORT = RTE_BE16(1234);
 
-uint16_t choose_device(struct rte_ether_addr *mac, rte_be32_t *ipv4_addr)
+static uint16_t choose_device(struct rte_ether_addr *mac, rte_be32_t *ipv4_addr, struct rte_eth_dev_info *dev_info)
 {
     bool found = false;
     int ret;
     uint16_t port_id = 0;
-    struct rte_eth_dev_info dev_info;
     char ifname_storage[IF_NAMESIZE];
     const char *ifname = NULL;
     RTE_ETH_FOREACH_DEV(port_id)
     {
-        ret = rte_eth_dev_info_get(port_id, &dev_info);
+        ret = rte_eth_dev_info_get(port_id, dev_info);
         if (ret != 0)
             rte_panic("rte_eth_dev_info_get failed\n");
         // If it corresponds to a kernel interface, we can get the name
-        if (dev_info.if_index > 0)
+        if (dev_info->if_index > 0)
         {
-            ifname = if_indextoname(dev_info.if_index, ifname_storage);
+            ifname = if_indextoname(dev_info->if_index, ifname_storage);
         }
         port_id = port_id;
         found = true;
@@ -171,7 +170,8 @@ int main(int argc, char **argv)
 
     struct rte_ether_addr mac;
     rte_be32_t ipv4_addr;
-    uint16_t port_id = choose_device(&mac, &ipv4_addr);
+    struct rte_eth_dev_info dev_info;
+    uint16_t port_id = choose_device(&mac, &ipv4_addr, &dev_info);
 
     /* Ignore any rx traffic which doesn't match a flow rule
      * (i.e., all of it, since none get set up).
@@ -208,7 +208,12 @@ int main(int argc, char **argv)
                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_POPULATE | MAP_LOCKED, -1, 0);
     if (ext == MAP_FAILED)
         rte_panic("mmap failed");
-    rte_extmem_register(ext, ext_size, NULL, 0, ext_size);
+    ret = rte_extmem_register(ext, ext_size, NULL, 0, ext_size);
+    if (ret != 0)
+        rte_panic("rte_extmem_register failed");
+    ret = rte_dev_dma_map(dev_info.device, ext, (uintptr_t) ext, ext_size);
+    if (ret != 0)
+        rte_panic("rte_dev_dma_map failed");
 
 #if USE_EXTERNAL == 1
     const struct rte_pktmbuf_extmem ext_mem =
