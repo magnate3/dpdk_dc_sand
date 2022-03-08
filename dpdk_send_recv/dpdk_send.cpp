@@ -11,6 +11,9 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <deque>
+#include <stdexcept>
+#include <sys/mman.h>
 
 #include <rte_byteorder.h>
 #include <rte_debug.h>
@@ -27,37 +30,77 @@ static constexpr int CHUNK_SIZE = 4 * 1024 * 1024;
 static constexpr int PAYLOAD_SIZE = 4096;
 static constexpr int N_CHUNKS = 2;
 
+class munmap_deleter
+{
+private:
+    std::size_t size;
+
+public:
+    explicit munmap_deleter(std::size_t size) : size(size) {}
+    void operator()(void *ptr) const
+    {
+        munmap(ptr, size);
+    }
+};
+
+template<typename T>
+static std::unique_ptr<T[], munmap_deleter> make_unique_huge(std::size_t elements)
+{
+    std::size_t size = sizeof(T) * elements;
+    void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_HUGETLB | MAP_LOCKED,
+                     -1, 0);
+    if (ptr == MAP_FAILED)
+        throw std::bad_alloc();
+    new(ptr) T[elements];
+    return std::unique_ptr<T[], munmap_deleter>((T *) ptr, munmap_deleter(size));
+}
+
 class chunk
 {
 public:
-    std::unique_ptr<std::uint64_t[]> data;
+    std::unique_ptr<std::uint64_t[], munmap_deleter> data;
     bool active = false;  // in use by HW
     rte_mbuf_ext_shared_info shared_info;
+    rte_device *device;
 
     static void set_inactive(void *addr, void *opaque)
     {
         *(bool *) opaque = false;
     }
 
-    chunk() : data(std::make_unique<std::uint64_t[]>(CHUNK_SIZE / sizeof(data[0])))
+    explicit chunk(rte_device *device) :
+        data(make_unique_huge<std::uint64_t>(CHUNK_SIZE / sizeof(data[0]))),
+        device(device)
     {
         shared_info.free_cb = &chunk::set_inactive;
         shared_info.fcb_opaque = &active;
-        // TODO: 4096 is magic - is it the right thing to use?
-        const int PGSZ = 4096;
-        char *start = (char *) data.get();
-        char *end = start + CHUNK_SIZE;
-        start = RTE_PTR_ALIGN_FLOOR(start, PGSZ);
-        end = RTE_PTR_ALIGN_CEIL(end, PGSZ);
+        const int PGSZ = 2 * 1024 * 1024;
+        assert(((uintptr_t) data.get()) % PGSZ == 0);
+        assert(CHUNK_SIZE % PGSZ == 0);
 #if 0
-        int pages = (end - start) / PGSZ;
+        int pages = CHUNK_SIZE / PGSZ;
         std::vector<rte_iova_t> iova_addrs(pages);
         for (int i = 0; i < pages; i++)
             iova_addrs[i] = (rte_iova_t) (start + i * PGSZ);
-        rte_extmem_register(start, end - start, iova_addrs.data(), pages, PGSZ);
+        int ret = rte_extmem_register(start, end - start, iova_addrs.data(), pages, PGSZ);
 #else
-        rte_extmem_register(start, end - start, NULL, 0, PGSZ);
+        int ret = rte_extmem_register(data.get(), CHUNK_SIZE, NULL, 0, PGSZ);
 #endif
+        if (ret != 0)
+            rte_panic("rte_extmem_register failed");
+        ret = rte_dev_dma_map(device, data.get(), (uintptr_t) data.get(), CHUNK_SIZE);
+        if (ret != 0)
+            rte_panic("rte_dev_dma_map failed");
+    }
+
+    ~chunk()
+    {
+        if (data)
+        {
+            rte_dev_dma_unmap(device, data.get(), (uintptr_t) data.get(), CHUNK_SIZE);
+            rte_extmem_unregister(data.get(), CHUNK_SIZE);
+        }
     }
 };
 
@@ -189,24 +232,27 @@ int main(int argc, char **argv)
     if (ret != 0)
         rte_panic("rte_eth_dev_start failed\n");
 
-    std::vector<chunk> chunks(N_CHUNKS);
+    std::deque<chunk> chunks;
+    for (int i = 0; i < N_CHUNKS; i++)
+        chunks.emplace_back(info.dev_info.device);
     for (std::uint64_t chunk_id = 0; ; chunk_id++)
     {
         chunk &cur_chunk = chunks[chunk_id % N_CHUNKS];
         constexpr int num_packets = CHUNK_SIZE / PAYLOAD_SIZE;
         constexpr int max_burst = 32;
         static_assert(num_packets % max_burst == 0, "max_burst must currently divide into packet count");
-        /* Set the refcount for the full number of packets we're going to
-         * attach to it.
-         */
-        rte_mbuf_ext_refcnt_set(&cur_chunk.shared_info, num_packets);
         // Wait for previous use of the buffer (if any) to finish
         while (cur_chunk.active)
         {
             rte_pause();
             rte_eth_tx_done_cleanup(info.port_id, 0, 0);
+            //std::cerr << rte_mbuf_ext_refcnt_read(&cur_chunk.shared_info) << '\n';
         }
         cur_chunk.active = true;
+        /* Set the refcount for the full number of packets we're going to
+         * attach to it.
+         */
+        rte_mbuf_ext_refcnt_set(&cur_chunk.shared_info, num_packets);
         for (int i = 0; i < num_packets; i += max_burst)
         {
             rte_mbuf *ext_mbufs[max_burst];
@@ -247,6 +293,7 @@ int main(int argc, char **argv)
                 next += ret;
             }
         }
+        std::cerr << ".";
     }
 
     rte_eal_cleanup();
