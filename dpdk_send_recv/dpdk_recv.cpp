@@ -18,6 +18,9 @@
 
 #include "dpdk_common.h"
 
+#define PRINT_DETAILS 0
+#define USE_INTERRUPTS 1
+
 /* Subscribes to an IPv4 multicast group for its lifetime */
 class multicast_subscriber
 {
@@ -148,7 +151,9 @@ int main(int argc, char **argv)
         rte_panic("rte_flow_isolate failed\n");
 
     rte_eth_conf eth_conf = {};
+#if USE_INTERRUPTS
     eth_conf.intr_conf.rxq = 1;
+#endif
     ret = rte_eth_dev_configure(info.port_id, 1, 1, &eth_conf);
     if (ret != 0)
         rte_panic("rte_eth_dev_configure failed\n");
@@ -182,6 +187,7 @@ int main(int argc, char **argv)
         rte_panic("rte_flow_create failed\n");
     }
 
+#if USE_INTERRUPTS
     // epoll is used to wait for data to arrive
     int epfd = epoll_create1(EPOLL_CLOEXEC);
     if (epfd < 0)
@@ -189,6 +195,12 @@ int main(int argc, char **argv)
     ret = rte_eth_dev_rx_intr_ctl_q(info.port_id, 0, epfd, RTE_INTR_EVENT_ADD, NULL);
     if (ret != 0)
         rte_panic("rte_eth_dev_rx_intr_ctl_q failed\n");
+#endif
+    // Number of packets/bytes received in the last second
+    std::uint64_t last_packets = 0;
+    std::uint64_t last_bytes = 0;
+    std::uint64_t timer_hz = rte_get_timer_hz();
+    std::uint64_t next_rate = rte_get_timer_cycles() + timer_hz;
     while (true)
     {
         constexpr int max_pkts = 32;
@@ -197,18 +209,25 @@ int main(int argc, char **argv)
         int pkts = rte_eth_rx_burst(info.port_id, 0, rx_pkts, max_pkts);
         if (pkts)
         {
+#if PRINT_DETAILS
             std::cout << "Received burst of " << pkts << " packets\n";
+#endif
             for (int i = 0; i < pkts; i++)
             {
+#if PRINT_DETAILS
                 // Print the offload flags
                 char buf[1024];
                 rte_get_rx_ol_flag_list(rx_pkts[i]->ol_flags, buf, sizeof(buf));
                 std::cout << "Packet with length " << rx_pkts[i]->pkt_len << ", flags " << buf << '\n';
+#endif
+                last_bytes += rx_pkts[i]->pkt_len;
             }
             rte_pktmbuf_free_bulk(rx_pkts, pkts);
+            last_packets += pkts;
         }
         else
         {
+#if USE_INTERRUPTS
             // We didn't get any data, so wait for an interrupt
             // TODO: is this racy (if data arrives between the poll and arming
             // the interrupt)?
@@ -216,11 +235,21 @@ int main(int argc, char **argv)
             epoll_event event;
             do
             {
-                ret = epoll_wait(epfd, &event, 1, -1);
+                // Only wait for 2 ms, so that the timer check can run frequently
+                ret = epoll_wait(epfd, &event, 1, 2);
                 if (ret < 0 && errno != EINTR)
                     rte_panic("epoll_wait failed\n");
-            } while (ret != 1);
+            } while (ret < 0);
             rte_eth_dev_rx_intr_disable(info.port_id, 0);
+#endif
+        }
+        std::uint64_t now = rte_get_timer_cycles();
+        if (now >= next_rate)
+        {
+            std::cout << last_packets << "\t packets, " << last_bytes << "\t bytes in last second\n";
+            last_packets = 0;
+            last_bytes = 0;
+            next_rate += timer_hz;
         }
     }
 
