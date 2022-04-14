@@ -1,7 +1,12 @@
+import numpy as np
+import config
 
+class cw_analysis():
 
-def cw_scale():
-    pass
+    async def run(samples):
+        hist = []
 
-def cw_linearity():
-    pass
+        for pol in range(len(samples)):            
+            hist.append(np.histogram(samples[pol],config.hist_res))
+
+        return hist

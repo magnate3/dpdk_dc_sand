@@ -31,11 +31,13 @@ srcs = [
     ]
 ]
 
-noise_scales = [1, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625]
+noise_scales = [0.25]
+# noise_scales = [1, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625]
+
 frequencies_to_check = [10e6, 100e6, 200e6]
 
 # Allan variance parameters
 n = 3000
 
 # Histogram resolution
-hist_res = 1024
+hist_res = 33
