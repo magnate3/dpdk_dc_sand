@@ -102,11 +102,6 @@ async def async_main(args: argparse.Namespace) -> None:
     dsim_client = await aiokatcp.Client.connect(config.dsim_host_katcp, config.dsim_port_katcp)
     logger.info("Successfully connected to dsim.")
     
-    # freq = 10e6
-    # logger.info("Setting dsim cw freq to %f", freq)
-    # [reply, _informs] = await dsim_client.request("signals", f"common=cw(0.0,{freq})+wgn(0.05);common;common;")
-    # expected_timestamp = int(reply[0])
-
     src_packet_samples = 4096
     chunk_samples = 2**18 #2**24
     mask_timestamp = False
@@ -143,30 +138,28 @@ async def async_main(args: argparse.Namespace) -> None:
 
     # Start tests
     # -----------
-    # for freq in config.frequencies_to_check:
-    #     print(f'*** Freq is {freq} ***')
-    #     logger.info("Setting dsim cw freq to %f", freq)
-    #     pass
-    
     cw_test_results = []
     wgn_test_results = []
     timestamp_step = chunk_samples
 
-    for wgn_scale in config.noise_scales:
-        cw_scale = 0.5
-        freq = 10e6   #Can be anything as scale = 0.0
-        freq_pol1 = 10e6    #Can be anything as scale = 0.0
+    for value_set in config.value_sets:
+        test = value_set[0]
+        cw_scale = value_set[1]
+        freq = value_set[2]
+        wgn_scale = value_set[3]
+
+        print(f'Test is: {test} - CW Scale: {cw_scale}  Freq: {freq}  WGN_Scale:{wgn_scale}')
 
         # Common noise + CW per pol
         reply = []
-        # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({0.0});common;common;")
+        [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq});common;common;")
 
         # Common noise + CW per pol
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
 
         # Noise only
-        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common;common;")
+        # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common;common;")
         
         # 
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common+cw({cw_scale},{freq_pol0});common+cw({cw_scale},{freq_pol1});")
@@ -185,48 +178,47 @@ async def async_main(args: argparse.Namespace) -> None:
 
         recon_data = []
         async for chunks in recv.chunk_sets(streams, layout):
-            recvd_timestamp = chunk.chunk_id * timestamp_step
+            # recvd_timestamp = chunk.chunk_id * timestamp_step
 
+            # if not np.all(chunks[0].present) and np.all(chunks[1].present):
             if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
                 logger.debug("Incomplete chunk %d", chunks[0].chunk_id)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
             elif chunks[0].timestamp <= expected_timestamp:
-                logger.info("Skipping chunk with timestamp %d", recvd_timestamp)
+                # logger.info("Skipping chunk with timestamp %d", recvd_timestamp)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
             else:
                 # unpack data to 10b
                 for pol in range(len(chunks)):
                     unpacked_data = unpackbits(chunks[pol].data, chunk_samples)
-                    unpacked_data = unpacked_data/(np.abs(np.max(unpacked_data)))
+                    unpacked_data = unpacked_data/511
                     recon_data.append(unpacked_data)
                   
                 # CW tests
-                hist = await cw.cw_analysis.run(recon_data)
-                cw_test_results.append((hist))
+                if test == 'cw':
+                    cw_max, cw_min, hist = await cw.cw_analysis.run(recon_data)
+                    cw_test_results.append((hist, cw_max, cw_min))
 
                 # WGN tests
-                mean, std_dev, var, hist, allan_var = await wgn.wgn_analysis.run(recon_data)
-                wgn_test_results.append((wgn_scale, mean, std_dev, var, hist, allan_var))
+                if test == 'noise':
+                    mean, std_dev, var, hist, allan_var = await wgn.wgn_analysis.run(recon_data)
+                    wgn_test_results.append((hist, wgn_scale, mean, std_dev, var, allan_var))
                 
-                plt.figure(1)
-                plt.plot(recon_data[0])
-                plt.title('Pol0')
-
-                # plt.figure(2)
-                plt.plot(recon_data[1])
-                # plt.title('Pol1')
-                plt.show()
-
+                # plt.figure(1)
+                # plt.plot(recon_data[0])
+                # plt.plot(recon_data[1])
+                # plt.title('Pol0 and Pol1')
+                # plt.show()
 
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
                 break
     
     # Report Results
-    report_results.display_wgn_results(wgn_test_results)
-    # report_results.display_cw_results(cw_test_results)
+    report_results.display_cw_results(cw_test_results)
+    # report_results.display_wgn_results(wgn_test_results)
 
 
 if __name__ == "__main__":
