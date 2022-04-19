@@ -150,6 +150,7 @@ async def async_main(args: argparse.Namespace) -> None:
     
     cw_test_results = []
     wgn_test_results = []
+    timestamp_step = chunk_samples
 
     for wgn_scale in config.noise_scales:
         cw_scale = 0.5
@@ -157,14 +158,15 @@ async def async_main(args: argparse.Namespace) -> None:
         freq_pol1 = 10e6    #Can be anything as scale = 0.0
 
         # Common noise + CW per pol
-        [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({0.0});common;common;")
+        reply = []
+        # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({0.0});common;common;")
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq});common;common;")
 
         # Common noise + CW per pol
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
 
         # Noise only
-        # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common;common;")
+        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common;common;")
         
         # 
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common+cw({cw_scale},{freq_pol0});common+cw({cw_scale},{freq_pol1});")
@@ -176,17 +178,21 @@ async def async_main(args: argparse.Namespace) -> None:
         # [reply, _informs] = await dsim_client.request("signals", f"{common}; {common};")
         
 
-        expected_timestamp = int(reply[0])
+        if reply == []:
+            expected_timestamp = 0
+        else:
+            expected_timestamp = int(reply[0])
 
         recon_data = []
         async for chunks in recv.chunk_sets(streams, layout):
-            # print('Rx')
-            if not np.all(chunks[0].present) and np.all(chunks[1].present):
+            recvd_timestamp = chunk.chunk_id * timestamp_step
+
+            if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
                 logger.debug("Incomplete chunk %d", chunks[0].chunk_id)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
             elif chunks[0].timestamp <= expected_timestamp:
-                # logger.info("Skipping chunk with timestamp %d", recvd_timestamp)
+                logger.info("Skipping chunk with timestamp %d", recvd_timestamp)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
             else:
@@ -195,23 +201,22 @@ async def async_main(args: argparse.Namespace) -> None:
                     unpacked_data = unpackbits(chunks[pol].data, chunk_samples)
                     unpacked_data = unpacked_data/(np.abs(np.max(unpacked_data)))
                     recon_data.append(unpacked_data)
-                    # recon_data.append(unpackbits(chunks[pol].data, chunk_samples))
                   
                 # CW tests
                 hist = await cw.cw_analysis.run(recon_data)
                 cw_test_results.append((hist))
 
                 # WGN tests
-                # mean, std_dev, var, hist, allan_var = await wgn.wgn_analysis.run(recon_data)
-                # wgn_test_results.append((wgn_scale, mean, std_dev, var, hist, allan_var))
+                mean, std_dev, var, hist, allan_var = await wgn.wgn_analysis.run(recon_data)
+                wgn_test_results.append((wgn_scale, mean, std_dev, var, hist, allan_var))
                 
                 plt.figure(1)
                 plt.plot(recon_data[0])
                 plt.title('Pol0')
 
-                plt.figure(2)
+                # plt.figure(2)
                 plt.plot(recon_data[1])
-                plt.title('Pol1')
+                # plt.title('Pol1')
                 plt.show()
 
 
@@ -220,10 +225,9 @@ async def async_main(args: argparse.Namespace) -> None:
                 break
     
     # Report Results
-    # report_results.display_wgn_results(wgn_test_results)
+    report_results.display_wgn_results(wgn_test_results)
     # report_results.display_cw_results(cw_test_results)
 
-    a = 1
 
 if __name__ == "__main__":
     main()
