@@ -30,6 +30,25 @@ def display_cw_results(results):
     plot_linearity_scale(scale, max_scale)
     plot_linearity_difference(scale, max_scale)
 
+def display_compare_measured_vs_requested_freq(results):
+    for entry in results:
+        print(f'Pol0 - Requested Frequency: {entry[0][0]}    Measured Frequency: {entry[0][1]}  Difference: {np.abs(entry[0][0] - entry[0][1])}')
+        print(f'Pol1 - Requested Frequency: {entry[1][0]}    Measured Frequency: {entry[1][1]}  Difference: {np.abs(entry[1][0] - entry[1][1])}')
+        plot_channelised_data(entry)
+
+def display_sfdr():
+    pass
+
+def plot_channelised_data(channelised_data):
+    plt.figure()
+    plt.semilogy(channelised_data[0][2])
+    plt.semilogy(channelised_data[1][2])
+    plt.title('Channelised Data')
+    plt.xlabel('FFT Bin')
+    plt.ylabel('dB')
+    plt.legend(['Pol0', 'Pol1'])
+    plt.show()
+
 
 def plot_hist(hist_results):
     plt.figure()

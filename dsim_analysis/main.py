@@ -140,6 +140,7 @@ async def async_main(args: argparse.Namespace) -> None:
     # -----------
     cw_test_results = []
     wgn_test_results = []
+    cw_freq_range = []
     timestamp_step = chunk_samples
 
     for value_set in config.value_sets:
@@ -206,6 +207,10 @@ async def async_main(args: argparse.Namespace) -> None:
                     mean, std_dev, var, hist, allan_var = await wgn.wgn_analysis.run(recon_data)
                     wgn_test_results.append((hist, wgn_scale, mean, std_dev, var, allan_var))
                 
+                # Freq range tests
+                if test == 'freq_range':
+                    cw_freq_range.append(await cw.cw_analysis.run_freq_checks(recon_data, freq))
+
                 # plt.figure(1)
                 # plt.plot(recon_data[0])
                 # plt.plot(recon_data[1])
@@ -219,6 +224,7 @@ async def async_main(args: argparse.Namespace) -> None:
     # Report Results
     report_results.display_cw_results(cw_test_results)
     report_results.display_wgn_results(wgn_test_results)
+    report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
 
 
 if __name__ == "__main__":
