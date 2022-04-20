@@ -199,7 +199,7 @@ async def async_main(args: argparse.Namespace) -> None:
                 # CW tests
                 if test == 'cw':
                     cw_max, cw_min, hist = await cw.cw_analysis.run(recon_data)
-                    cw_test_results.append((hist, cw_max, cw_min))
+                    cw_test_results.append((hist, cw_scale, cw_max, cw_min))
 
                 # WGN tests
                 if test == 'noise':
@@ -218,7 +218,7 @@ async def async_main(args: argparse.Namespace) -> None:
     
     # Report Results
     report_results.display_cw_results(cw_test_results)
-    # report_results.display_wgn_results(wgn_test_results)
+    report_results.display_wgn_results(wgn_test_results)
 
 
 if __name__ == "__main__":

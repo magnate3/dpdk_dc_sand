@@ -3,25 +3,26 @@ import matplotlib.pyplot as plt
 
 def display_wgn_results(results):
     for entry in results:
-        print(f'Pol0 - Scale: {entry[0]}   Mean: {entry[1][0]}    StdDev: {entry[2][0]}    Var: {entry[3][0]}')
-        print(f'Pol1 - Scale: {entry[0]}   Mean: {entry[1][1]}    StdDev: {entry[2][1]}    Var: {entry[3][1]}')
+        print(f'Pol0 - Scale: {entry[1]}   Mean: {entry[2][0]}    StdDev: {entry[3][0]}    Var: {entry[4][0]}')
+        print(f'Pol1 - Scale: {entry[1]}   Mean: {entry[2][1]}    StdDev: {entry[3][1]}    Var: {entry[4][1]}')
 
     # plot the 3rd noise level (0.25)
-    plot_hist(results[2][4])
+    # plot_hist(results[2][4])
+    plot_hist(results[2])
     plot_allan_var(results[2][5])
 
 def display_cw_results(results):
     for entry in results:
-        print(f'Pol0 - Max: {entry[1][0]}    Min: {entry[2][0]}')
-        print(f'Pol1 - Max: {entry[1][1]}    Min: {entry[2][1]}')
+        print(f'Pol0 - Scale: {entry[1]}    Max: {entry[2][0]}    Min: {entry[3][0]}')
+        print(f'Pol1 - Scale: {entry[1]}    Max: {entry[2][1]}    Min: {entry[3][1]}')
 
-    plot_hist([results[0]])
+    plot_hist(results[0])
 
 
 def plot_hist(hist_results):
     plt.figure(1)
-    plt.plot(hist_results[0][0][0][0])
-    plt.plot(hist_results[0][0][1][0])
+    plt.plot(hist_results[0][0][0])
+    plt.plot(hist_results[0][1][0])
     plt.title('Histogram')
     plt.xlabel('Bins')
     plt.ylabel('Count')
