@@ -1,5 +1,7 @@
 # Display results from tests
 import matplotlib.pyplot as plt
+import numpy as np
+import config
 
 def display_wgn_results(results):
     for entry in results:
@@ -7,23 +9,34 @@ def display_wgn_results(results):
         print(f'Pol1 - Scale: {entry[1]}   Mean: {entry[2][1]}    StdDev: {entry[3][1]}    Var: {entry[4][1]}')
 
     # plot the 3rd noise level (0.25)
-    # plot_hist(results[2][4])
     plot_hist(results[2])
     plot_allan_var(results[2][5])
 
 def display_cw_results(results):
+    scale = []
+    max_scale = []
+    max_scale_pol0 = []
+    max_scale_pol1 = []
     for entry in results:
         print(f'Pol0 - Scale: {entry[1]}    Max: {entry[2][0]}    Min: {entry[3][0]}')
         print(f'Pol1 - Scale: {entry[1]}    Max: {entry[2][1]}    Min: {entry[3][1]}')
+        scale.append(entry[1])
+        max_scale_pol0.append(entry[2][0])
+        max_scale_pol1.append(entry[2][1])
+
+    max_scale = (max_scale_pol0, max_scale_pol1)
 
     plot_hist(results[0])
+    plot_linearity_scale(scale, max_scale)
+    plot_linearity_difference(scale, max_scale)
 
 
 def plot_hist(hist_results):
-    plt.figure(1)
+    plt.figure()
     plt.plot(hist_results[0][0][0])
     plt.plot(hist_results[0][1][0])
     plt.title('Histogram')
+    # plt.xticks(np.linspace(-1, 1, int(np.round(config.hist_res/4))), np.linspace(0, len(hist_results[0][0][0]), config.hist_res))
     plt.xlabel('Bins')
     plt.ylabel('Count')
     plt.legend(['Pol0', 'Pol1'])
@@ -32,7 +45,7 @@ def plot_hist(hist_results):
 def plot_allan_var(allan_var_results):
     t2_p0,ad_p0 = allan_var_results[0]
     t2_p1,ad_p1 = allan_var_results[1] 
-    plt.figure(2)
+    plt.figure()
     plt.plot(t2_p0,ad_p0)
     plt.plot(t2_p1,ad_p1)
     plt.title('Allan Variance')
@@ -40,5 +53,26 @@ def plot_allan_var(allan_var_results):
     plt.yscale("log")
     plt.xlabel('Time Cluster')
     plt.ylabel('Allan Deviation')
+    plt.legend(['Pol0', 'Pol1'])
+    plt.show()
+
+def plot_linearity_scale(scale, max_scale):
+    plt.figure()
+    plt.semilogy(np.power(scale,2))
+    plt.semilogy(np.power(max_scale[0],2))
+    plt.semilogy(np.power(max_scale[1],2))
+    plt.title('Linearty')
+    plt.xlabel('Scaled Input Iteration')
+    plt.ylabel('dB')
+    plt.legend(['Reference', 'Pol0', 'Pol1'])
+    plt.show()
+
+def plot_linearity_difference(scale, max_scale):
+    plt.figure()
+    plt.plot(np.abs(np.array(scale) - np.array(max_scale[0])))
+    plt.plot(np.abs(np.array(scale) - np.array(max_scale[0])))
+    plt.title('Difference')
+    plt.xlabel('Scaled Input Iteration')
+    plt.ylabel('Magnitude of Difference')
     plt.legend(['Pol0', 'Pol1'])
     plt.show()
