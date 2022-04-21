@@ -1,4 +1,5 @@
 # Display results from tests
+from allantools import frequency2fractional
 import matplotlib.pyplot as plt
 import numpy as np
 import config
@@ -36,8 +37,30 @@ def display_compare_measured_vs_requested_freq(results):
         print(f'Pol1 - Requested Frequency: {entry[1][0]}    Measured Frequency: {entry[1][1]}  Difference: {np.abs(entry[1][0] - entry[1][1])}')
         plot_channelised_data(entry)
 
-def display_sfdr():
-    pass
+def display_sfdr(results):
+    sfdr = []
+    freq = []
+
+    for entry in results:
+        freq.append(entry[0][0][0])
+        fft_power_spectrum_p0 = entry[0][0][2]
+        fft_power_spectrum_p1 = entry[0][1][2]
+        difference_dB = entry[1][0][0]
+        sfdr.append(difference_dB)
+        fundamental_bin = entry[1][0][1]
+        next_tone_bin = entry[1][0][2]
+
+        plt.figure()
+        markers_p0 = [fundamental_bin, next_tone_bin]
+        markers_p1 = [fundamental_bin, next_tone_bin]
+        plt.semilogy(fft_power_spectrum_p0, '-D', markevery=markers_p0, markerfacecolor='green', markersize=9)
+        plt.semilogy(fft_power_spectrum_p1, '-D', markevery=markers_p1, markerfacecolor='purple', markersize=9)
+        plt.text(9e4, 1e9, f'SFDR Pol0: {difference_dB}dB', style='italic')
+        plt.text(9e4, 1e8, f'SFDR Pol1: {difference_dB}dB', style='italic')
+        plt.title('SFDR Pol0 and Pol1')
+        plt.xlabel('FFT Bin')
+        plt.ylabel('dB')
+        plt.show()
 
 def plot_channelised_data(channelised_data):
     plt.figure()
