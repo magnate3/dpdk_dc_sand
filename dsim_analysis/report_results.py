@@ -1,9 +1,6 @@
 # Display results from tests
-from turtle import color
-from allantools import frequency2fractional
 import matplotlib.pyplot as plt
 import numpy as np
-import config
 
 def display_wgn_results(results):
     for entry in results:
@@ -36,7 +33,7 @@ def display_compare_measured_vs_requested_freq(results):
     for entry in results:
         print(f'Pol0 - Requested Frequency: {entry[0][0][0]}    Measured Frequency: {entry[0][0][1]}  Difference: {np.abs(entry[0][0][0] - entry[0][0][1])}')
         print(f'Pol1 - Requested Frequency: {entry[0][1][0]}    Measured Frequency: {entry[0][1][1]}  Difference: {np.abs(entry[0][1][0] - entry[0][1][1])}')
-        plot_channelised_data(entry[0])
+        # plot_channelised_data(entry[0])
 
 def display_sfdr(results):
     sfdr = []
@@ -56,22 +53,35 @@ def display_sfdr(results):
         plt.figure()
         markers_p0 = [fundamental_bin_p0, next_tone_bin_p0]
         markers_p1 = [fundamental_bin_p1, next_tone_bin_p1]
+
+        print(difference_dB_p0)
+        print(difference_dB_p1)
+        print(fundamental_bin_p0)
+        print(next_tone_bin_p0)
         plt.semilogy(fft_power_spectrum_p0, '-D', markevery=markers_p0, markerfacecolor='green', markersize=9)
         plt.semilogy(fft_power_spectrum_p1, '-D', markevery=markers_p1, markerfacecolor='purple', markersize=9)
         if fundamental_bin_p0 < len(fft_power_spectrum_p0)/2:
-            plt.text(9e4, 1e9, f'SFDR Pol0 ($\u25C6$): {difference_dB_p0}dB', color='green', style='italic')
-            plt.text(9e4, 1e8, f'SFDR Pol1 ($\u25C6$): {difference_dB_p1}dB', color='purple', style='italic')
+            plt.text(8.5e4, 1e9, f'SFDR Pol0 ($\u25C6$): {difference_dB_p0}dB', color='green', style='italic')
+            plt.text(8.5e4, 1e8, f'SFDR Pol1 ($\u25C6$): {difference_dB_p1}dB', color='purple', style='italic')
         else:
-            plt.text(1e4, 1e9, f'SFDR Pol0: ($\u25C6$) {difference_dB_p0}dB', color='green', style='italic')
-            plt.text(1e4, 1e8, f'SFDR Pol1: ($\u25C6$) {difference_dB_p1}dB', color='purple', style='italic')
+            plt.text(0.25e4, 1e9, f'SFDR Pol0: ($\u25C6$) {difference_dB_p0}dB', color='green', style='italic')
+            plt.text(0.25e4, 1e8, f'SFDR Pol1: ($\u25C6$) {difference_dB_p1}dB', color='purple', style='italic')
         plt.title('SFDR Pol0 and Pol1')
         plt.xlabel('FFT Bin')
         plt.ylabel('dB')
         plt.show()
 
+
+
     for entry in sfdr:
         print(f'Pol0 - Frequency: {entry[0]}   SFDR: {entry[1]}')
         print(f'Pol1 - Frequency: {entry[0]}   SFDR: {entry[2]}')
+
+def display_freq_step(results):
+    print(results[1][0][0] - results[0][0][0])
+    print(results[2][0][0] - results[1][0][0])
+    # for entry in results:
+    #     freq0 = entry[0][0]
 
 def plot_channelised_data(channelised_data):
     plt.figure()

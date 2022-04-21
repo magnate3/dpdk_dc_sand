@@ -21,11 +21,11 @@ class cw_analysis():
         fundamental_bin = fundamental_bin[0][0]
 
         # Zero 'range' on either side of detected tone
-        blank_range = 2500
+        blank_range = 15000
         if (fundamental_bin + blank_range) <= len(fft_power_spectrum):
             fft_power_spectrum[fundamental_bin:(fundamental_bin+blank_range)] = 0
         else:
-            fft_power_spectrum[fundamental_bin:len(fft_power_spectrum)-1] = 0
+            fft_power_spectrum[fundamental_bin:len(fft_power_spectrum)] = 0
 
         if (fundamental_bin - blank_range) >= 0:
             fft_power_spectrum[(fundamental_bin-blank_range):fundamental_bin] = 0
@@ -36,7 +36,7 @@ class cw_analysis():
         fft_max_second_tone = np.max(fft_power_spectrum)
         next_tone_bin = np.where(fft_power_spectrum==fft_max_second_tone)
         next_tone_bin = next_tone_bin[0][0]
-        sfdr_dB = round(10*np.log10(fft_max_fundamental - fft_max_second_tone),2)
+        sfdr_dB = round(10*np.log10(fft_max_fundamental) - 10*np.log10(fft_max_second_tone),2)
 
         return sfdr_dB, fundamental_bin, next_tone_bin
 
@@ -65,3 +65,10 @@ class cw_analysis():
             sfdr.append(cw_analysis.compute_sfdr(fft_power_spectrum.copy()))
 
         return requested_vs_measured_freq, sfdr
+    
+    async def run_freq_step(samples, freq):
+        measured_freq_pols = []
+        for pol in range(len(samples)):
+            measured_freq, _ = cw_analysis.compute_measured_freq(samples[pol])
+            measured_freq_pols.append(measured_freq)
+        return measured_freq_pols

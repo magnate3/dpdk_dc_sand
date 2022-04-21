@@ -20,8 +20,7 @@
 import argparse
 import asyncio
 import logging
-from turtle import setundobuffer
-from typing import List, Union
+
 
 import aiokatcp
 import matplotlib.pyplot as plt
@@ -30,17 +29,13 @@ import numpy as np
 import spead2.recv
 import spead2.recv.asyncio
 from katsdpservices import get_interface_address
-from katsdptelstate.endpoint import Endpoint, endpoint_list_parser, endpoint_parser
-from numba import types
-from spead2.numba import intp_to_voidptr
-from spead2.recv.numba import chunk_place_data
 from katgpucbf.ringbuffer import ChunkRingbuffer
 from katgpucbf.fgpu import recv
 from katgpucbf.monitor import NullMonitor
 from katgpucbf import recv as base_recv
 import config
-from config import CPLX, BYTE_BITS, SAMPLE_BITS, N_POLS
-import cw, wgn, allan_var, report_results
+from config import  BYTE_BITS, SAMPLE_BITS, N_POLS
+import cw, wgn, report_results
 import katsdpsigproc.accel as accel
 
 @numba.njit
@@ -141,6 +136,7 @@ async def async_main(args: argparse.Namespace) -> None:
     cw_test_results = []
     wgn_test_results = []
     cw_freq_range = []
+    cw_freq_step = []
     timestamp_step = chunk_samples
 
     for value_set in config.value_sets:
@@ -154,6 +150,7 @@ async def async_main(args: argparse.Namespace) -> None:
         # Common noise + CW per pol
         reply = []
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
+
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq});common;common;")
 
         # Common noise + CW per pol
@@ -168,7 +165,6 @@ async def async_main(args: argparse.Namespace) -> None:
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({0.0});cw({1.0},{freq_pol0});cw({1.0},{freq_pol1});")
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq});cw({cw_scale},{freq});")
         [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
-        
 
         # Uncorrelated noise + CW
         # common = f"cw({cw_scale},{freq})+wgn({wgn_scale})"
@@ -214,6 +210,9 @@ async def async_main(args: argparse.Namespace) -> None:
                 if test == 'freq_range':
                     cw_freq_range.append(await cw.cw_analysis.run_freq_checks(recon_data, freq))
 
+                if test == 'freq_step':
+                    cw_freq_step.append(await cw.cw_analysis.run_freq_step(recon_data, freq))
+
                 # plt.figure(1)
                 # plt.plot(recon_data[0])
                 # plt.plot(recon_data[1])
@@ -225,10 +224,11 @@ async def async_main(args: argparse.Namespace) -> None:
                 break
     
     # Report Results
-    report_results.display_cw_results(cw_test_results)
-    report_results.display_wgn_results(wgn_test_results)
-    report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
-    report_results.display_sfdr(cw_freq_range)
+    # report_results.display_cw_results(cw_test_results)
+    # report_results.display_wgn_results(wgn_test_results)
+    # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
+    # report_results.display_sfdr(cw_freq_range)
+    report_results.display_freq_step(cw_freq_step)
 
 
 if __name__ == "__main__":
