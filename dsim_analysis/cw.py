@@ -15,7 +15,6 @@ class cw_analysis():
         return measured_freq, fft_result
 
     def compute_sfdr(fft_power_spectrum):
-        fft_power_spectrum_copy = fft_power_spectrum.copy()
         # Compute fundamental bin
         fft_max_fundamental = np.max(fft_power_spectrum)
         fundamental_bin = np.where(fft_power_spectrum==fft_max_fundamental)

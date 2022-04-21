@@ -153,7 +153,7 @@ async def async_main(args: argparse.Namespace) -> None:
 
         # Common noise + CW per pol
         reply = []
-        [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
+        # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq});common;common;")
 
         # Common noise + CW per pol
@@ -166,6 +166,9 @@ async def async_main(args: argparse.Namespace) -> None:
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common+cw({cw_scale},{freq_pol0});common+cw({cw_scale},{freq_pol1});")
 
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({0.0});cw({1.0},{freq_pol0});cw({1.0},{freq_pol1});")
+        # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq});cw({cw_scale},{freq});")
+        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
+        
 
         # Uncorrelated noise + CW
         # common = f"cw({cw_scale},{freq})+wgn({wgn_scale})"
@@ -222,9 +225,9 @@ async def async_main(args: argparse.Namespace) -> None:
                 break
     
     # Report Results
-    # report_results.display_cw_results(cw_test_results)
-    # report_results.display_wgn_results(wgn_test_results)
-    # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
+    report_results.display_cw_results(cw_test_results)
+    report_results.display_wgn_results(wgn_test_results)
+    report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
     report_results.display_sfdr(cw_freq_range)
 
 
