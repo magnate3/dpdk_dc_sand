@@ -78,10 +78,19 @@ def display_sfdr(results):
         print(f'Pol1 - Frequency: {entry[0]}   SFDR: {entry[2]}')
 
 def display_freq_step(results):
-    print(results[1][0][0] - results[0][0][0])
-    print(results[2][0][0] - results[1][0][0])
-    # for entry in results:
-    #     freq0 = entry[0][0]
+    for entry in results[0]:
+        fft = entry[0]
+        freq_step = entry[1]
+
+        print(f'freq_step is: {freq_step}')
+
+
+    # plt.figure()
+    # plt.semilogy(fft_beat)
+    # plt.title('Channelised Data')
+    # plt.xlabel('FFT Bin')
+    # plt.ylabel('dB')
+    # plt.show()
 
 def plot_channelised_data(channelised_data):
     plt.figure()

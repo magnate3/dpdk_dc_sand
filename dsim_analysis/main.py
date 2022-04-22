@@ -98,7 +98,7 @@ async def async_main(args: argparse.Namespace) -> None:
     logger.info("Successfully connected to dsim.")
     
     src_packet_samples = 4096
-    chunk_samples = 2**18 #2**24
+    chunk_samples = 2**27 #2**24
     mask_timestamp = False
 
     src_affinity = [-1] * N_POLS
@@ -136,7 +136,8 @@ async def async_main(args: argparse.Namespace) -> None:
     cw_test_results = []
     wgn_test_results = []
     cw_freq_range = []
-    cw_freq_step = []
+    cw_freq_step_data = []
+    freq_step_run = 0
     timestamp_step = chunk_samples
 
     for value_set in config.value_sets:
@@ -211,7 +212,12 @@ async def async_main(args: argparse.Namespace) -> None:
                     cw_freq_range.append(await cw.cw_analysis.run_freq_checks(recon_data, freq))
 
                 if test == 'freq_step':
-                    cw_freq_step.append(await cw.cw_analysis.run_freq_step(recon_data, freq))
+                    cw_freq_step_data.append(recon_data)
+                    freq_step_run += 1
+                    
+                    if freq_step_run == config.freq_step_count:
+                        cw_freq_step = await cw.cw_analysis.run_freq_step(cw_freq_step_data)
+                        
 
                 # plt.figure(1)
                 # plt.plot(recon_data[0])
@@ -225,10 +231,10 @@ async def async_main(args: argparse.Namespace) -> None:
     
     # Report Results
     # report_results.display_cw_results(cw_test_results)
-    # report_results.display_wgn_results(wgn_test_results)
+    report_results.display_wgn_results(wgn_test_results)
     # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
     # report_results.display_sfdr(cw_freq_range)
-    report_results.display_freq_step(cw_freq_step)
+    # report_results.display_freq_step(cw_freq_step)
 
 
 if __name__ == "__main__":

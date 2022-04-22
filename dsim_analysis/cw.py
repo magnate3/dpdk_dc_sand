@@ -14,6 +14,24 @@ class cw_analysis():
         measured_freq = bin[0]*bin_freq_resolution
         return measured_freq, fft_result
 
+    def compute_beat_freq(sample_set):
+        fft_set = []
+        if len(sample_set) >= 2:
+            for i in range(len(sample_set)-1):
+                beat_signal = sample_set[i]*sample_set[i+1]
+                fft_beat = np.fft.fft(beat_signal)
+                fft_beat = fft_beat[0:1024]
+                fft_beat = np.power(np.abs(fft_beat),2)
+                fft_max = np.max(fft_beat)
+                bin = np.where(fft_beat==fft_max)
+                bin_freq_resolution = 1712e6/len(beat_signal)
+                measured_freq = bin[0][0]*bin_freq_resolution
+                print(measured_freq)
+                fft_set.append((fft_beat, measured_freq))
+        return fft_set
+
+            
+
     def compute_sfdr(fft_power_spectrum):
         # Compute fundamental bin
         fft_max_fundamental = np.max(fft_power_spectrum)
@@ -66,9 +84,16 @@ class cw_analysis():
 
         return requested_vs_measured_freq, sfdr
     
-    async def run_freq_step(samples, freq):
-        measured_freq_pols = []
-        for pol in range(len(samples)):
-            measured_freq, _ = cw_analysis.compute_measured_freq(samples[pol])
-            measured_freq_pols.append(measured_freq)
-        return measured_freq_pols
+    async def run_freq_step(sample_set):
+        sample_sets_pol0 = []
+        sample_sets_pol1 = []
+
+        for sample in sample_set:
+            print(sample[0][0])
+            sample_sets_pol0.append(sample[0])
+            sample_sets_pol1.append(sample[1])
+
+        beat_freq_pol0 = cw_analysis.compute_beat_freq(sample_sets_pol0)
+        beat_freq_pol1 = cw_analysis.compute_beat_freq(sample_sets_pol1)
+
+        return (beat_freq_pol0, beat_freq_pol1)
