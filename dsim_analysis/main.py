@@ -14,14 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-
 """Analyse dsim data."""
-
 import argparse
 import asyncio
 import logging
-
-
 import aiokatcp
 import matplotlib.pyplot as plt
 import numba
@@ -98,7 +94,7 @@ async def async_main(args: argparse.Namespace) -> None:
     logger.info("Successfully connected to dsim.")
     
     src_packet_samples = 4096
-    chunk_samples = 2**27 #2**24
+    chunk_samples = config.CHUNK_SAMPLES #2**27 #2**24
     mask_timestamp = False
 
     src_affinity = [-1] * N_POLS
@@ -231,9 +227,9 @@ async def async_main(args: argparse.Namespace) -> None:
     
     # Report Results
     # report_results.display_cw_results(cw_test_results)
-    report_results.display_wgn_results(wgn_test_results)
+    # report_results.display_wgn_results(wgn_test_results)
     # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
-    # report_results.display_sfdr(cw_freq_range)
+    report_results.display_sfdr(cw_freq_range)
     # report_results.display_freq_step(cw_freq_step)
 
 

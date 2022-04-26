@@ -65,7 +65,10 @@ class cw_analysis():
         cw_max = []
 
         for pol in range(len(samples)):            
-            hist.append(np.histogram(samples[pol],config.hist_res))
+            # hist.append(np.histogram(samples[pol],config.hist_res))
+            bins = np.linspace(-1,1,config.hist_res)
+            # hist.append(np.histogram(samples[pol], bins=bins[:-1]))
+            hist.append(np.histogram(samples[pol], bins=bins))
             cw_max.append(np.max(samples[pol]))
             cw_min.append(np.min(samples[pol]))
 
