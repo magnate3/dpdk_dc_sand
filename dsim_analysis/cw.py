@@ -39,7 +39,7 @@ class cw_analysis():
         fundamental_bin = fundamental_bin[0][0]
 
         # Zero 'range' on either side of detected tone
-        blank_range = 15000
+        blank_range = 15000 #This is about 98MHz away from the fundamental
         if (fundamental_bin + blank_range) <= len(fft_power_spectrum):
             fft_power_spectrum[fundamental_bin:(fundamental_bin+blank_range)] = 0
         else:
@@ -65,9 +65,7 @@ class cw_analysis():
         cw_max = []
 
         for pol in range(len(samples)):            
-            # hist.append(np.histogram(samples[pol],config.hist_res))
             bins = np.linspace(-1,1,config.hist_res)
-            # hist.append(np.histogram(samples[pol], bins=bins[:-1]))
             hist.append(np.histogram(samples[pol], bins=bins))
             cw_max.append(np.max(samples[pol]))
             cw_min.append(np.min(samples[pol]))

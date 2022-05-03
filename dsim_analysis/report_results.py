@@ -39,7 +39,7 @@ def display_compare_measured_vs_requested_freq(results):
 def display_sfdr(results):
     sfdr = []
     num_chan = config.CHUNK_SAMPLES
-    num_steps = 16
+    num_steps = 8
 
     for entry in results:
         freq = (entry[0][0][0])
@@ -70,9 +70,10 @@ def display_sfdr(results):
             plt.text(0.25e4, 1e9, f'SFDR Pol0: ($\u25C6$) {difference_dB_p0}dB', color='green', style='italic')
             plt.text(0.25e4, 1e8, f'SFDR Pol1: ($\u25C6$) {difference_dB_p1}dB', color='purple', style='italic')
         plt.title(f'SFDR Pol0 and Pol1 - {round(fundamental_bin_p0*1712e6/config.CHUNK_SAMPLES/1e6)}MHz')
-        labels = np.linspace(0,((1712e6/(config.CHUNK_SAMPLES)*num_chan)/2)/1e6, num_steps)
+        labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
         labels = labels.round(0)
-        plt.xticks(np.arange(0, num_chan, step=num_chan/num_steps),labels=labels)
+        # plt.xticks(np.arange(0, len(fft_power_spectrum_p0), step=len(fft_power_spectrum_p0)/int(num_steps/2+1)),labels=labels)
+        plt.xticks(np.arange(0, (len(fft_power_spectrum_p0)+len(fft_power_spectrum_p0)/(num_chan/num_steps)), step=num_chan/num_steps),labels=labels)
         plt.xlabel('Frequency (MHz)')
         plt.ylabel('dB')
         plt.show()

@@ -227,9 +227,9 @@ async def async_main(args: argparse.Namespace) -> None:
     
     # Report Results
     # report_results.display_cw_results(cw_test_results)
-    # report_results.display_wgn_results(wgn_test_results)
+    report_results.display_wgn_results(wgn_test_results)
     # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
-    report_results.display_sfdr(cw_freq_range)
+    # report_results.display_sfdr(cw_freq_range)
     # report_results.display_freq_step(cw_freq_step)
 
 
