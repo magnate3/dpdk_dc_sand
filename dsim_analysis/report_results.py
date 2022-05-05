@@ -150,7 +150,7 @@ def plot_linearity_scale(scale, max_scale):
     plt.semilogy(np.power(scale,2))
     plt.semilogy(np.power(max_scale[0],2))
     plt.semilogy(np.power(max_scale[1],2))
-    plt.title('Linearty')
+    plt.title('Linearity')
     plt.xlabel('Scaled Input Iteration')
     plt.ylabel('dB')
     plt.legend(['Reference', 'Pol0', 'Pol1'])

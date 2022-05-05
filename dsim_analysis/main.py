@@ -93,57 +93,99 @@ async def async_main(args: argparse.Namespace) -> None:
     dsim_client = await aiokatcp.Client.connect(config.dsim_host_katcp, config.dsim_port_katcp)
     logger.info("Successfully connected to dsim.")
     
-    src_packet_samples = 4096
-    chunk_samples = config.CHUNK_SAMPLES #2**27 #2**24
-    mask_timestamp = False
+    # src_packet_samples = 4096
+    # chunk_samples = config.CHUNK_SAMPLES
+    # mask_timestamp = False
 
-    src_affinity = [-1] * N_POLS
-    src_comp_vector = [-1] * N_POLS
-    src_buffer = 32 * 1024 * 1024
-    layout = recv.Layout(SAMPLE_BITS, src_packet_samples, chunk_samples, mask_timestamp)
+    # src_affinity = [-1] * N_POLS
+    # src_comp_vector = [-1] * N_POLS
+    # src_buffer = 32 * 1024 * 1024
+    # layout = recv.Layout(SAMPLE_BITS, src_packet_samples, chunk_samples, mask_timestamp)
 
-    ringbuffer_capacity = 2
-    ring = ChunkRingbuffer(ringbuffer_capacity, name="recv_ringbuffer", task_name="run_receive", monitor=NullMonitor())
+    # ringbuffer_capacity = 2
+    # ring = ChunkRingbuffer(ringbuffer_capacity, name="recv_ringbuffer", task_name="run_receive", monitor=NullMonitor())
     
-    streams = recv.make_streams(layout, ring, src_affinity)
+    # streams = recv.make_streams(layout, ring, src_affinity)
 
-    ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda)
-    src_chunks_per_stream = 4   
-    chunk_bytes = chunk_samples * SAMPLE_BITS // BYTE_BITS
-    for pol, stream in enumerate(streams):
-        for _ in range(src_chunks_per_stream):
-            buf = accel.HostArray((chunk_bytes,), np.uint8, context=ctx)
-            chunk = recv.Chunk(data=buf)
-            chunk.present = np.zeros(chunk_samples // src_packet_samples, np.uint8)
-            stream.add_free_chunk(chunk)
+    # ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda)
+    # src_chunks_per_stream = 4   
+    # chunk_bytes = chunk_samples * SAMPLE_BITS // BYTE_BITS
+    # for pol, stream in enumerate(streams):
+    #     for _ in range(src_chunks_per_stream):
+    #         buf = accel.HostArray((chunk_bytes,), np.uint8, context=ctx)
+    #         chunk = recv.Chunk(data=buf)
+    #         chunk.present = np.zeros(chunk_samples // src_packet_samples, np.uint8)
+    #         stream.add_free_chunk(chunk)
 
-    for pol, stream in enumerate(streams):
-        base_recv.add_reader(
-            stream,
-            src=config.srcs[pol],
-            interface=args.interface,
-            ibv=args.ibv,
-            comp_vector=src_comp_vector[pol],
-            buffer=src_buffer,
-        )
+    # for pol, stream in enumerate(streams):
+    #     base_recv.add_reader(
+    #         stream,
+    #         src=config.srcs[pol],
+    #         interface=args.interface,
+    #         ibv=args.ibv,
+    #         comp_vector=src_comp_vector[pol],
+    #         buffer=src_buffer,
+    #     )
 
     # Start tests
     # -----------
     cw_test_results = []
     wgn_test_results = []
     cw_freq_range = []
+    cw_sfdr = []
     cw_freq_step_data = []
     freq_step_run = 0
-    timestamp_step = chunk_samples
+    current_test = ''
 
     for value_set in config.value_sets:
         test = value_set[0]
         cw_scale = value_set[1]
         freq = value_set[2]
         wgn_scale = value_set[3]
+        chunk_samples = value_set[4]
 
         print(f'Test is: {test} - CW Scale: {cw_scale}  Freq: {freq}  WGN_Scale:{wgn_scale}')
 
+        if current_test != test:
+            current_test = test
+            print(f'Test is:{current_test} and Chunk size is: {chunk_samples}')
+
+            src_packet_samples = 4096
+            # chunk_samples = config.CHUNK_SAMPLES
+            mask_timestamp = False
+
+            src_affinity = [-1] * N_POLS
+            src_comp_vector = [-1] * N_POLS
+            src_buffer = 32 * 1024 * 1024
+            layout = recv.Layout(SAMPLE_BITS, src_packet_samples, chunk_samples, mask_timestamp)
+
+            ringbuffer_capacity = 2
+            ring = ChunkRingbuffer(ringbuffer_capacity, name="recv_ringbuffer", task_name="run_receive", monitor=NullMonitor())
+            
+            streams = recv.make_streams(layout, ring, src_affinity)
+
+            ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda)
+            src_chunks_per_stream = 4   
+            chunk_bytes = chunk_samples * SAMPLE_BITS // BYTE_BITS
+            for pol, stream in enumerate(streams):
+                for _ in range(src_chunks_per_stream):
+                    buf = accel.HostArray((chunk_bytes,), np.uint8, context=ctx)
+                    chunk = recv.Chunk(data=buf)
+                    chunk.present = np.zeros(chunk_samples // src_packet_samples, np.uint8)
+                    stream.add_free_chunk(chunk)
+
+            for pol, stream in enumerate(streams):
+                base_recv.add_reader(
+                    stream,
+                    src=config.srcs[pol],
+                    interface=args.interface,
+                    ibv=args.ibv,
+                    comp_vector=src_comp_vector[pol],
+                    buffer=src_buffer,
+                )
+
+        # Request DSim data
+        # -----------------
         # Common noise + CW per pol
         reply = []
         # [reply, _informs] = await dsim_client.request("signals", f"common=cw({cw_scale},{freq})+wgn({wgn_scale});common;common;")
@@ -157,12 +199,15 @@ async def async_main(args: argparse.Namespace) -> None:
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common;common;")
         
         # 
+        # freq_pol0 = freq
+        # freq_pol1 = freq
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});common+cw({cw_scale},{freq_pol0});common+cw({cw_scale},{freq_pol1});")
 
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({0.0});cw({1.0},{freq_pol0});cw({1.0},{freq_pol1});")
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq});cw({cw_scale},{freq});")
-        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
 
+        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
+	    
         # Uncorrelated noise + CW
         # common = f"cw({cw_scale},{freq})+wgn({wgn_scale})"
         # [reply, _informs] = await dsim_client.request("signals", f"{common}; {common};")
@@ -175,7 +220,6 @@ async def async_main(args: argparse.Namespace) -> None:
 
         recon_data = []
         async for chunks in recv.chunk_sets(streams, layout):
-            # recvd_timestamp = chunk.chunk_id * timestamp_step
 
             # if not np.all(chunks[0].present) and np.all(chunks[1].present):
             if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
@@ -183,7 +227,6 @@ async def async_main(args: argparse.Namespace) -> None:
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
             elif chunks[0].timestamp <= expected_timestamp:
-                # logger.info("Skipping chunk with timestamp %d", recvd_timestamp)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
             else:
@@ -207,13 +250,17 @@ async def async_main(args: argparse.Namespace) -> None:
                 if test == 'freq_range':
                     cw_freq_range.append(await cw.cw_analysis.run_freq_checks(recon_data, freq))
 
+                # Freq step
                 if test == 'freq_step':
                     cw_freq_step_data.append(recon_data)
                     freq_step_run += 1
                     
                     if freq_step_run == config.freq_step_count:
                         cw_freq_step = await cw.cw_analysis.run_freq_step(cw_freq_step_data)
-                        
+
+                # Freq step
+                if test == 'freq_sfdr':                        
+                    cw_sfdr.append(await cw.cw_analysis.run_freq_checks(recon_data, freq))
 
                 # plt.figure(1)
                 # plt.plot(recon_data[0])
@@ -226,10 +273,10 @@ async def async_main(args: argparse.Namespace) -> None:
                 break
     
     # Report Results
-    # report_results.display_cw_results(cw_test_results)
+    report_results.display_cw_results(cw_test_results)
     report_results.display_wgn_results(wgn_test_results)
     # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
-    # report_results.display_sfdr(cw_freq_range)
+    # report_results.display_sfdr(cw_sfdr)
     # report_results.display_freq_step(cw_freq_step)
 
 
