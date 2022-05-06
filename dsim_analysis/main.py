@@ -33,6 +33,7 @@ import config
 from config import  BYTE_BITS, SAMPLE_BITS, N_POLS
 import cw, wgn, report_results
 import katsdpsigproc.accel as accel
+import time
 
 @numba.njit
 async def unpackbits(packed_data: np.ndarray, unpacked_data_length) -> np.ndarray:
@@ -65,9 +66,7 @@ async def unpackbits(packed_data: np.ndarray, unpacked_data_length) -> np.ndarra
             tmp_40b_word = tmp_40b_word << np.uint8(10)
         unpack_idx += 4
 
-
     return unpacked_data
-
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
@@ -88,45 +87,12 @@ def main() -> None:
     asyncio.run(async_main(args))
 
 async def async_main(args: argparse.Namespace) -> None:
+    start_time = time.time()
     logger = logging.getLogger(__name__)
 
     dsim_client = await aiokatcp.Client.connect(config.dsim_host_katcp, config.dsim_port_katcp)
     logger.info("Successfully connected to dsim.")
     
-    # src_packet_samples = 4096
-    # chunk_samples = config.CHUNK_SAMPLES
-    # mask_timestamp = False
-
-    # src_affinity = [-1] * N_POLS
-    # src_comp_vector = [-1] * N_POLS
-    # src_buffer = 32 * 1024 * 1024
-    # layout = recv.Layout(SAMPLE_BITS, src_packet_samples, chunk_samples, mask_timestamp)
-
-    # ringbuffer_capacity = 2
-    # ring = ChunkRingbuffer(ringbuffer_capacity, name="recv_ringbuffer", task_name="run_receive", monitor=NullMonitor())
-    
-    # streams = recv.make_streams(layout, ring, src_affinity)
-
-    # ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda)
-    # src_chunks_per_stream = 4   
-    # chunk_bytes = chunk_samples * SAMPLE_BITS // BYTE_BITS
-    # for pol, stream in enumerate(streams):
-    #     for _ in range(src_chunks_per_stream):
-    #         buf = accel.HostArray((chunk_bytes,), np.uint8, context=ctx)
-    #         chunk = recv.Chunk(data=buf)
-    #         chunk.present = np.zeros(chunk_samples // src_packet_samples, np.uint8)
-    #         stream.add_free_chunk(chunk)
-
-    # for pol, stream in enumerate(streams):
-    #     base_recv.add_reader(
-    #         stream,
-    #         src=config.srcs[pol],
-    #         interface=args.interface,
-    #         ibv=args.ibv,
-    #         comp_vector=src_comp_vector[pol],
-    #         buffer=src_buffer,
-    #     )
-
     # Start tests
     # -----------
     cw_test_results = []
@@ -134,6 +100,7 @@ async def async_main(args: argparse.Namespace) -> None:
     cw_freq_range = []
     cw_sfdr = []
     cw_freq_step_data = []
+    cw_freq_step = []
     freq_step_run = 0
     current_test = ''
 
@@ -151,7 +118,6 @@ async def async_main(args: argparse.Namespace) -> None:
             print(f'Test is:{current_test} and Chunk size is: {chunk_samples}')
 
             src_packet_samples = 4096
-            # chunk_samples = config.CHUNK_SAMPLES
             mask_timestamp = False
 
             src_affinity = [-1] * N_POLS
@@ -256,11 +222,12 @@ async def async_main(args: argparse.Namespace) -> None:
                     freq_step_run += 1
                     
                     if freq_step_run == config.freq_step_count:
-                        cw_freq_step = await cw.cw_analysis.run_freq_step(cw_freq_step_data)
+                        # cw_freq_step = await cw.cw_analysis.run_freq_step(cw_freq_step_data)
+                        cw_freq_step.append((await cw.cw_analysis.run_freq_step(cw_freq_step_data), chunk_samples))
 
                 # Freq step
                 if test == 'freq_sfdr':                        
-                    cw_sfdr.append(await cw.cw_analysis.run_freq_checks(recon_data, freq))
+                    cw_sfdr.append((await cw.cw_analysis.run_freq_checks(recon_data, freq), chunk_samples))
 
                 # plt.figure(1)
                 # plt.plot(recon_data[0])
@@ -272,12 +239,14 @@ async def async_main(args: argparse.Namespace) -> None:
                     streams[pol].add_free_chunk(chunks[pol])
                 break
     
+    print(f'Total execution time:{time.time() - start_time}')
+
     # Report Results
     report_results.display_cw_results(cw_test_results)
     report_results.display_wgn_results(wgn_test_results)
-    # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
-    # report_results.display_sfdr(cw_sfdr)
-    # report_results.display_freq_step(cw_freq_step)
+    report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
+    report_results.display_sfdr(cw_sfdr)
+    report_results.display_freq_step(cw_freq_step)
 
 
 if __name__ == "__main__":

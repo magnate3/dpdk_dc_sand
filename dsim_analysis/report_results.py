@@ -38,20 +38,21 @@ def display_compare_measured_vs_requested_freq(results):
 
 def display_sfdr(results):
     sfdr = []
-    num_chan = config.CHUNK_SAMPLES
+    # num_chan = config.CHUNK_SAMPLES
     num_steps = 8
 
     for entry in results:
-        freq = (entry[0][0][0])
-        fft_power_spectrum_p0 = entry[0][0][2]
-        fft_power_spectrum_p1 = entry[0][1][2]
-        difference_dB_p0 = entry[1][0][0]
-        difference_dB_p1 = entry[1][1][0]
+        chunk_samples = entry[1]
+        freq = (entry[0][0][0][0])
+        fft_power_spectrum_p0 = entry[0][0][0][2]
+        fft_power_spectrum_p1 = entry[0][0][1][2]
+        difference_dB_p0 = entry[0][1][0][0]
+        difference_dB_p1 = entry[0][1][1][0]
         sfdr.append((freq, difference_dB_p0, difference_dB_p1)) # for printout
-        fundamental_bin_p0 = entry[1][0][1]
-        fundamental_bin_p1 = entry[1][1][1]
-        next_tone_bin_p0 = entry[1][0][2]
-        next_tone_bin_p1 = entry[1][1][2]
+        fundamental_bin_p0 = entry[0][1][0][1]
+        fundamental_bin_p1 = entry[0][1][1][1]
+        next_tone_bin_p0 = entry[0][1][0][2]
+        next_tone_bin_p1 = entry[0][1][1][2]
 
         plt.figure()
         markers_p0 = [fundamental_bin_p0, next_tone_bin_p0]
@@ -69,11 +70,11 @@ def display_sfdr(results):
         else:
             plt.text(0.25e4, 1e9, f'SFDR Pol0: ($\u25C6$) {difference_dB_p0}dB', color='green', style='italic')
             plt.text(0.25e4, 1e8, f'SFDR Pol1: ($\u25C6$) {difference_dB_p1}dB', color='purple', style='italic')
-        plt.title(f'SFDR Pol0 and Pol1 - {round(fundamental_bin_p0*1712e6/config.CHUNK_SAMPLES/1e6)}MHz')
+        plt.title(f'SFDR Pol0 and Pol1 - {round(fundamental_bin_p0*1712e6/chunk_samples/1e6)}MHz')
         labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
         labels = labels.round(0)
         # plt.xticks(np.arange(0, len(fft_power_spectrum_p0), step=len(fft_power_spectrum_p0)/int(num_steps/2+1)),labels=labels)
-        plt.xticks(np.arange(0, (len(fft_power_spectrum_p0)+len(fft_power_spectrum_p0)/(num_chan/num_steps)), step=num_chan/num_steps),labels=labels)
+        plt.xticks(np.arange(0, (len(fft_power_spectrum_p0)+len(fft_power_spectrum_p0)/(chunk_samples/num_steps)), step=chunk_samples/num_steps),labels=labels)
         plt.xlabel('Frequency (MHz)')
         plt.ylabel('dB')
         plt.show()
@@ -85,22 +86,23 @@ def display_sfdr(results):
         print(f'Pol1 - Frequency: {entry[0]}   SFDR: {entry[2]}')
 
 def display_freq_step(results):
-    for entry in results[0]:
-        # fft = entry[0]
-        freq_step = entry[1]
+    chunk_samples = results[0][1]
+    for entry in results[0][0]:
+        freq_step = entry[0][1]
         print(f'freq_step is: {freq_step}')
 
     plt.figure()
     num_chan = 32
     num_steps = 4
-    markers_p0 = np.where(results[0][0][0] == np.max(results[0][0][0]))
-    markers_p1 = np.where(results[0][1][0] == np.max(results[0][1][0]))
-    plt.semilogy(results[0][0][0][0:num_chan], '-D', markevery=markers_p0[0], markerfacecolor='green', markersize=9)
-    plt.semilogy(results[0][1][0][0:num_chan], '-D', markevery=markers_p1[0], markerfacecolor='green', markersize=9)
+    markers_p0 = np.where(results[0][0][0][0][0] == np.max(results[0][0][0][0][0]))
+    markers_p1 = np.where(results[0][0][0][1][0] == np.max(results[0][0][0][1][0]))
+    plt.semilogy(results[0][0][0][0][0][0:num_chan], '-D', markevery=markers_p0[0], markerfacecolor='green', markersize=9)
+    plt.semilogy(results[0][0][0][1][0][0:num_chan], '-D', markevery=markers_p1[0], markerfacecolor='green', markersize=9)
     plt.title(f'Channelised Data (Channels 0-{num_chan-1})')
-    plt.text(5, 5e13, f'Pol0: ($\u25C6$) {round(results[0][0][1],2)}Hz', color='green', style='italic')
-    plt.text(5, 1e13, f'Pol1: ($\u25C6$) {round(results[0][1][1],2)}Hz', color='purple', style='italic')
-    labels = np.linspace(0,(1712e6/(config.CHUNK_SAMPLES)*num_chan), num_steps)
+    plt.text(5, 5e13, f'Pol0: ($\u25C6$) {round(results[0][0][0][0][1],2)}Hz', color='green', style='italic')
+    plt.text(5, 1e13, f'Pol1: ($\u25C6$) {round(results[0][0][0][1][1],2)}Hz', color='purple', style='italic')
+    # labels = np.linspace(0,(1712e6/(config.CHUNK_SAMPLES)*num_chan), num_steps)
+    labels = np.linspace(0,(1712e6/(chunk_samples)*num_chan), num_steps)
     labels = labels.round(0)
     plt.xticks(np.arange(0, num_chan, step=num_chan/num_steps),labels=labels)
     plt.xlabel('Frequency (Hz)')
