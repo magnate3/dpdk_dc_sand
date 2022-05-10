@@ -26,11 +26,21 @@ class cw_analysis():
                 bin = np.where(fft_beat==fft_max)
                 bin_freq_resolution = 1712e6/len(beat_signal)
                 measured_freq = bin[0][0]*bin_freq_resolution
-                print(measured_freq)
+                # print(measured_freq)
                 fft_set.append((fft_beat, measured_freq))
         return fft_set
 
-            
+    def compute_step_freq(sample_set, freq_set):
+        fft_set = []
+        if len(sample_set) >= 2:
+            for i in range(len(sample_set)):
+                fft_entry = np.fft.fft(sample_set[i])
+                fft_entry = np.power(np.abs(fft_entry),2)
+                fft_entry = fft_entry[0:int(len(fft_entry)/2)]
+                fft_max = np.max(fft_entry)
+                bin = np.where(fft_entry==fft_max)
+                fft_set.append([bin[0][0], freq_set[i]])
+        return fft_set        
 
     def compute_sfdr(fft_power_spectrum):
         # Compute fundamental bin
@@ -39,7 +49,7 @@ class cw_analysis():
         fundamental_bin = fundamental_bin[0][0]
 
         # Zero 'range' on either side of detected tone
-        blank_range = 15000 #This is about 98MHz away from the fundamental
+        blank_range = config.blank_range
         if (fundamental_bin + blank_range) <= len(fft_power_spectrum):
             fft_power_spectrum[fundamental_bin:(fundamental_bin+blank_range)] = 0
         else:
@@ -88,13 +98,18 @@ class cw_analysis():
     async def run_freq_step(sample_set):
         sample_sets_pol0 = []
         sample_sets_pol1 = []
+        freq_set = []
 
         for sample in sample_set:
-            print(sample[0][0])
-            sample_sets_pol0.append(sample[0])
-            sample_sets_pol1.append(sample[1])
+            freq_set.append(sample[1])
+            sample_sets_pol0.append(sample[0][0])
+            sample_sets_pol1.append(sample[0][1])
 
         beat_freq_pol0 = cw_analysis.compute_beat_freq(sample_sets_pol0)
         beat_freq_pol1 = cw_analysis.compute_beat_freq(sample_sets_pol1)
 
-        return (beat_freq_pol0, beat_freq_pol1)
+        freq_step_pol0 = cw_analysis.compute_step_freq(sample_sets_pol0, freq_set)
+        freq_step_pol1 = cw_analysis.compute_step_freq(sample_sets_pol1, freq_set)
+
+
+        return (freq_step_pol0, freq_step_pol1, beat_freq_pol0, beat_freq_pol1)

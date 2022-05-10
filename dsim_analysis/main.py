@@ -87,6 +87,7 @@ def main() -> None:
     asyncio.run(async_main(args))
 
 async def async_main(args: argparse.Namespace) -> None:
+
     start_time = time.time()
     logger = logging.getLogger(__name__)
 
@@ -172,12 +173,16 @@ async def async_main(args: argparse.Namespace) -> None:
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({0.0});cw({1.0},{freq_pol0});cw({1.0},{freq_pol1});")
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq});cw({cw_scale},{freq});")
 
-        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
+        #Use:
+        # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
 	    
         # Uncorrelated noise + CW
         # common = f"cw({cw_scale},{freq})+wgn({wgn_scale})"
         # [reply, _informs] = await dsim_client.request("signals", f"{common}; {common};")
         
+        [reply, _informs] = await dsim_client.request("signals", f"cw({cw_scale},{freq})+wgn({wgn_scale}); cw({cw_scale},{freq})+wgn({wgn_scale});")
+
+
 
         if reply == []:
             expected_timestamp = 0
@@ -218,12 +223,16 @@ async def async_main(args: argparse.Namespace) -> None:
 
                 # Freq step
                 if test == 'freq_step':
-                    cw_freq_step_data.append(recon_data)
+                    cw_freq_step_data.append([recon_data, freq])
                     freq_step_run += 1
                     
                     if freq_step_run == config.freq_step_count:
                         # cw_freq_step = await cw.cw_analysis.run_freq_step(cw_freq_step_data)
                         cw_freq_step.append((await cw.cw_analysis.run_freq_step(cw_freq_step_data), chunk_samples))
+                        
+                        # separate out the results computed using a beat freq method from the straight FFT method
+                        cw_freq_step_beat = (cw_freq_step[0][0][2], cw_freq_step[0][0][3], chunk_samples)
+                        cw_freq_step = (cw_freq_step[0][0][0], cw_freq_step[0][0][1])
 
                 # Freq step
                 if test == 'freq_sfdr':                        
@@ -242,11 +251,12 @@ async def async_main(args: argparse.Namespace) -> None:
     print(f'Total execution time:{time.time() - start_time}')
 
     # Report Results
-    report_results.display_cw_results(cw_test_results)
-    report_results.display_wgn_results(wgn_test_results)
-    report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
-    report_results.display_sfdr(cw_sfdr)
+    # report_results.display_cw_results(cw_test_results)
+    # report_results.display_wgn_results(wgn_test_results)
+    # report_results.display_compare_measured_vs_requested_freq(cw_freq_range)
+    # report_results.display_sfdr(cw_sfdr)
     report_results.display_freq_step(cw_freq_step)
+    report_results.display_freq_step_beat(cw_freq_step_beat)
 
 
 if __name__ == "__main__":
