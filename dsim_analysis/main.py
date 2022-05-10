@@ -174,13 +174,13 @@ async def async_main(args: argparse.Namespace) -> None:
         # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq});cw({cw_scale},{freq});")
 
         #Use:
-        # [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
+        [reply, _informs] = await dsim_client.request("signals", f"common=wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});cw({cw_scale},{freq})+wgn({wgn_scale});")
 	    
         # Uncorrelated noise + CW
         # common = f"cw({cw_scale},{freq})+wgn({wgn_scale})"
         # [reply, _informs] = await dsim_client.request("signals", f"{common}; {common};")
         
-        [reply, _informs] = await dsim_client.request("signals", f"cw({cw_scale},{freq})+wgn({wgn_scale}); cw({cw_scale},{freq})+wgn({wgn_scale});")
+        #[reply, _informs] = await dsim_client.request("signals", f"cw({cw_scale},{freq})+wgn({wgn_scale}); cw({cw_scale},{freq})+wgn({wgn_scale});")
 
 
 
