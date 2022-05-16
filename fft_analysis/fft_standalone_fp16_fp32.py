@@ -7,9 +7,9 @@ from skcuda import cufft as cf
 import pycuda.autoinit
 from pycuda import gpuarray
 import matplotlib.pyplot as plt
-from IPython import embed
-from pycuda.compiler import SourceModule
-import pycuda.tools as tools
+# from IPython import embed
+# from pycuda.compiler import SourceModule
+# import pycuda.tools as tools
 
 
 # --- FP16 ---
@@ -19,18 +19,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 shape = (1, 1, 8)  # input array shape
+# shape = (1, 8)  # input array shape
 
 idtype = odtype = edtype = 'E'  # = numpy.complex32 in the future
 
+cp.random.seed(1)
 # store the input/output arrays as fp16 arrays twice as long, as complex32 is not yet available
-a = 0.005*cp.random.random((shape[0], shape[1], 2*shape[2])).astype(cp.float16)
+# a_in = 0.005*cp.random.random((shape[0], shape[1], 2*shape[2])).astype(cp.float16)
 
-# vec_len = np.power(2,3)
+a_in = 0.005*cp.random.random((shape[0], shape[1], shape[2])).astype(cp.float16)
+a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+
+q = 0
+for i in range(shape[2]):
+    a_real[0][0][q] = a_in[0][0][i]
+    q +=2
+
+# vec_len = shape[2]
 # d_first_real = cp.ones((1,), dtype=np.float16)
 # d_second_real = cp.zeros((vec_len-1,), dtype=np.float16)
-# a = cp.concatenate([d_first_real, d_second_real])
+# b = cp.concatenate([d_first_real, d_second_real])
+# b = b.reshape(shape)
+# a_in = b
 
-out = cp.empty_like(a)
+out_fp16 = cp.empty_like(a_in)
 
 # FFT with cuFFT
 plan = cp.cuda.cufft.XtPlanNd(shape[1:],
@@ -39,28 +51,31 @@ plan = cp.cuda.cufft.XtPlanNd(shape[1:],
                               shape[0], edtype,
                               order='C', last_axis=-1, last_size=None)
 
-plan.fft(a, out, cp.cuda.cufft.CUFFT_FORWARD)
+plan.fft(a_real, out_fp16, cp.cuda.cufft.CUFFT_FORWARD)
 
-# out_temp = cp.asnumpy(out).astype(np.float32)
-# out_temp2 = out_temp.view(np.complex64)
+# Convert FP16 results to complex64 for comparision
+gpu_out_fp16 = out_fp16.get()
+temp = cp.asnumpy(gpu_out_fp16).astype(np.float32)
+gpu_out_cmplx64 = temp.view(np.complex64)
 
 # FFT with NumPy
-a_np = cp.asnumpy(a).astype(np.float32)  # upcast
+a_np = cp.asnumpy(a_real).astype(np.float32)  # upcast
 a_np = a_np.view(np.complex64)
-out_np = np.fft.fftn(a_np, axes=(-2,-1))
+
+out_np = np.fft.fftn(a_np)
+# out_np = np.fft.fftn(a_np, axes=(-2,-1))
 # out_np_temp = out_np.astype(np.complex64)
-out_np = np.ascontiguousarray(out_np).astype(np.complex64)  # downcast
-out_np = out_np.view(np.float32)
-out_np = out_np.astype(np.float16)
+# out_np = np.ascontiguousarray(out_np).astype(np.complex64)  # downcast
+# out_np = out_np.view(np.float32)
+# out_np = out_np.astype(np.float16)
 
 # don't worry about accruacy for now, as we probably lost a lot during casting
-print('ok' if cp.mean(cp.abs(out - cp.asarray(out_np))) < 0.1 else 'not ok')
+# print('ok' if cp.mean(cp.abs(out_fp16 - cp.asarray(out_np))) < 0.1 else 'not ok')
 
-gpu_out = out.get()
-diff = gpu_out[0][0] - out_np[0][0]
 
-mse = np.sum(np.power(diff,2))/len(diff)
-print(f'MSE: {mse}')
+# diff = gpu_out[0][0] - out_np[0][0]
+# mse = np.sum(np.power(diff,2))/len(diff)
+# print(f'MSE: {mse}')
 
 # plt.figure()
 # plt.plot(10*np.log10(np.power(np.abs(out_np[0][0]),2)))
@@ -72,17 +87,12 @@ print(f'MSE: {mse}')
 
 
 # --- FP32 ---
-# num_iter = 200
 BATCH = np.int32(1)
-# vec_len = np.power(2,16)
 
-# d_first_real = (np.ones((1,), dtype=np.float32))
-# d_second_real = (np.zeros((vec_len-1,), dtype=np.float32))
-
-# data_real = np.concatenate([d_first_real, d_second_real])
-# data = data_real
-data = a.get()
-data = data[0][0]
+# Get input data. This will be a R2C FWD transform so we only want real-valued array.
+data = a_in.get()
+data = cp.asnumpy(data).astype(np.float32)
+data = data.view(np.float32)
 
 # speedup_log = []
 # speedup_log_with_transfer = []
@@ -93,10 +103,11 @@ data = data[0][0]
 # Create a stream
 stream = cuda.Stream()
 
-a = cuda.aligned_empty((len(data),), dtype=np.float32, alignment=resource.getpagesize())
-c = cuda.aligned_empty((int(len(data)/2+1),), dtype=np.complex64, alignment=resource.getpagesize())
+a = cuda.aligned_empty((shape[2],), dtype=np.float32, alignment=resource.getpagesize())
+c = cuda.aligned_empty((int(shape[2]/2+1),), dtype=np.complex64, alignment=resource.getpagesize())
 
-a[:] = data
+# Assign input data.
+a[:] = data[0][0]
 
 # Allocate number of bytes required by A on the GPU
 a_gpu = cuda.mem_alloc(a.nbytes)
