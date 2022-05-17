@@ -10,7 +10,8 @@ from pycuda import gpuarray
 import matplotlib.pyplot as plt
 import cupy as cp
 
-shape = (1, 1, 4096)  # input array shape
+N = 4096
+shape = (1, 1, N)  # input array shape
 
 def generate_data():
     # --- Generate Data for tests ---
@@ -42,6 +43,27 @@ def generate_data():
     # a_in = b
     return (a_in, a_real)
 
+def _fft_cpu(a_real):
+    # ---- FFT with NumPy ----
+    a_np = cp.asnumpy(a_real).astype(np.float32)  # upcast
+    a_np = a_np.view(np.complex64)
+
+    out_np = np.fft.fftn(a_np)
+    # out_np = np.fft.fftn(a_np, axes=(-2,-1))
+    # out_np_temp = out_np.astype(np.complex64)
+    # out_np = np.ascontiguousarray(out_np).astype(np.complex64)  # downcast
+    # out_np = out_np.view(np.float32)
+    # out_np = out_np.astype(np.float16)
+
+    # don't worry about accruacy for now, as we probably lost a lot during casting
+    # print('ok' if cp.mean(cp.abs(out_fp16 - cp.asarray(out_np))) < 0.1 else 'not ok')
+
+    # diff = gpu_out[0][0] - out_np[0][0]
+    # mse = np.sum(np.power(diff,2))/len(diff)
+    # print(f'MSE: {mse}')
+
+    return out_np[0][0][0:int(N/2)]
+
 def _fft_fp16_gpu(a_in, a_real):
     idtype = odtype = edtype = 'E'  # = numpy.complex32 in the future
 
@@ -65,28 +87,7 @@ def _fft_fp16_gpu(a_in, a_real):
     gpu_out_fp16 = out_fp16.get()
     temp = cp.asnumpy(gpu_out_fp16).astype(np.float32)
     gpu_out_cmplx64 = temp.view(np.complex64)
-    return gpu_out_cmplx64[0][0]
-
-def _fft_cpu(a_real):
-    # ---- FFT with NumPy ----
-    a_np = cp.asnumpy(a_real).astype(np.float32)  # upcast
-    a_np = a_np.view(np.complex64)
-
-    out_np = np.fft.fftn(a_np)
-    # out_np = np.fft.fftn(a_np, axes=(-2,-1))
-    # out_np_temp = out_np.astype(np.complex64)
-    # out_np = np.ascontiguousarray(out_np).astype(np.complex64)  # downcast
-    # out_np = out_np.view(np.float32)
-    # out_np = out_np.astype(np.float16)
-
-    # don't worry about accruacy for now, as we probably lost a lot during casting
-    # print('ok' if cp.mean(cp.abs(out_fp16 - cp.asarray(out_np))) < 0.1 else 'not ok')
-
-    # diff = gpu_out[0][0] - out_np[0][0]
-    # mse = np.sum(np.power(diff,2))/len(diff)
-    # print(f'MSE: {mse}')
-
-    return out_np[0][0]
+    return gpu_out_cmplx64[0][0][0:int(N/2)]
 
 def _fft_gpu_fp32(a_in):
 
@@ -136,7 +137,7 @@ def _fft_gpu_fp32(a_in):
 
     # Synchronize
     cuda.Context.synchronize()
-    return c_pin
+    return c_pin[0:int(N/2)]
 
 def display_results(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
     plt.figure()
@@ -145,9 +146,24 @@ def display_results(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
     plt.plot(10*np.log10(np.power(np.abs(fft_gpu_fp16_out),2)))
     plt.show()
 
-    # diff = gpu_out[0][0] - c_pin
-    # mse = np.sum(np.power(diff,2))/len(diff)
-    # print(f'MSE: {mse}')
+def analyse_results(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
+    # Compute MSE for CPU, GPU(FP32) and GPU(FP16)
+
+    # CPU vs GPU FP16
+    cpu_gpu_fp16_diff = fft_cpu_out - fft_gpu_fp16_out
+    mse = np.sum(np.power(cpu_gpu_fp16_diff,2))/len(cpu_gpu_fp16_diff)
+    print(f'CPU vs GPU FP16 MSE: {mse}')
+
+    # GPU FP32 vs GPU FP16
+    gpu_fp32_gpu_fp16_diff = fft_gpu_fp32_out - fft_gpu_fp16_out
+    mse = np.sum(np.power(gpu_fp32_gpu_fp16_diff,2))/len(gpu_fp32_gpu_fp16_diff)
+    print(f'GPU FP32 vs GPU FP16 MSE: {mse}')
+
+    # CPU vs GPU FP32
+    cpu_gpu_fp32_diff = fft_cpu_out - fft_gpu_fp32_out
+    mse = np.sum(np.power(cpu_gpu_fp32_diff,2))/len(cpu_gpu_fp32_diff)
+    print(f'CPU vs GPU FP32 MSE: {mse}')
+
 
 def main():
     # Generate data
@@ -163,6 +179,9 @@ def main():
     fft_gpu_fp32_out = _fft_gpu_fp32(a_in)
 
     # Analyse results
+    analyse_results(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out)
+
+    # Display results
     display_results(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out)
 
 if __name__ == "__main__":
