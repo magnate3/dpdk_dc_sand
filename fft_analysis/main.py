@@ -17,6 +17,7 @@
 """Analyse dsim data."""
 import argparse
 import asyncio
+from dataclasses import dataclass
 import logging
 import aiokatcp
 import matplotlib.pyplot as plt
@@ -36,6 +37,37 @@ import fft_compute
 import time
 import katsdpsigproc.accel
 from katsdpsigproc.accel import visualize_operation
+import fft_standalone_fp16_fp32
+import cupy as cp
+
+def _pack_real_to_complex(data_in):
+    shape = np.shape(data_in)
+    data_out = np.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+    r = 0
+    for n in range(shape[2]):
+        data_out[0][0][r] = data_in[0][0][n]
+        r +=2
+    return data_out
+
+def fft_gpu_fp16(data):
+    # shape = np.shape(data)
+    # a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+
+    # Pack real data into complex format for FP16 FFT
+    _pack_real_to_complex(data)
+    a_real = cp.array(data)
+    return fft_standalone_fp16_fp32._fft_fp16_gpu(a_real)
+
+def fft_cpu(data):
+    # shape = np.shape(data)
+    # a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+
+    # Pack real data into complex format for FP16 FFT
+    a_real = _pack_real_to_complex(data)
+    return fft_standalone_fp16_fp32._fft_cpu(a_real)
+
+def fft_gpu_fp32(data):
+    return fft_standalone_fp16_fp32._fft_gpu_fp32(data)
 
 @numba.njit
 async def unpackbits(packed_data: np.ndarray, unpacked_data_length) -> np.ndarray:
@@ -183,8 +215,8 @@ async def async_main(args: argparse.Namespace) -> None:
         recon_data = []
         async for chunks in recv.chunk_sets(streams, layout):
 
-            # if not np.all(chunks[0].present) and np.all(chunks[1].present):
-            if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
+            if not np.all(chunks[0].present) and np.all(chunks[1].present):
+            # if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
                 logger.debug("Incomplete chunk %d", chunks[0].chunk_id)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
@@ -203,11 +235,22 @@ async def async_main(args: argparse.Namespace) -> None:
                     host_fft_in[pol][:] = recon_data[pol][:65536].reshape(1,65536)
                     buf_fft_in[pol].set(queue, host_fft_in[pol])
 
+                # Run some FFT methods
+
+                cpu_fft_out = fft_cpu(recon_data[0][:4096].reshape(1,1,4096))
+
+                fft_gpu_fp16_out = fft_gpu_fp16(recon_data[0][:4096].reshape(1,1,4096))
+
+                fft_gpu_fp32_out = fft_gpu_fp32(recon_data[0][:4096].reshape(1,1,4096))
+
+                # or, run the op sequence....
+
                 # Run the operational sequence          
-                op()
+                # op()
 
                 # Grab the channelised data
-                buf_fft_out_device.get(queue, host_fft_out)
+                # buf_fft_out_device.get(queue, host_fft_out)
+
 
                 # Plot incoming data
                 # plt.figure(1)
@@ -216,9 +259,15 @@ async def async_main(args: argparse.Namespace) -> None:
                 # plt.title('Pol0 and Pol1')
                 # plt.show()
 
-                plt.figure(1)
-                plt.plot(10*np.log10(np.power(np.abs(host_fft_out[0]),2)))
+                # plt.figure(1)
+                # plt.plot(10*np.log10(np.power(np.abs(host_fft_out[0]),2)))
+                # plt.show()
+
+                plt.figure(2)
+                plt.plot(10*np.log10(np.power(np.abs(fft_gpu_fp16_out),2)))
+                plt.plot(10*np.log10(np.power(np.abs(cpu_fft_out),2)))
                 plt.show()
+
 
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])

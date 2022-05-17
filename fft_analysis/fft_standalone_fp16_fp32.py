@@ -13,6 +13,14 @@ import cupy as cp
 N = 4096
 shape = (1, 1, N)  # input array shape
 
+def _pack_real_to_complex(data_in):
+    data_out = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+    r = 0
+    for n in range(shape[2]):
+        data_out[0][0][r] = data_in[0][0][n]
+        r +=2
+    return data_out
+
 def generate_data():
     # --- Generate Data for tests ---
     # Store the input/output arrays as fp16 arrays twice as long, as complex32 is not yet available
@@ -27,12 +35,8 @@ def generate_data():
     # Option 2: Real input with complex formatting. Generate N random samples and either use as 
     # a N-valued real array or create a complex-valued array with imag as zero (0j).
     a_in = 0.005*cp.random.random((shape[0], shape[1], shape[2])).astype(cp.float16)
-    a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
-
-    r = 0
-    for n in range(shape[2]):
-        a_real[0][0][r] = a_in[0][0][n]
-        r +=2
+    # a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+    a_real = _pack_real_to_complex(a_in)
 
     # Option 3: Static vector array 
     # vec_len = shape[2]
@@ -64,14 +68,14 @@ def _fft_cpu(a_real):
 
     return out_np[0][0][0:int(N/2)]
 
-def _fft_fp16_gpu(a_in, a_real):
+def _fft_fp16_gpu(a_real):
     idtype = odtype = edtype = 'E'  # = numpy.complex32 in the future
 
     # --- FFT: FP16 ---
     # Creat host array in the same shape as the complex formatted input. 
     # Note: the output is half the length as it's a real input so only half 
     # spectrum output due to symmetry.
-    out_fp16 = cp.empty_like(a_in)
+    out_fp16 = cp.empty_like(a_real)
 
     # FFT plan with cuFFT
     plan = cp.cuda.cufft.XtPlanNd(shape[1:],
@@ -95,8 +99,11 @@ def _fft_gpu_fp32(a_in):
     BATCH = np.int32(1)
 
     # Get input data. This will be a R2C FWD transform so we only want real-valued array.
-    data = a_in.get()
-    data = cp.asnumpy(data).astype(np.float32)
+    # data = a_in.get()
+    # data = cp.asnumpy(data).astype(np.float32)
+    # data = data.view(np.float32)
+
+    data = cp.asnumpy(a_in).astype(np.float32)
     data = data.view(np.float32)
 
     # speedup_log = []
@@ -170,7 +177,7 @@ def main():
     a_in, a_real = generate_data()
 
     # Run fp16 FFT
-    fft_gpu_fp16_out = _fft_fp16_gpu(a_in, a_real)
+    fft_gpu_fp16_out = _fft_fp16_gpu(a_real)
 
     # Run CPU(numpy) FFT
     fft_cpu_out = _fft_cpu(a_real)
