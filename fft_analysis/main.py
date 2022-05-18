@@ -40,6 +40,72 @@ from katsdpsigproc.accel import visualize_operation
 import fft_standalone_fp16_fp32
 import cupy as cp
 
+class fft_fp16:
+    def __init__(self, data_shape) -> None:
+
+        idtype = odtype = edtype = 'E'  # = numpy.complex32 in the future
+        # self.shape = data_shape
+
+        # Creat host array in the same shape as the complex formatted input. 
+        # Note: the output is half the length as it's a real input so only half 
+        # spectrum output due to symmetry.
+        # self.out_fp16 = cp.zeros((self.shape[0], self.shape[1], 2*self.shape[2]), dtype=np.float16)
+
+        # FFT plan with cuFFT
+        self.plan = cp.cuda.cufft.XtPlanNd(data_shape[1:],
+                                data_shape[1:], 1, data_shape[1]*data_shape[2], idtype,
+                                data_shape[1:], 1, data_shape[1]*data_shape[2], odtype,
+                                data_shape[0], edtype,
+                                order='C', last_axis=-1, last_size=None)
+
+    def run(self, data):
+        # Pack real data into complex format for FP16 FFT
+        data_r_to_c = _pack_real_to_complex(data)
+        a_real = cp.array(data_r_to_c)
+
+        out_fp16 = cp.empty_like(a_real)
+
+        # Run FFT plan
+        self.plan.fft(a_real, out_fp16, cp.cuda.cufft.CUFFT_FORWARD)
+
+        # Convert FP16 results to complex64 for comparision
+
+        gpu_out_fp16 = out_fp16.get()
+        temp = cp.asnumpy(gpu_out_fp16).astype(np.float32)
+        gpu_out_cmplx64 = temp.view(np.complex64)
+        return gpu_out_cmplx64[0][0]
+        # return gpu_out_cmplx64[0][0][0:int(self.shape[2]/2)]
+        # return gpu_out_cmplx64[0][0][0:self.shape[2]]
+
+
+def _fft_fp16_gpu(a_real):
+    idtype = odtype = edtype = 'E'  # = numpy.complex32 in the future
+
+    shape = np.shape(a_real)
+    # --- FFT: FP16 ---
+    # Creat host array in the same shape as the complex formatted input. 
+    # Note: the output is half the length as it's a real input so only half 
+    # spectrum output due to symmetry.
+    out_fp16 = cp.empty_like(a_real)
+
+    # FFT plan with cuFFT
+    plan = cp.cuda.cufft.XtPlanNd(shape[1:],
+                                shape[1:], 1, shape[1]*shape[2], idtype,
+                                shape[1:], 1, shape[1]*shape[2], odtype,
+                                shape[0], edtype,
+                                order='C', last_axis=-1, last_size=None)
+
+    # Run FFT plan
+    plan.fft(a_real, out_fp16, cp.cuda.cufft.CUFFT_FORWARD)
+
+    # Convert FP16 results to complex64 for comparision
+    gpu_out_fp16 = out_fp16.get()
+    temp = cp.asnumpy(gpu_out_fp16).astype(np.float32)
+    gpu_out_cmplx64 = temp.view(np.complex64)
+
+    del plan, temp, gpu_out_fp16
+    return gpu_out_cmplx64[0][0][0:int(shape[2]/2)]
+
 def _pack_real_to_complex(data_in):
     shape = np.shape(data_in)
     data_out = np.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
@@ -50,18 +116,12 @@ def _pack_real_to_complex(data_in):
     return data_out
 
 def fft_gpu_fp16(data):
-    # shape = np.shape(data)
-    # a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
-
     # Pack real data into complex format for FP16 FFT
-    _pack_real_to_complex(data)
-    a_real = cp.array(data)
-    return fft_standalone_fp16_fp32._fft_fp16_gpu(a_real)
+    data_r_to_c = _pack_real_to_complex(data)
+    a_real = cp.array(data_r_to_c)
+    return _fft_fp16_gpu(a_real)
 
 def fft_cpu(data):
-    # shape = np.shape(data)
-    # a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
-
     # Pack real data into complex format for FP16 FFT
     a_real = _pack_real_to_complex(data)
     return fft_standalone_fp16_fp32._fft_cpu(a_real)
@@ -155,6 +215,8 @@ async def async_main(args: argparse.Namespace) -> None:
     # Start tests
     # -----------
     current_test = ''
+    num_channels = 65536
+    fft_gpu_fp16_cls = fft_fp16((1,1,num_channels))
 
     for value_set in config.value_sets:
         test = value_set[0]
@@ -162,7 +224,7 @@ async def async_main(args: argparse.Namespace) -> None:
         freq = value_set[2]
         wgn_scale = value_set[3]
         chunk_samples = value_set[4]
-
+        
         print(f'Test is: {test} - CW Scale: {cw_scale}  Freq: {freq}  WGN_Scale:{wgn_scale}')
 
         if current_test != test:
@@ -215,8 +277,8 @@ async def async_main(args: argparse.Namespace) -> None:
         recon_data = []
         async for chunks in recv.chunk_sets(streams, layout):
 
-            if not np.all(chunks[0].present) and np.all(chunks[1].present):
-            # if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
+            # if not np.all(chunks[0].present) and np.all(chunks[1].present):
+            if not (np.all(chunks[0].present) and np.all(chunks[1].present)):
                 logger.debug("Incomplete chunk %d", chunks[0].chunk_id)
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
@@ -232,26 +294,31 @@ async def async_main(args: argparse.Namespace) -> None:
                   
                 # FFT
                 for pol in range(N_POLS):
-                    host_fft_in[pol][:] = recon_data[pol][:65536].reshape(1,65536)
+                    host_fft_in[pol][:] = recon_data[pol][:num_channels].reshape(1,num_channels)
                     buf_fft_in[pol].set(queue, host_fft_in[pol])
 
                 # Run some FFT methods
+                # cpu_fft_out = fft_cpu(recon_data[0][:int(num_channels/2)].reshape(1,1,int(num_channels/2)))
+                # fft_gpu_fp16_out = fft_gpu_fp16(recon_data[0][:int(num_channels)].reshape(1,1,int(num_channels)))
+                # fft_gpu_fp32_out = fft_gpu_fp32(recon_data[0][:int(num_channels/2)].reshape(1,1,int(num_channels/2)))
 
-                cpu_fft_out = fft_cpu(recon_data[0][:4096].reshape(1,1,4096))
 
-                fft_gpu_fp16_out = fft_gpu_fp16(recon_data[0][:4096].reshape(1,1,4096))
 
-                fft_gpu_fp32_out = fft_gpu_fp32(recon_data[0][:4096].reshape(1,1,4096))
+                # fft_gpu_fp16_out = cp.zeros((1,1,int(num_channels)), dtype=np.float16)
+                # fft_gpu_fp16_out = cp.empty_like(a_real)
+                # out = fft_gpu_fp16_cls.run(recon_data[0][:int(num_channels/2)].reshape(1,1,int(num_channels/2)))
 
-                # or, run the op sequence....
+                
+
+                # then run the op sequence for the existing FP32 FFT....
 
                 # Run the operational sequence          
-                # op()
+                op()
 
                 # Grab the channelised data
-                # buf_fft_out_device.get(queue, host_fft_out)
+                buf_fft_out_device.get(queue, host_fft_out)
 
-
+                # -- Plot Data ---
                 # Plot incoming data
                 # plt.figure(1)
                 # plt.plot(recon_data[0])
@@ -259,24 +326,23 @@ async def async_main(args: argparse.Namespace) -> None:
                 # plt.title('Pol0 and Pol1')
                 # plt.show()
 
-                # plt.figure(1)
-                # plt.plot(10*np.log10(np.power(np.abs(host_fft_out[0]),2)))
-                # plt.show()
-
-                plt.figure(2)
-                plt.plot(10*np.log10(np.power(np.abs(fft_gpu_fp16_out),2)))
-                plt.plot(10*np.log10(np.power(np.abs(cpu_fft_out),2)))
+                plt.figure(1)
+                plt.plot(10*np.log10(np.power(np.abs(host_fft_out[0]),2)))
                 plt.show()
 
+                # plt.figure(2)
+                # temp = 10*np.log10(np.power(np.abs(fft_gpu_fp16_out),2))
+                # print(f'MAX is: {np.max(temp)}')
+                # plt.plot(10*np.log10(np.power(np.abs(fft_gpu_fp16_out),2)))
+                # plt.plot(10*np.log10(np.power(np.abs(host_fft_out[0]),2)))
+                # plt.plot(10*np.log10(np.power(np.abs(cpu_fft_out),2)))
+                # plt.show()
 
                 for pol in range(len(chunks)):
                     streams[pol].add_free_chunk(chunks[pol])
                 break
     
     print(f'Total execution time:{time.time() - start_time}')
-
-    # Report Results
-    a = 1
 
 if __name__ == "__main__":
     main()
