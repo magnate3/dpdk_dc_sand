@@ -14,10 +14,10 @@ import cupy as cp
 N = 2**18
 shape = (1, 1, N)  # input array shape
 
-def generate_data(src, scale):
+def generate_data(src, scale=0.1):
     
-    def _pack_real_to_complex(data_in):
-        data_out = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
+    def _pack_real_to_complex_interleave(data_in):
+        data_out = np.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float64)
         r = 0
         for n in range(shape[2]):
             data_out[0][0][r] = data_in[0][0][n]
@@ -32,34 +32,29 @@ def generate_data(src, scale):
         # Set seed for repeatability
         cp.random.seed(1)
 
-        # Option 1: Random complex input
-        # a_in = 0.005*cp.random.random((shape[0], shape[1], 2*shape[2])).astype(cp.float16)
-
-        # Option 2: Real input with complex formatting. Generate N random samples and either use as 
+        # Real input with complex formatting. Generate N random samples and either use as 
         # a N-valued real array or create a complex-valued array with imag as zero (0j).
-        a_in = scale*cp.random.random((shape[0], shape[1], shape[2])).astype(cp.float16)
-        # a_real = cp.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float16)
-        a_real = _pack_real_to_complex(a_in)
+        input_real_fp64 = scale*cp.random.random((shape[0], shape[1], shape[2])).astype(cp.float64)
+        input_cmplx_interleave_fp64 = _pack_real_to_complex_interleave(input_real_fp64)
 
-        return (a_in, a_real)
+        return (input_real_fp64, input_cmplx_interleave_fp64)
 
-    def _generate_data_cw(scale):
+    def _generate_data_cw(scale, dither=True):
         # Option 2: Generate CW
         # Store the input/output arrays as fp16 arrays twice as long, as complex32 is not yet available
         # Additonal note: CuPy is expecting the data as complex. To input real data create array as R+j0.
 
         # Real input with complex formatting. Generate N random samples and either use as 
         # a N-valued real array or create a complex-valued array with imag as zero (0j).
-        # a_in = 0.005*cp.random.random((shape[0], shape[1], shape[2])).astype(cp.float16)
-        # lin = cp.linspace(0,1,shape[2])
-        # a_in = scale*cp.cos(2*pi*lin)
-
         f = shape[2]/32
         in_array = np.linspace(-(f*np.pi), f*np.pi, shape[2])
-        a_in = scale*np.cos(in_array).astype(np.float16) + 0.001*np.random.random(shape[2]).astype(np.float16)
+        if dither:
+            input_real_fp64 = scale*np.cos(in_array).astype(np.float64) + 0.001*np.random.random(shape[2]).astype(np.float64)
+        else:
+            input_real_fp64 = scale*np.cos(in_array).astype(np.float64)
 
-        temp_fft = np.fft.fft(a_in)
-        fft_power_spec = np.power(np.abs(temp_fft),2)
+        # temp_fft = np.fft.fft(a_in)
+        # fft_power_spec = np.power(np.abs(temp_fft),2)
 
         # plt.figure(1)
         # plt.plot(10*np.log10(fft_power_spec))
@@ -69,59 +64,63 @@ def generate_data(src, scale):
         # plt.plot(a_in)
         # plt.show()
 
-        a_in = a_in.reshape(shape)
+        input_real_fp64 = input_real_fp64.reshape(shape)
 
-        a_real = _pack_real_to_complex(a_in)
+        input_cmplx_interleave_fp64 = _pack_real_to_complex_interleave(input_real_fp64)
 
-        # return (0, 1)
-        return (a_in, a_real)
+        return (input_real_fp64, input_cmplx_interleave_fp64)
 
     def _generate_constant(scale):
         # Option 3: Static vector array 
-        vec_len = shape[2]
-        d_first_real = scale*cp.ones((1,), dtype=np.float16)
-        d_second_real = cp.zeros((vec_len-1,), dtype=np.float16)
-        a_in = cp.concatenate([d_first_real, d_second_real])
-        a_in = a_in.reshape(shape)
-        a_real = _pack_real_to_complex(a_in)
-        return (a_in, a_real)
+        d_first_real = scale*cp.ones((1,), dtype=np.float64)
+        d_second_real = cp.zeros((shape[2]-1,), dtype=np.float64)
+        input_real_fp64 = cp.concatenate([d_first_real, d_second_real])
+        input_real_fp64 = input_real_fp64.reshape(input_real_fp64)
+        input_cmplx_interleave_fp64 = _pack_real_to_complex_interleave(input_real_fp64)
+
+        return (input_real_fp64, input_cmplx_interleave_fp64)
 
     if src == 'wgn':
         return _generate_data_wgn(scale)
     elif src == 'cw':
-        return _generate_data_cw(scale)
+        return _generate_data_cw(scale, dither=True)
     elif src == 'const':
         return _generate_constant(scale)
 
-def fft_cpu(a_real):
-    # ---- FFT with NumPy ----
-    a_np = cp.asnumpy(a_real).astype(np.float32)  # upcast
-    a_np = a_np.view(np.complex64)
+def fft_cpu(input_cmplx_interleave_fp64):
+    # ---- FFT FP64 with NumPy ----
+    # Change interleave into complex128 format
+    input_cmplx = input_cmplx_interleave_fp64.view(np.complex128)
 
-    out_np = np.fft.fftn(a_np)
-    # out_np = np.fft.fftn(a_np, axes=(-2,-1))
-    # out_np_temp = out_np.astype(np.complex64)
-    # out_np = np.ascontiguousarray(out_np).astype(np.complex64)  # downcast
-    # out_np = out_np.view(np.float32)
-    # out_np = out_np.astype(np.float16)
+    # Run FFT (FP64)(Complex128)
+    fft_cpu_fp64 = np.fft.fftn(input_cmplx)
 
-    # don't worry about accruacy for now, as we probably lost a lot during casting
-    # print('ok' if cp.mean(cp.abs(out_fp16 - cp.asarray(out_np))) < 0.1 else 'not ok')
+    # ---- FFT FP32 with NumPy ----
+    # Run FFT (FP32)(Complex64)
+    fft_cpu_fp32 = np.fft.fftn(input_cmplx.astype(np.complex64))
 
-    # diff = gpu_out[0][0] - out_np[0][0]
-    # mse = np.sum(np.power(diff,2))/len(diff)
-    # print(f'MSE: {mse}')
+    # fft_power_spec_fp64 = np.power(np.abs(fft_cpu_fp64[0][0][0:int(N/2)]),2)
+    # fft_power_spec_fp32 = np.power(np.abs(fft_cpu_fp32[0][0][0:int(N/2)]),2)
+    # plt.figure(1)
+    # plt.plot(10*np.log10(fft_power_spec_fp64))
+    # plt.figure(2)
+    # plt.plot(10*np.log10(fft_power_spec_fp32))
+    # plt.show()
 
-    return out_np[0][0][0:int(N/2)]
+    return (fft_cpu_fp64[0][0][0:int(N/2)], fft_cpu_fp32[0][0][0:int(N/2)])
 
-def fft_fp16_gpu(a_real):
+def fft_fp16_gpu(input_cmplx_interleave_fp64):
+
+    # Convert to cupy array and cast to fp16
+    input_cmplx_int_fp16 = cp.asarray(input_cmplx_interleave_fp64.astype(cp.float16))
+
     idtype = odtype = edtype = 'E'  # = numpy.complex32 in the future
 
     # --- FFT: FP16 ---
     # Creat host array in the same shape as the complex formatted input. 
     # Note: the output is half the length as it's a real input so only half 
     # spectrum output due to symmetry.
-    out_fp16 = cp.empty_like(a_real)
+    out_fp16 = cp.empty_like(input_cmplx_int_fp16)
 
     # FFT plan with cuFFT
     plan = cp.cuda.cufft.XtPlanNd(shape[1:],
@@ -131,7 +130,7 @@ def fft_fp16_gpu(a_real):
                                 order='C', last_axis=-1, last_size=None)
 
     # Run FFT plan
-    plan.fft(a_real, out_fp16, cp.cuda.cufft.CUFFT_FORWARD)
+    plan.fft(input_cmplx_int_fp16, out_fp16, cp.cuda.cufft.CUFFT_FORWARD)
 
     # Convert FP16 results to complex64 for comparision
     gpu_out_fp16 = out_fp16.get()
@@ -139,7 +138,9 @@ def fft_fp16_gpu(a_real):
     gpu_out_cmplx64 = temp.view(np.complex64)
     return gpu_out_cmplx64[0][0][0:int(N/2)]
 
-def fft_gpu_fp32(a_in):
+def fft_gpu_fp32(input_real_fp64):
+
+    fft_cpu_fp32 = input_real_fp64.astype(np.float32)
 
     # ---- FFT with FP32 GPU (PyCUDA) ----
     BATCH = np.int32(1)
@@ -149,8 +150,8 @@ def fft_gpu_fp32(a_in):
     # data = cp.asnumpy(data).astype(np.float32)
     # data = data.view(np.float32)
 
-    data = cp.asnumpy(a_in).astype(np.float32)
-    data = data.view(np.float32)
+    # data = cp.asnumpy(fft_cpu_fp32).astype(np.float32)
+    # data = data.view(np.float32)
 
     # speedup_log = []
     # speedup_log_with_transfer = []
@@ -165,7 +166,7 @@ def fft_gpu_fp32(a_in):
     c = cuda.aligned_empty((int(shape[2]/2+1),), dtype=np.complex64, alignment=resource.getpagesize())
 
     # Assign input data.
-    a[:] = data[0][0]
+    a[:] = fft_cpu_fp32[0][0]
 
     # Allocate number of bytes required by A on the GPU
     a_gpu = cuda.mem_alloc(a.nbytes)
@@ -212,31 +213,42 @@ def analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
     def _compute_mse(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
         # Compute MSE for CPU, GPU(FP32) and GPU(FP16)
 
-        # CPU vs GPU FP16
-        cpu_gpu_fp16_diff = fft_cpu_out - fft_gpu_fp16_out
-        cpu_gpu_fp16_mse = np.sum(np.power(cpu_gpu_fp16_diff,2))/len(cpu_gpu_fp16_diff)
-        print(f'CPU vs GPU FP16 MSE: {cpu_gpu_fp16_mse}')
+        # CPU (FP64) vs GPU (FP16)
+        cpu_fp64_gpu_fp16_diff = fft_cpu_out[0] - fft_gpu_fp16_out
+        cpu_fp64_gpu_fp16_mse = np.sum(np.power(cpu_fp64_gpu_fp16_diff,2))/len(cpu_fp64_gpu_fp16_diff)
+        print(f'CPU (FP64) vs GPU (FP16) MSE: {cpu_fp64_gpu_fp16_mse}')
 
-        # GPU FP32 vs GPU FP16
+        # CPU (FP32) vs GPU (FP16)
+        cpu_fp32_gpu_fp16_diff = fft_cpu_out[1] - fft_gpu_fp16_out
+        cpu_fp32_gpu_fp16_mse = np.sum(np.power(cpu_fp32_gpu_fp16_diff,2))/len(cpu_fp32_gpu_fp16_diff)
+        print(f'CPU (FP32) vs GPU (FP16) MSE: {cpu_fp32_gpu_fp16_mse}')
+
+        # GPU (FP32) vs GPU (FP16)
         gpu_fp32_gpu_fp16_diff = fft_gpu_fp32_out - fft_gpu_fp16_out
         gpu_fp32_gpu_fp16_mse = np.sum(np.power(gpu_fp32_gpu_fp16_diff,2))/len(gpu_fp32_gpu_fp16_diff)
-        print(f'GPU FP32 vs GPU FP16 MSE: {gpu_fp32_gpu_fp16_mse}')
+        print(f'GPU (FP32) vs GPU (FP16) MSE: {gpu_fp32_gpu_fp16_mse}')
 
-        # CPU vs GPU FP32
-        cpu_gpu_fp32_diff = fft_cpu_out - fft_gpu_fp32_out
-        cpu_gpu_fp32_mse = np.sum(np.power(cpu_gpu_fp32_diff,2))/len(cpu_gpu_fp32_diff)
-        print(f'CPU vs GPU FP32 MSE: {cpu_gpu_fp32_mse}')
+        # CPU (FP64) vs GPU (FP32)
+        cpu_fp64_gpu_fp32_diff = fft_cpu_out[0] - fft_gpu_fp32_out
+        cpu_fp64_gpu_fp32_mse = np.sum(np.power(cpu_fp64_gpu_fp32_diff,2))/len(cpu_fp64_gpu_fp32_diff)
+        print(f'CPU (FP64) vs GPU (FP32) MSE: {cpu_fp64_gpu_fp32_mse}')
+
+        # CPU (FP32) vs GPU (FP32)
+        cpu_fp32_gpu_fp32_diff = fft_cpu_out[1] - fft_gpu_fp32_out
+        cpu_fp32_gpu_fp32_mse = np.sum(np.power(cpu_fp32_gpu_fp32_diff,2))/len(cpu_fp32_gpu_fp32_diff)
+        print(f'CPU (FP32) vs GPU (FP32) MSE: {cpu_fp32_gpu_fp32_mse}')
         
-        return cpu_gpu_fp16_mse, gpu_fp32_gpu_fp16_mse, cpu_gpu_fp32_mse
+        return cpu_fp64_gpu_fp16_mse, cpu_fp32_gpu_fp16_mse, gpu_fp32_gpu_fp16_mse, cpu_fp64_gpu_fp32_mse, cpu_fp32_gpu_fp32_mse
 
     def _compute_freq(all_ffts):
         measured_freq_and_fft_power_spec = []
-        for fft in all_ffts:
-            fft_power_spec = np.power(np.abs(fft),2)
-            fft_max = np.max(fft_power_spec)
-            bin = np.where(fft_power_spec==fft_max)
-            bin_freq_resolution = 1712e6/(len(fft_power_spec)*2)
-            measured_freq_and_fft_power_spec.append((bin[0]*bin_freq_resolution, fft_power_spec))
+        for fft_src in all_ffts:
+            for fft in fft_src:
+                fft_power_spec = np.power(np.abs(fft),2)
+                fft_max = np.max(fft_power_spec)
+                bin = np.where(fft_power_spec==fft_max)
+                bin_freq_resolution = 1712e6/(len(fft_power_spec)*2)
+                measured_freq_and_fft_power_spec.append((bin[0]*bin_freq_resolution, fft_power_spec))
         return measured_freq_and_fft_power_spec
 
     def _compute_sfdr(fft_power_spectrum):
@@ -269,45 +281,78 @@ def analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
 
     def display_sfdr(measured_freq_and_fft_power_spec, sfdr):
         num_steps = 8
+        cpu_fp64_indx = 0
+        cpu_fp32_indx = 1
+        gpu_fp32_indx = 2
+        gpu_fp16_indx = 3
 
         # CPU: FFT
         def disp_fft_cpu():
-            freq_cpu = measured_freq_and_fft_power_spec[0][0]
-            fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[0][1]
+            # Numpy FFT FP64
+            freq_cpu = measured_freq_and_fft_power_spec[cpu_fp64_indx][0]
+            fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp64_indx][1]
             number_samples = len(fft_power_spectrum_cpu)*2
-            difference_dB_cpu = sfdr[0][0]
+            difference_dB_cpu_fp64 = sfdr[cpu_fp64_indx][0]
 
             # sfdr.append((freq_cpu, difference_dB)) # for printout
-            fundamental_bin_cpu = sfdr[0][1]
-            next_tone_bin_cpu = sfdr[0][2]
+            fundamental_bin_cpu = sfdr[cpu_fp64_indx][1]
+            next_tone_bin_cpu = sfdr[cpu_fp64_indx][2]
 
             plt.figure()
             markers_cpu = [fundamental_bin_cpu, next_tone_bin_cpu]
-            print(f'difference_dB_cpu: {difference_dB_cpu}')
+            print(f'difference_dB_cpu_fp64: {difference_dB_cpu_fp64}')
             plt.plot(10*np.log10(fft_power_spectrum_cpu), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
-                plt.text(8.5e4, 70, f'SFDR Pol0 ($\u25C6$): {difference_dB_cpu}dB', color='green', style='italic')
+                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR Pol0: ($\u25C6$) {difference_dB_cpu}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: CPU - {round(fundamental_bin_cpu*1712e6/number_samples/1e6)}MHz')
+                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
+            plt.title(f'SFDR FFT: CPU (FP64) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu)+len(fft_power_spectrum_cpu)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('dB')
+
+
+            # Numpy FFT FP32
+            freq_cpu = measured_freq_and_fft_power_spec[cpu_fp32_indx][0]
+            fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp32_indx][1]
+            number_samples = len(fft_power_spectrum_cpu)*2
+            difference_dB_cpu_fp32 = sfdr[cpu_fp32_indx][0]
+
+            # sfdr.append((freq_cpu, difference_dB)) # for printout
+            fundamental_bin_cpu = sfdr[cpu_fp32_indx][1]
+            next_tone_bin_cpu = sfdr[cpu_fp32_indx][2]
+
+            plt.figure()
+            markers_cpu = [fundamental_bin_cpu, next_tone_bin_cpu]
+            print(f'difference_dB_cpu_fp32: {difference_dB_cpu_fp32}')
+            plt.plot(10*np.log10(fft_power_spectrum_cpu), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
+
+            if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
+                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
+            else:
+                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
+            plt.title(f'SFDR FFT: CPU (FP32) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6)}MHz')
+            labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
+            labels = labels.round(0)
+            plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu)+len(fft_power_spectrum_cpu)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
+            plt.xlabel('Frequency (MHz)')
+            plt.ylabel('dB')
+
             plt.show()
 
         # GPU (FP32): FFT
         def disp_fft_gpu_fp32():
-            freq = measured_freq_and_fft_power_spec[1][0]
-            fft_power_spectrum = measured_freq_and_fft_power_spec[1][1]
+            freq = measured_freq_and_fft_power_spec[gpu_fp32_indx][0]
+            fft_power_spectrum = measured_freq_and_fft_power_spec[gpu_fp32_indx][1]
             number_samples = len(fft_power_spectrum)*2
-            difference_dB = sfdr[1][0]
+            difference_dB = sfdr[gpu_fp32_indx][0]
 
             # sfdr.append((freq_cpu, difference_dB)) # for printout
-            fundamental_bin = sfdr[1][1]
-            next_tone_bin = sfdr[1][2]
+            fundamental_bin = sfdr[gpu_fp32_indx][1]
+            next_tone_bin = sfdr[gpu_fp32_indx][2]
 
             plt.figure()
             markers_cpu = [fundamental_bin, next_tone_bin]
@@ -315,9 +360,9 @@ def analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
             plt.plot(10*np.log10(fft_power_spectrum), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin < len(fft_power_spectrum)/2:
-                plt.text(8.5e4, 70, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
+                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: GPU(FP32) - {round(fundamental_bin*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -328,14 +373,14 @@ def analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
 
         # GPU (FP32): FFT
         def disp_fft_gpu_fp16():
-            freq = measured_freq_and_fft_power_spec[2][0]
-            fft_power_spectrum = measured_freq_and_fft_power_spec[2][1]
+            freq = measured_freq_and_fft_power_spec[gpu_fp16_indx][0]
+            fft_power_spectrum = measured_freq_and_fft_power_spec[gpu_fp16_indx][1]
             number_samples = len(fft_power_spectrum)*2
-            difference_dB = sfdr[2][0]
+            difference_dB = sfdr[gpu_fp16_indx][0]
 
             # sfdr.append((freq_cpu, difference_dB)) # for printout
-            fundamental_bin = sfdr[2][1]
-            next_tone_bin = sfdr[2][2]
+            fundamental_bin = sfdr[gpu_fp16_indx][1]
+            next_tone_bin = sfdr[gpu_fp16_indx][2]
 
             plt.figure()
             markers_cpu = [fundamental_bin, next_tone_bin]
@@ -359,25 +404,26 @@ def analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out):
         disp_fft_gpu_fp16()
 
     _compute_mse(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out)
-    measured_freq_and_fft_power_spec = _compute_freq([fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out])
+    measured_freq_and_fft_power_spec = _compute_freq([fft_cpu_out, (fft_gpu_fp32_out, fft_gpu_fp16_out)])
     sfdr = _compute_sfdr(measured_freq_and_fft_power_spec)
     
     # Display results
     display_sfdr(measured_freq_and_fft_power_spec, sfdr)
 
 def main():
-    # Generate data: options, 'wgn', 'cw', 'const'
-    scale = 0.1
-    a_in, a_real = generate_data('cw', scale)
+    # Generate data: Options, 'wgn', 'cw', 'const'
+    input_real_fp64, input_cmplx_interleave_fp64 = generate_data('cw', scale=0.1)
 
     # Run fp16 FFT
-    fft_gpu_fp16_out = fft_fp16_gpu(a_real)
+    fft_gpu_fp16_out = fft_fp16_gpu(input_cmplx_interleave_fp64)
 
     # Run CPU(numpy) FFT
-    fft_cpu_out = fft_cpu(a_real)
+    fft_cpu_out = fft_cpu(input_cmplx_interleave_fp64)
 
     # Run fp32 FFT
-    fft_gpu_fp32_out = fft_gpu_fp32(a_in)
+    fft_gpu_fp32_out = fft_gpu_fp32(input_real_fp64)
+
+    # Import Quantised 8bit (FPGA)
 
     # Analyse results
     analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out)

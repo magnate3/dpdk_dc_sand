@@ -113,10 +113,14 @@ cf.cufftDestroy(plan)
 
 # ------------------ GPU World (FP16) --------------------------
 # create two timers so we can speed-test each approach
-start_fp16 = cp.cuda.Event
-end_fp16 = cp.cuda.Event
-start_kernel_time_fp16 = cp.cuda.Event
-end_kernel_time_fp16 = cp.cuda.Event
+
+# s = cp.cuda.Stream()
+# s.use()
+
+start_fp16 = cp.cuda.Event()
+end_fp16 = cp.cuda.Event()
+# start_kernel_time_fp16 = cp.cuda.Event()
+# end_kernel_time_fp16 = cp.cuda.Event()
 
 data = data_real.reshape(1,1,len(data_real))
 shape = np.shape(data)
@@ -142,12 +146,13 @@ plan = cp.cuda.cufft.XtPlanNd(shape[1:],
 
 # start timing using events
 start_fp16.record() 
-start_kernel_time_fp16.record()
+# start_kernel_time_fp16.record()
 
 # Run FFT plan
 plan.fft(data, out_fp16, cp.cuda.cufft.CUFFT_FORWARD)
 
-end_kernel_time_fp16.done()
+end_fp16.record()
+# end_kernel_time_fp16
 
 # Convert FP16 results to complex64 for comparision
 gpu_out_fp16 = out_fp16.get()
@@ -155,12 +160,13 @@ temp = cp.asnumpy(gpu_out_fp16).astype(np.float32)
 gpu_out_cmplx64 = temp.view(np.complex64)
 
 # end timing using events
-end_fp16.done()
+# s.wait_event(start_fp16)
 
-gpu_fp16_time = start_kernel_time_fp16.time_till(end_kernel_time_fp16)*1e-3
-# calculate the run length
-gpu_fp16_time_transfer = start_fp16.time_till(end_fp16)*1e-3
+start_fp16.synchronize()
+end_fp16.synchronize()
+# end_kernel_time_fp16.synchronize()
 
+gpu_fp16_time = cp.cuda.get_elapsed_time(start_fp16, end_fp16)*1e-3
 
 # ------------------ CPU World --------------------------
 
@@ -173,13 +179,15 @@ cpu_time = t2-t1
 # --------------- Compute Speedups -----------------------
 
 print('\nCPU NumPy time is: ',cpu_time)
-print('\nGPU time (with transfer) is: ',gpu_time_transfer)
-print("GPU Speedup (with transfer) is:",cpu_time/gpu_time_transfer)
+print('\nGPU (FP32) time (with transfer) is: ',gpu_time_transfer)
+print("GPU (FP32) Speedup (with transfer) is:",cpu_time/gpu_time_transfer)
 speedup_log_with_transfer.append(cpu_time/gpu_time_transfer)  
-print('\nGPU (kernel) time is: ',gpu_time)
-print("GPU (kernel) Speedup is:",cpu_time/gpu_time)
+print('\nGPU (FP32) (kernel) time is: ',gpu_time)
+print("GPU (FP32)(kernel) vs CPU Speedup is:",cpu_time/gpu_time)
 print('')
 speedup_log.append(cpu_time/gpu_time)
+print('\nGPU (FP16) (kernel) time is: ',gpu_fp16_time)
+print("GPU (FP16) vs GPU (FP32) Speedup is:",gpu_time/gpu_fp16_time)
 
 cpu_time_log.append(cpu_time)
 gpu_time_log.append(gpu_time)
