@@ -467,16 +467,9 @@ def main():
     # Run CPU(numpy) FFT
     fft_cpu_out = fft_cpu(input_cmplx_interleave_fp64)
 
-    # Run fp16 FFT
-    # fft_gpu_fp16_out = fft_fp16_gpu(input_cmplx_interleave_fp64)
-
-    # Run fp32 FFT
-    # fft_gpu_fp32_out = fft_gpu_fp32(input_real_fp64)
-
     # Import Quantised 8bit (FPGA)
 
     # Analyse results
-    # analyse_data(fft_cpu_out, fft_gpu_fp32_out, fft_gpu_fp16_out)
     analyse_data(fft_cpu_out, fft_gpu_out)
 
 if __name__ == "__main__":
