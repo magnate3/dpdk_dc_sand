@@ -14,7 +14,7 @@ repos:
       - id: no-commit-to-branch # without arguments, master/main will be protected.
       - id: trailing-whitespace
   - repo: https://github.com/psf/black
-    rev: 21.6b0
+    rev: 22.3.0
     hooks:
       - id: black
   - repo: https://github.com/pycqa/isort
@@ -59,6 +59,7 @@ repos:
             'numpy==1.21.0',
             'spead2==3.3.2',
             'types-decorator==0.1.5',
+            'types-docutils==0.17.1',
             'types-redis==3.5.4',
             'types-setuptools==57.0.0',
             'types-six==0.1.7',
