@@ -11,6 +11,7 @@ from typing import List, Literal, Optional, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import tikzplotlib
+from docutils.core import publish_parts
 from dotenv import dotenv_values
 from pylatex import (
     Command,
@@ -42,6 +43,11 @@ def readable_duration(duration: float) -> str:
             minutes = int(duration % 60)
             duration /= 60
             return f"{int(duration)} h {minutes} m {seconds:.3f} s"
+
+
+def rst2latex(text: str) -> str:
+    """Turn a section of ReStructured Text (like a docstring) into LaTeX."""
+    return publish_parts(source=text, writer_name="latex")["body"]
 
 
 @dataclass
@@ -302,8 +308,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
     with doc.create(Section("Detailed Test Results")) as section:
         for result in results:
             with section.create(Subsection(fix_test_name(result.name), label=result.name)):
-                section.append(result.blurb)
-                section.append("\nOutcome: ")
+                section.append(NoEscape(rst2latex(result.blurb) + "\n\n"))
+                section.append("Outcome: ")
                 section.append(TextColor("green" if result.outcome == "passed" else "red", result.outcome.upper()))
                 section.append(Command("hspace", "1cm"))
                 section.append(f"Test start time: {datetime.fromtimestamp(float(result.start_time)).strftime('%T')}")
