@@ -15,8 +15,8 @@ import os
 import pycuda.autoinit
 import pycuda.gpuarray as cua
 from pyvkfft.fft import fftn
-# from pyvkfft.opencl import VkFFTApp
-from pyvkfft.cuda import VkFFTApp
+from pyvkfft.opencl import VkFFTApp
+# from pyvkfft.cuda import VkFFTApp
 from scipy.misc import ascent
 import pyopencl as cl
 import pyopencl.array as cla
@@ -24,7 +24,7 @@ import pyopencl.array as cla
 N = 2**18
 shape = (1, 1, N)  # input array shape
 
-def generate_data(src, scale=0.1):
+def generate_data(src, scale=0.5):
     
     def _pack_real_to_complex_interleave(data_in):
         data_out = np.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float64)
@@ -173,27 +173,27 @@ def fft_gpu(input_real_fp64, input_cmplx_interleave_fp64):
         # cuda.Context.synchronize()
 
         # vkFFT FP16 input, FP32 out
-        np_data = np.random.uniform(0,1,(1,1024)).astype(np.float32)
-        np_fft = np.fft.fftn(np_data)
+        # np_data = np.random.uniform(0,1,(1,1024)).astype(np.float32)
+        # np_fft = np.fft.fftn(np_data)
 
-        stream = cuda.Stream()
-        d0 = cua.to_gpu(np_data)
-        cuda.Context.synchronize()
-        app = VkFFTApp(np_data.shape, np_data.dtype, ndim=1, r2c=True, queue=stream, inplace=False)
+        # stream = cuda.Stream()
+        # d0 = cua.to_gpu(np_data)
+        # cuda.Context.synchronize()
+        # app = VkFFTApp(np_data.shape, np_data.dtype, ndim=1, r2c=True, queue=stream, inplace=False)
 
-        dst_size = d0.size // d0.shape[-1] * (d0.shape[-1] // 2 + 1)
-        shape_new = (1,dst_size)
-        npzeros = np.zeros(shape_new)
-        vkout = cua.to_gpu(npzeros)
+        # dst_size = d0.size // d0.shape[-1] * (d0.shape[-1] // 2 + 1)
+        # shape_new = (1,dst_size)
+        # npzeros = np.zeros(shape_new)
+        # vkout = cua.to_gpu(npzeros)
 
-        vkout = app.fft(d0,vkout)
-        cuda.Context.synchronize()
-        gpu_out_fp16 = vkout.get()
+        # vkout = app.fft(d0,vkout)
+        # cuda.Context.synchronize()
+        # gpu_out_fp16 = vkout.get()
 
-        del app
+        # del app
 
         # vkFFT FP32 input, FP32 out
-        # input_fp32 = input_real_fp64[0].astype(np.float32)
+        input_fp32 = input_real_fp64[0].astype(np.float32)
 
         d = cla.to_device(cq,input_fp32)
         app = VkFFTApp(d.shape, d.dtype, ndim=1, r2c=True, queue=cq)
@@ -656,13 +656,13 @@ def main():
     fft_gpu_out = fft_gpu(input_real_fp64, input_cmplx_interleave_fp64)
 
     # Run CPU(numpy) FFT
-    # fft_cpu_out = fft_cpu(input_cmplx_interleave_fp64)
+    fft_cpu_out = fft_cpu(input_cmplx_interleave_fp64)
 
     # Import Quantised 8bit (FPGA)
-    fft_fpga_8bit = fft_fpga(filename='fft_re.hdf5')
+    # fft_fpga_8bit = fft_fpga(filename='fft_re.hdf5')
 
     # Analyse results
-    # analyse_data(fft_cpu_out, fft_gpu_out)
+    analyse_data(fft_cpu_out, fft_gpu_out)
 
 if __name__ == "__main__":
     main()
