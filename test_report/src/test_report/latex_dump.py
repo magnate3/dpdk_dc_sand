@@ -16,7 +16,6 @@ from dotenv import dotenv_values
 from pylatex import (
     Command,
     Document,
-    FlushLeft,
     LongTable,
     MiniPage,
     MultiColumn,
@@ -26,8 +25,18 @@ from pylatex import (
     Subsubsection,
     TextColor,
 )
+from pylatex.base_classes import Environment
 from pylatex.labelref import Hyperref
+from pylatex.package import Package
 from pylatex.utils import bold
+
+
+class LstListing(Environment):
+    """A class to wrap LaTeX's lstlisting environment."""
+
+    packages = [Package("listings")]
+    escape = False
+    content_separator = "\n"
 
 
 def readable_duration(duration: float) -> str:
@@ -345,7 +354,7 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                 procedure_table.add_hline()
 
                     if result.failure_message:
-                        with procedure.create(FlushLeft()) as failure_message:
+                        with procedure.create(LstListing()) as failure_message:
                             failure_message.append(result.failure_message)
 
     return doc
