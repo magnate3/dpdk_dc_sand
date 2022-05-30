@@ -1,6 +1,7 @@
 # Pinned memory based on example: https://gist.github.com/sjperkins/d9e6db1b2d6038febb72
 # FFT (FP16) Example: https://docs.cupy.dev/en/stable/user_guide/fft.html
-from cmath import log10, pi
+from cmath import log10, nan, pi
+from fileinput import filename
 import pycuda.driver as cuda
 import resource
 import numpy as np
@@ -11,6 +12,7 @@ from pycuda import gpuarray
 import matplotlib.pyplot as plt
 import cupy as cp
 import os
+import h5py
 
 import pycuda.autoinit
 import pycuda.gpuarray as cua
@@ -21,7 +23,7 @@ from scipy.misc import ascent
 import pyopencl as cl
 import pyopencl.array as cla
 
-N = 2**18
+N = 2**16
 shape = (1, 1, N)  # input array shape
 
 def generate_data(src, scale=0.5):
@@ -293,13 +295,60 @@ def fft_gpu(input_real_fp64, input_cmplx_interleave_fp64):
 
     return (fft_gpu_fp32_out, fft_gpu_fp16_out, fft_gpu_vkfft)
 
-def analyse_data(fft_cpu_out, fft_gpu_out):
+def fft_fpga(filenames):
+    # filenames = "fft_re_out.h5", "fft_im_out.h5"
+    # filename = "fft_analysis/fft_log_pwr.h5"
+    # filename = "fft_log_pwr.h5"
+    # filenames = "fft_analysis/fft_re.h5", "fft_analysis/fft_im.h5"
+
+    # with h5py.File(filename, "r") as f:
+    #     # List all groups
+    #     print("Keys: %s" % f.keys())
+    #     a_group_key = list(f.keys())[0]
+    #     # Get the data
+    #     fpga_fft_log_pwr = (list(f[a_group_key]))
+
+    fpga_fft = []
+    fpga_cmplx = []
+    for filename in filenames:
+        with h5py.File(filename, "r") as f:
+            # List all groups
+            print("Keys: %s" % f.keys())
+            a_group_key = list(f.keys())[0]
+
+            # Get the data
+            fpga_fft.append(list(f[a_group_key]))
+
+    for entry in fpga_fft:
+        for i in range(len(entry[0])):
+            if np.isnan(entry[0][i]):
+                entry[0][i] = 1e-8*np.random.random()
+
+    fpga_cmplx.append(fpga_fft[0][0] +1j*fpga_fft[1][0])
+
+    # data_cmplx = data[0][0] + 1j*data[1][0]
+    # fft_power_spec = np.square(np.abs(data_cmplx))
+
+    # plt.figure(1)
+    # plt.plot(data[0])
+    # plt.show()
+
+    # from os.path import dirname, join as pjoin
+    # import scipy.io as sio
+    # data_dir = pjoin(os.getcwd(), 'fft_analysis')
+    # mat_fname = pjoin(data_dir, filename)
+    # mat_contents = sio.loadmat(mat_fname)
+    # a = 1
+    # return (fpga_fft[0][0], fpga_fft[1][0], fpga_fft[2][0])
+    return fpga_cmplx
+
+def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
     fft_gpu_fp32_idx = 0
     fft_gpu_fp16_idx = 1
     fft_gpu_vk_idx = 2
 
 
-    def _compute_mse(fft_cpu_out, fft_gpu_out):
+    def _compute_mse(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         # Compute MSE for CPU, GPU(FP32) and GPU(FP16)
 
         # GPU vs GPU
@@ -318,35 +367,35 @@ def analyse_data(fft_cpu_out, fft_gpu_out):
         print(f'GPU (FP32) vs GPU (vkFFT)(FP32) MSE: {gpu_fp32_gpu_vkfp32_mse}')
         print('')
 
-        print(fft_gpu_out[fft_gpu_fp32_idx][8190])
-        print(fft_gpu_out[fft_gpu_vk_idx][8190])
-        print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8190]))
-        print('')
-        print(fft_gpu_out[fft_gpu_fp32_idx][8191])
-        print(fft_gpu_out[fft_gpu_vk_idx][8191])
-        print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8191]))
-        print('')
-        print(fft_gpu_out[fft_gpu_fp32_idx][8192])
-        print(fft_gpu_out[fft_gpu_vk_idx][8192])
-        print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8192]))
-        print('')
-        print(fft_gpu_out[fft_gpu_fp32_idx][8193])
-        print(fft_gpu_out[fft_gpu_vk_idx][8193])
-        print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8193]))
-        print('')
-        print(fft_gpu_out[fft_gpu_fp32_idx][8194])
-        print(fft_gpu_out[fft_gpu_vk_idx][8194])
-        print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8194]))
-        print('')
+        # print(fft_gpu_out[fft_gpu_fp32_idx][8190])
+        # print(fft_gpu_out[fft_gpu_vk_idx][8190])
+        # print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8190]))
+        # print('')
+        # print(fft_gpu_out[fft_gpu_fp32_idx][8191])
+        # print(fft_gpu_out[fft_gpu_vk_idx][8191])
+        # print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8191]))
+        # print('')
+        # print(fft_gpu_out[fft_gpu_fp32_idx][8192])
+        # print(fft_gpu_out[fft_gpu_vk_idx][8192])
+        # print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8192]))
+        # print('')
+        # print(fft_gpu_out[fft_gpu_fp32_idx][8193])
+        # print(fft_gpu_out[fft_gpu_vk_idx][8193])
+        # print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8193]))
+        # print('')
+        # print(fft_gpu_out[fft_gpu_fp32_idx][8194])
+        # print(fft_gpu_out[fft_gpu_vk_idx][8194])
+        # print(np.conj(fft_gpu_out[fft_gpu_vk_idx][8194]))
+        # print('')
 
-        plt.figure()
+        # plt.figure()
 
-        plt.plot(np.imag(fft_gpu_out[fft_gpu_fp32_idx][8170:8210]))
-        plt.plot(np.imag(np.conj(fft_gpu_out[fft_gpu_vk_idx][8170:8210])))
+        # plt.plot(np.imag(fft_gpu_out[fft_gpu_fp32_idx][8170:8210]))
+        # plt.plot(np.imag(np.conj(fft_gpu_out[fft_gpu_vk_idx][8170:8210])))
 
-        plt.figure()
-        plt.plot(np.real(fft_gpu_out[fft_gpu_fp32_idx][8170:8210]))
-        plt.plot(np.real(np.conj(fft_gpu_out[fft_gpu_vk_idx][8170:8210])))
+        # plt.figure()
+        # plt.plot(np.real(fft_gpu_out[fft_gpu_fp32_idx][8170:8210]))
+        # plt.plot(np.real(np.conj(fft_gpu_out[fft_gpu_vk_idx][8170:8210])))
 
         # plt.figure()
         # plt.plot(fft_gpu_out[fft_gpu_vk_idx][10000:20000])
@@ -387,6 +436,16 @@ def analyse_data(fft_cpu_out, fft_gpu_out):
         gpu_fp32_gpu_fp16_mse = np.sum(np.power(gpu_fp32_gpu_fp16_diff,2))/len(gpu_fp32_gpu_fp16_diff)
         print(f'GPU (FP32) vs GPU (FP16) MSE: {gpu_fp32_gpu_fp16_mse}')
         print('')
+
+        # CPU vs FPGA
+        print('')
+        print('CPU vs FPGA')
+        print('-----------')
+
+        # CPU (FP32) vs FPGA (18b -> 8bit Quantized)
+        cpu_fp32_fpga_diff = np.abs(fft_cpu_out[1] - fpga_cmplx[0])
+        cpu_fp32_fpga_mse = np.sum(np.power(cpu_fp32_fpga_diff,2))/len(cpu_fp32_fpga_diff)
+        print(f'CPU (FP32) vs FPGA MSE: {cpu_fp32_fpga_mse}')
 
     def _compute_freq(all_ffts):
         measured_freq_and_fft_power_spec = []
@@ -435,6 +494,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out):
         gpu_fp32_indx = 3
         gpu_fp16_indx = 4
         gpu_vkfp32_indx = 5
+        fpga_indx = 6
 
         # CPU: FFT
         def disp_fft_cpu():
@@ -601,6 +661,34 @@ def analyse_data(fft_cpu_out, fft_gpu_out):
             plt.ylabel('dB')
             plt.show()
 
+        # FPGA:
+        def disp_fpga():
+            freq = measured_freq_and_fft_power_spec[fpga_indx][0]
+            fft_power_spectrum = measured_freq_and_fft_power_spec[fpga_indx][1]
+            number_samples = len(fft_power_spectrum)*2
+            difference_dB = sfdr[fpga_indx][0]
+
+            # sfdr.append((freq_cpu, difference_dB)) # for printout
+            fundamental_bin = sfdr[fpga_indx][1]
+            next_tone_bin = sfdr[fpga_indx][2]
+
+            plt.figure()
+            markers_cpu = [fundamental_bin, next_tone_bin]
+            print(f'difference_dB FPGA: {difference_dB}')
+            plt.plot(10*np.log10(fft_power_spectrum), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
+
+            if fundamental_bin < len(fft_power_spectrum)/2:
+                plt.text(8.5e4, -10, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+            else:
+                plt.text(0.25e4, -10, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
+            plt.title(f'SFDR FFT: FPGA - {round(fundamental_bin*214e6/number_samples/1e6)}MHz')
+            labels = np.linspace(0,(214e6/2)/1e6, int(num_steps/2+1))
+            labels = labels.round(0)
+            plt.xticks(np.arange(0, (len(fft_power_spectrum)+len(fft_power_spectrum)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
+            plt.xlabel('Frequency (MHz)')
+            plt.ylabel('dB')
+            plt.show()
+
         print('SFDR: CPU')
         print('---------')
         disp_fft_cpu()
@@ -613,40 +701,17 @@ def analyse_data(fft_cpu_out, fft_gpu_out):
         disp_fft_gpu_vkfp32()
         print('')
 
-    _compute_mse(fft_cpu_out, fft_gpu_out)
-    measured_freq_and_fft_power_spec = _compute_freq([fft_cpu_out, fft_gpu_out])
+        print('SFDR: FPGA')
+        print('----------')
+        disp_fpga()
+        print('')
+
+    _compute_mse(fft_cpu_out, fft_gpu_out, fpga_cmplx)
+    measured_freq_and_fft_power_spec = _compute_freq([fft_cpu_out, fft_gpu_out, fpga_cmplx])
     sfdr = _compute_sfdr(measured_freq_and_fft_power_spec)
     
     # Display results
     display_sfdr(measured_freq_and_fft_power_spec, sfdr)
-
-def fft_fpga(filename):
-    import h5py
-    # filename = "fft_analysis/fft_re.h5"
-    filename = "fft_re.h5"
-
-    with h5py.File(filename, "r") as f:
-        # List all groups
-        print("Keys: %s" % f.keys())
-        a_group_key = list(f.keys())[0]
-
-        # Get the data
-        data = list(f[a_group_key])
-        # extract = data
-
-        # print(data[0:5])
-
-        plt.figure(1)
-        plt.plot(data[0])
-        plt.show()
-
-
-    # from os.path import dirname, join as pjoin
-    # import scipy.io as sio
-    # data_dir = pjoin(os.getcwd(), 'fft_analysis')
-    # mat_fname = pjoin(data_dir, filename)
-    # mat_contents = sio.loadmat(mat_fname)
-    # a = 1
 
 def main():
     # Generate data: Options, 'wgn', 'cw', 'const'
@@ -659,10 +724,12 @@ def main():
     fft_cpu_out = fft_cpu(input_cmplx_interleave_fp64)
 
     # Import Quantised 8bit (FPGA)
-    # fft_fpga_8bit = fft_fpga(filename='fft_re.hdf5')
+    # filenames = ("fft_analysis/fft_re_out.h5", "fft_analysis/fft_im_out.h5", "fft_analysis/fft_log_pwr.h5")
+    filenames = ("fft_re_out.h5", "fft_im_out.h5", "fft_log_pwr.h5")
+    fpga_cmplx = fft_fpga(filenames=filenames)
 
     # Analyse results
-    analyse_data(fft_cpu_out, fft_gpu_out)
+    analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx)
 
 if __name__ == "__main__":
     main()
