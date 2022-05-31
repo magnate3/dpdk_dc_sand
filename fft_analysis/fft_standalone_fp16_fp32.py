@@ -17,16 +17,16 @@ import h5py
 import pycuda.autoinit
 import pycuda.gpuarray as cua
 from pyvkfft.fft import fftn
-from pyvkfft.opencl import VkFFTApp
-# from pyvkfft.cuda import VkFFTApp
+
 from scipy.misc import ascent
 import pyopencl as cl
 import pyopencl.array as cla
+from pyvkfft.opencl import VkFFTApp
 
 N = 2**16
 shape = (1, 1, N)  # input array shape
 
-def generate_data(src, scale=0.5):
+def generate_data(src, scale=0.1):
     
     def _pack_real_to_complex_interleave(data_in):
         data_out = np.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float64)
@@ -161,38 +161,6 @@ def fft_gpu(input_real_fp64, input_cmplx_interleave_fp64):
                 if cl_ctx is not None:
                     break
         cq = cl.CommandQueue(cl_ctx)
-
-        # input_fp16 = input_cmplx_interleave_fp64[0].astype(np.float16)
-        input_fp16 = input_real_fp64[0].astype(np.float16)
-        input_fp32 = input_real_fp64[0].astype(np.float32)
-
-        # stream = cuda.Stream()
-        # d = cua.to_gpu(np.random.uniform(shape).astype(np.complex64))     
-        # d1 = cua.empty_like(d)
-        # app = VkFFTApp(d.shape, d.dtype, ndim=1, queue=cq, r2c=False, inplace=False)
-        # cuda.Context.synchronize()
-        # d1 = app.fft(d1,d)
-        # cuda.Context.synchronize()
-
-        # vkFFT FP16 input, FP32 out
-        # np_data = np.random.uniform(0,1,(1,1024)).astype(np.float32)
-        # np_fft = np.fft.fftn(np_data)
-
-        # stream = cuda.Stream()
-        # d0 = cua.to_gpu(np_data)
-        # cuda.Context.synchronize()
-        # app = VkFFTApp(np_data.shape, np_data.dtype, ndim=1, r2c=True, queue=stream, inplace=False)
-
-        # dst_size = d0.size // d0.shape[-1] * (d0.shape[-1] // 2 + 1)
-        # shape_new = (1,dst_size)
-        # npzeros = np.zeros(shape_new)
-        # vkout = cua.to_gpu(npzeros)
-
-        # vkout = app.fft(d0,vkout)
-        # cuda.Context.synchronize()
-        # gpu_out_fp16 = vkout.get()
-
-        # del app
 
         # vkFFT FP32 input, FP32 out
         input_fp32 = input_real_fp64[0].astype(np.float32)
@@ -347,24 +315,73 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
     fft_gpu_fp16_idx = 1
     fft_gpu_vk_idx = 2
 
-
     def _compute_mse(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         # Compute MSE for CPU, GPU(FP32) and GPU(FP16)
 
-        # GPU vs GPU
-        print('')
-        print('GPU vs GPU')
+        # CPU vs GPU
+        # ----------        
+        print('CPU vs GPU')
         print('----------')
 
-        # GPU (FP32)(PyCUDA) vs GPU (FP16)(CuPy)
-        gpu_fp32_gpu_fp16_diff = np.abs(fft_gpu_out[fft_gpu_fp32_idx] - fft_gpu_out[fft_gpu_fp16_idx])
-        gpu_fp32_gpu_fp16_mse = np.sum(np.square(gpu_fp32_gpu_fp16_diff))/len(gpu_fp32_gpu_fp16_diff)
-        print(f'GPU (FP32) vs GPU (FP16) MSE: {gpu_fp32_gpu_fp16_mse}')
+        # CPU (FP64) vs GPU (FP32)(PyCUDA)
+        cpu_fp64_gpu_fp32_diff = np.abs(fft_cpu_out[0] - fft_gpu_out[fft_gpu_fp32_idx])
+        cpu_fp64_gpu_fp32_mse = np.sum(np.power(cpu_fp64_gpu_fp32_diff,2))/len(cpu_fp64_gpu_fp32_diff)
+        print(f'CPU (FP64) vs GPU (FP32)(PyCUDA) MSE: {cpu_fp64_gpu_fp32_mse}')
+
+        # CPU (FP64) vs GPU (FP32)(vkFFT)
+        cpu_fp64_gpu_vkfp32_diff = np.abs(fft_cpu_out[0] - fft_gpu_out[fft_gpu_vk_idx])
+        cpu_fp64_gpu_vkfp32_mse = np.sum(np.power(cpu_fp64_gpu_vkfp32_diff,2))/len(cpu_fp64_gpu_vkfp32_diff)
+        print(f'CPU (FP64) vs GPU (FP32)(vkFFT) MSE: {cpu_fp64_gpu_vkfp32_mse}')
+        print('Note: vkFFT version seems to flip channels around tone so MSE shows greater error.')
+        print('')
+
+        # CPU (FP64) vs GPU (FP16)(CuPy)
+        cpu_fp64_gpu_fp16_diff = np.abs(fft_cpu_out[0] - fft_gpu_out[fft_gpu_fp16_idx])
+        cpu_fp64_gpu_fp16_mse = np.sum(np.power(cpu_fp64_gpu_fp16_diff,2))/len(cpu_fp64_gpu_fp16_diff)
+        print(f'CPU (FP64) vs GPU (FP16)(CuPy) MSE: {cpu_fp64_gpu_fp16_mse}')
+
+        # CPU (FP32) vs GPU (FP32)(PyCUDA)
+        cpu_fp32_gpu_fp32_diff = np.abs(fft_cpu_out[1] - fft_gpu_out[fft_gpu_fp32_idx])
+        cpu_fp32_gpu_fp32_mse = np.sum(np.power(cpu_fp32_gpu_fp32_diff,2))/len(cpu_fp32_gpu_fp32_diff)
+        print(f'CPU (FP32) vs GPU (FP32)(PyCUDA) MSE: {cpu_fp32_gpu_fp32_mse}')
+
+        # CPU (FP32) vs GPU (FP32)(vkFFT)
+        cpu_fp32_gpu_vkfp32_diff = np.abs(fft_cpu_out[1] - fft_gpu_out[fft_gpu_vk_idx])
+        cpu_fp32_gpu_vkfp32_mse = np.sum(np.power(cpu_fp32_gpu_vkfp32_diff,2))/len(cpu_fp32_gpu_vkfp32_diff)
+        print(f'CPU (FP32) vs GPU (FP32)(vkFFT) MSE: {cpu_fp32_gpu_vkfp32_mse}')
+        print('Note: vkFFT version seems to flip channels around tone so MSE shows greater error.')
+        print('')
+
+        # CPU (FP32) vs GPU (FP16)(CuPy)
+        cpu_fp32_gpu_fp16_diff = np.abs(fft_cpu_out[1] - fft_gpu_out[fft_gpu_fp16_idx])
+        cpu_fp32_gpu_fp16_mse = np.sum(np.power(cpu_fp32_gpu_fp16_diff,2))/len(cpu_fp32_gpu_fp16_diff)
+        print(f'CPU (FP32) vs GPU (FP16) MSE: {cpu_fp32_gpu_fp16_mse}')
+
+        # CPU (FP16) vs GPU (FP32)(PyCUDA)
+        cpu_fp16_gpu_fp32_diff = np.abs(fft_cpu_out[2] - fft_gpu_out[fft_gpu_fp32_idx])
+        cpu_fp16_gpu_fp32_mse = np.sum(np.power(cpu_fp16_gpu_fp32_diff,2))/len(cpu_fp16_gpu_fp32_diff)
+        print(f'CPU (FP16) vs GPU (FP32) MSE: {cpu_fp16_gpu_fp32_mse}')
+
+        # CPU (FP16) vs GPU (FP16)(CuPy)
+        cpu_fp16_gpu_fp16_diff = np.abs(fft_cpu_out[2] - fft_gpu_out[fft_gpu_fp16_idx])
+        cpu_fp16_gpu_fp16_mse = np.sum(np.power(cpu_fp16_gpu_fp16_diff,2))/len(cpu_fp16_gpu_fp16_diff)
+        print(f'CPU (FP16) vs GPU (FP16) MSE: {cpu_fp16_gpu_fp16_mse}')
+
+
+        # GPU vs GPU
+        # ----------
+        print('GPU vs GPU')
+        print('----------')
 
         # GPU (FP32)(PyCUDA) vs GPU (FP32)(vkFFT)
         gpu_fp32_gpu_vkfp32_diff = np.abs(fft_gpu_out[fft_gpu_fp32_idx] - np.conj(fft_gpu_out[fft_gpu_vk_idx]))
         gpu_fp32_gpu_vkfp32_mse = np.sum(np.square(gpu_fp32_gpu_vkfp32_diff))/len(gpu_fp32_gpu_vkfp32_diff)
-        print(f'GPU (FP32) vs GPU (vkFFT)(FP32) MSE: {gpu_fp32_gpu_vkfp32_mse}')
+        print(f'GPU (FP32)(PyCUDA) vs GPU (vkFFT)(FP32) MSE: {gpu_fp32_gpu_vkfp32_mse}')
+
+        # GPU (FP32)(PyCUDA) vs GPU (FP16)(CuPy)
+        gpu_fp32_gpu_fp16_diff = np.abs(fft_gpu_out[fft_gpu_fp32_idx] - fft_gpu_out[fft_gpu_fp16_idx])
+        gpu_fp32_gpu_fp16_mse = np.sum(np.square(gpu_fp32_gpu_fp16_diff))/len(gpu_fp32_gpu_fp16_diff)
+        print(f'GPU (FP32)(PyCUDA) vs GPU (FP16)(CuPy) MSE: {gpu_fp32_gpu_fp16_mse}')
         print('')
 
         # print(fft_gpu_out[fft_gpu_fp32_idx][8190])
@@ -400,45 +417,11 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         # plt.figure()
         # plt.plot(fft_gpu_out[fft_gpu_vk_idx][10000:20000])
         # plt.title(f'Diff2')
-        plt.show()
+        # plt.show()
 
-        # CPU vs GPU        
-        print('CPU vs GPU')
-        print('----------')
-
-        # CPU (FP64) vs GPU (FP16)(CuPy)
-        cpu_fp64_gpu_fp16_diff = np.abs(fft_cpu_out[0] - fft_gpu_out[fft_gpu_fp16_idx])
-        cpu_fp64_gpu_fp16_mse = np.sum(np.power(cpu_fp64_gpu_fp16_diff,2))/len(cpu_fp64_gpu_fp16_diff)
-        print(f'CPU (FP64) vs GPU (FP16) MSE: {cpu_fp64_gpu_fp16_mse}')
-
-        # CPU (FP32) vs GPU (FP16)(CuPy)
-        cpu_fp32_gpu_fp16_diff = np.abs(fft_cpu_out[1] - fft_gpu_out[fft_gpu_fp16_idx])
-        cpu_fp32_gpu_fp16_mse = np.sum(np.power(cpu_fp32_gpu_fp16_diff,2))/len(cpu_fp32_gpu_fp16_diff)
-        print(f'CPU (FP32) vs GPU (FP16) MSE: {cpu_fp32_gpu_fp16_mse}')
-
-        # CPU (FP16) vs GPU (FP16)(CuPy)
-        cpu_fp16_gpu_fp16_diff = np.abs(fft_cpu_out[2] - fft_gpu_out[fft_gpu_fp16_idx])
-        cpu_fp16_gpu_fp16_mse = np.sum(np.power(cpu_fp16_gpu_fp16_diff,2))/len(cpu_fp16_gpu_fp16_diff)
-        print(f'CPU (FP16) vs GPU (FP16) MSE: {cpu_fp16_gpu_fp16_mse}')
-
-        # CPU (FP64) vs GPU (FP32)(PyCUDA)
-        cpu_fp64_gpu_fp32_diff = np.abs(fft_cpu_out[0] - fft_gpu_out[fft_gpu_fp32_idx])
-        cpu_fp64_gpu_fp32_mse = np.sum(np.power(cpu_fp64_gpu_fp32_diff,2))/len(cpu_fp64_gpu_fp32_diff)
-        print(f'CPU (FP64) vs GPU (FP32) MSE: {cpu_fp64_gpu_fp32_mse}')
-
-        # CPU (FP32) vs GPU (FP32)(PyCUDA)
-        cpu_fp32_gpu_fp32_diff = np.abs(fft_cpu_out[1] - fft_gpu_out[fft_gpu_fp32_idx])
-        cpu_fp32_gpu_fp32_mse = np.sum(np.power(cpu_fp32_gpu_fp32_diff,2))/len(cpu_fp32_gpu_fp32_diff)
-        print(f'CPU (FP32) vs GPU (FP32) MSE: {cpu_fp32_gpu_fp32_mse}')
         
-        # CPU (FP16) vs GPU (FP32)(PyCUDA)
-        gpu_fp32_gpu_fp16_diff = np.abs(fft_cpu_out[2] - fft_gpu_out[fft_gpu_fp32_idx])
-        gpu_fp32_gpu_fp16_mse = np.sum(np.power(gpu_fp32_gpu_fp16_diff,2))/len(gpu_fp32_gpu_fp16_diff)
-        print(f'GPU (FP32) vs GPU (FP16) MSE: {gpu_fp32_gpu_fp16_mse}')
-        print('')
 
         # CPU vs FPGA
-        print('')
         print('CPU vs FPGA')
         print('-----------')
 
@@ -446,6 +429,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         cpu_fp32_fpga_diff = np.abs(fft_cpu_out[1] - fpga_cmplx[0])
         cpu_fp32_fpga_mse = np.sum(np.power(cpu_fp32_fpga_diff,2))/len(cpu_fp32_fpga_diff)
         print(f'CPU (FP32) vs FPGA MSE: {cpu_fp32_fpga_mse}')
+        print('')
 
     def _compute_freq(all_ffts):
         measured_freq_and_fft_power_spec = []
@@ -460,6 +444,10 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
 
     def _compute_sfdr(fft_power_spectrum):
         sfdr = []
+        
+        # Zero 'range' on either side of detected tone
+        blank_range = 7000 #This is about 45MHz away from the fundamental
+
         for fft_entry in fft_power_spectrum:
             fft_power_spectrum = fft_entry[1].copy()
 
@@ -467,8 +455,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             fft_max_fundamental = np.max(fft_power_spectrum)
             fundamental_bin = np.where(fft_power_spectrum==fft_max_fundamental)
             fundamental_bin = fundamental_bin[0][0]
-            # Zero 'range' on either side of detected tone
-            blank_range = 15000 #This is about 98MHz away from the fundamental
+
             if (fundamental_bin + blank_range) <= len(fft_power_spectrum):
                 fft_power_spectrum[fundamental_bin:(fundamental_bin+blank_range)] = 0
             else:
@@ -496,6 +483,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         gpu_vkfp32_indx = 5
         fpga_indx = 6
 
+        db_text_x_pos = 22e3
+        db_text_y_pos = 60
+
         # CPU: FFT
         def disp_fft_cpu():
             # Numpy FFT FP64
@@ -514,9 +504,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum_cpu), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
-                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
+                plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: CPU (FP64) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -541,9 +531,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum_cpu), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
-                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
+                plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: CPU (FP32) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -567,9 +557,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum_cpu), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
-                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp16}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp16}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB_cpu_fp16}dB', color='green', style='italic')
+                plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp16}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: CPU (FP16) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -596,9 +586,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin < len(fft_power_spectrum)/2:
-                plt.text(8.5e4, 70, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+                plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: GPU(FP32) - {round(fundamental_bin*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -623,9 +613,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin < len(fft_power_spectrum)/2:
-                plt.text(8.5e4, 70, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, db_text_y_pos, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
+                plt.text(0.25e4, db_text_y_pos, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: GPU(FP16) - {round(fundamental_bin*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -650,9 +640,9 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin < len(fft_power_spectrum)/2:
-                plt.text(8.5e4, 70, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, db_text_y_pos, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
-                plt.text(0.25e4, 70, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
+                plt.text(0.25e4, db_text_y_pos, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: GPU FP32(vkFFT) - {round(fundamental_bin*1712e6/number_samples/1e6)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -678,7 +668,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum), '-D', markevery=markers_cpu, markerfacecolor='green', markersize=9)
 
             if fundamental_bin < len(fft_power_spectrum)/2:
-                plt.text(8.5e4, -10, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
+                plt.text(db_text_x_pos, -10, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, -10, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
             plt.title(f'SFDR FFT: FPGA - {round(fundamental_bin*214e6/number_samples/1e6)}MHz')
