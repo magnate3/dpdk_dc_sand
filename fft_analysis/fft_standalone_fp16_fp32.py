@@ -398,37 +398,40 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         print(f'% of 8b LSB: {gpu_fp32_gpu_fp16_mse/2**(-7)*100}')
         print('')
 
-        # plt.figure(1)
-        # number_samples = len(fft_gpu_out[fft_gpu_vk_idx])*2
-        # num_steps = 8
-        # start_idx = 2038
-        # end_idx = 2059
-        # plt.plot(np.real(fft_gpu_out[fft_gpu_fp32_idx][start_idx:end_idx]))
-        # plt.plot(np.real(fft_gpu_out[fft_gpu_vk_idx][start_idx:end_idx]))
-        # plt.title(f'FFT: GPU (vkFFT Real - FP32) - {round(2048*1712e6/number_samples/1e6)}MHz')
-        # labels = np.linspace(round(start_idx*1712e6/number_samples/1e6),round(end_idx*1712e6/number_samples/1e6), int(num_steps/2+1))
-        # plt.xticks(np.arange(0, (end_idx-start_idx), step=5),labels=labels)
-        # plt.xlabel('Frequency (MHz)')
-        # plt.ylabel('Channel Magnitude')
+        plt.figure(1)
+        number_samples = len(fft_gpu_out[fft_gpu_vk_idx])*2
+        num_steps = 8
+        start_idx = 2038
+        end_idx = 2059
+        plt.plot(np.real(fft_gpu_out[fft_gpu_fp32_idx][start_idx:end_idx]))
+        plt.plot(np.real(fft_gpu_out[fft_gpu_vk_idx][start_idx:end_idx]))
+        plt.title(f'FFT: GPU (vkFFT Real - FP32) - {round(2048*1712e6/number_samples/1e6)}MHz')
+        labels = np.linspace(round(start_idx*1712e6/number_samples/1e6),round(end_idx*1712e6/number_samples/1e6), int(num_steps/2+1))
+        plt.xticks(np.arange(0, (end_idx-start_idx), step=5),labels=labels)
+        plt.legend(['PyCUDA FP32', 'vkFFT FP32'])
+        plt.xlabel('Frequency (MHz)')
+        plt.ylabel('Channel Magnitude')
 
-        # plt.figure(2)
-        # plt.plot(np.imag(fft_gpu_out[fft_gpu_fp32_idx][start_idx:end_idx]))
-        # plt.plot(np.imag(fft_gpu_out[fft_gpu_vk_idx][start_idx:end_idx]))
-        # plt.title(f'FFT: GPU (vkFFT Imag - FP32)- {round(2048*1712e6/number_samples/1e6)}MHz')
-        # labels = np.linspace(round(start_idx*1712e6/number_samples/1e6),round(end_idx*1712e6/number_samples/1e6), int(num_steps/2+1))
-        # plt.xticks(np.arange(0, (end_idx-start_idx), step=5),labels=labels)
-        # plt.xlabel('Frequency (MHz)')
-        # plt.ylabel('Channel Magnitude')
+        plt.figure(2)
+        plt.plot(np.imag(fft_gpu_out[fft_gpu_fp32_idx][start_idx:end_idx]))
+        plt.plot(np.imag(fft_gpu_out[fft_gpu_vk_idx][start_idx:end_idx]))
+        plt.title(f'FFT: GPU (vkFFT Imag - FP32)- {round(2048*1712e6/number_samples/1e6)}MHz')
+        labels = np.linspace(round(start_idx*1712e6/number_samples/1e6),round(end_idx*1712e6/number_samples/1e6), int(num_steps/2+1))
+        plt.xticks(np.arange(0, (end_idx-start_idx), step=5),labels=labels)
+        plt.legend(['PyCUDA FP32', 'vkFFT FP32'])
+        plt.xlabel('Frequency (MHz)')
+        plt.ylabel('Channel Magnitude')
 
-        # plt.figure(3)
-        # plt.plot(np.imag(fft_gpu_out[fft_gpu_fp32_idx][start_idx:end_idx]))
-        # plt.plot(np.imag(np.conj(fft_gpu_out[fft_gpu_vk_idx][start_idx:end_idx])))
-        # plt.title(f'FFT: GPU (vkFFT Imag (Conj) - FP32) - {round(2048*1712e6/number_samples/1e6)}MHz')
-        # labels = np.linspace(round(start_idx*1712e6/number_samples/1e6),round(end_idx*1712e6/number_samples/1e6), int(num_steps/2+1))
-        # plt.xticks(np.arange(0, (end_idx-start_idx), step=5),labels=labels)
-        # plt.xlabel('Frequency (MHz)')
-        # plt.ylabel('Channel Magnitude')
-        # plt.show()
+        plt.figure(3)
+        plt.plot(np.imag(fft_gpu_out[fft_gpu_fp32_idx][start_idx:end_idx]))
+        plt.plot(np.imag(np.conj(fft_gpu_out[fft_gpu_vk_idx][start_idx:end_idx])))
+        plt.title(f'FFT: GPU (vkFFT Imag (Conj) - FP32) - {round(2048*1712e6/number_samples/1e6)}MHz')
+        labels = np.linspace(round(start_idx*1712e6/number_samples/1e6),round(end_idx*1712e6/number_samples/1e6), int(num_steps/2+1))
+        plt.xticks(np.arange(0, (end_idx-start_idx), step=5),labels=labels)
+        plt.legend(['PyCUDA FP32', 'vkFFT FP32 (Conj)'])
+        plt.xlabel('Frequency (MHz)')
+        plt.ylabel('Channel Magnitude')
+        plt.show()
 
         
         # CPU vs FPGA
