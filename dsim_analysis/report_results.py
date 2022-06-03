@@ -2,6 +2,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import config
+import scipy.stats as stats
+import math
 
 def display_wgn_results(results):
     for entry in results:
@@ -128,10 +130,23 @@ def plot_hist(hist_results):
     plt.stairs(hist_results[0][1][0], hist_results[0][1][1], edgecolor="black", fill=True)
     plt.title('Histogram')
     # plt.xticks(np.linspace(-1, 1, int(np.round(config.hist_res/4))), np.linspace(0, len(hist_results[0][0][0]), config.hist_res))
-    plt.xlabel('Bins')
+    plt.xlabel('Deviation from mean ($\mu$)')
     plt.ylabel('Count')
     plt.legend(['Pol0', 'Pol1'])
+
+
+    # if hist_source == 'wgn':
+    # Add a Gaussian reference to the plot. The max value should be the max of the hist bin count.
+    mu = 0
+    variance = hist_results[4][0]
+    sigma = math.sqrt(variance)
+    x = np.linspace(mu - 3*sigma, mu + 3*sigma, len(hist_results[0][0][0]))
+    gausian_ref = stats.norm.pdf(x, mu, sigma)
+    gausian_ref = gausian_ref/np.max(gausian_ref)
+    plt.plot(x, np.max(hist_results[0][0][0]) * gausian_ref)
     plt.show()
+    # source: https://matplotlib.org/3.5.0/tutorials/text/mathtext.html
+    # source: https://stackoverflow.com/questions/10138085/how-to-plot-normal-distribution
 
 def plot_allan_var(allan_var_results):
     t2_p0,ad_p0 = allan_var_results[0]
