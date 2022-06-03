@@ -17,14 +17,13 @@ import h5py
 
 import pycuda.autoinit
 import pycuda.gpuarray as cua
+from pyvkfft.opencl import VkFFTApp
 from pyvkfft.fft import fftn
 
 from scipy.misc import ascent
-# from scipy.fftpack import fftn
 import scipy.fftpack
 import pyopencl as cl
 import pyopencl.array as cla
-from pyvkfft.opencl import VkFFTApp
 
 N = 2**16
 shape = (1, 1, N)  # input array shape
@@ -522,6 +521,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         # CPU: FFT
         def disp_fft_cpu():
             # Numpy FFT FP64
+            # --------------
             freq_cpu = measured_freq_and_fft_power_spec[cpu_fp64_indx][0]
             fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp64_indx][1]
             number_samples = len(fft_power_spectrum_cpu)*2
@@ -550,6 +550,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
 
 
             # Numpy FFT FP32
+            # --------------
             freq_cpu = measured_freq_and_fft_power_spec[cpu_fp32_indx][0]
             fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp32_indx][1]
             number_samples = len(fft_power_spectrum_cpu)*2
@@ -577,6 +578,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.ylabel('dB')
 
             # Numpy FFT FP16
+            # --------------
             freq_cpu = measured_freq_and_fft_power_spec[cpu_fp16_indx][0]
             fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp16_indx][1]
             number_samples = len(fft_power_spectrum_cpu)*2
@@ -688,6 +690,8 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
 
         # FPGA:
         def disp_fpga():
+            # Plot for Xilinx FFT FPGA results
+            # --------------------------------
             freq = measured_freq_and_fft_power_spec[fpga_nb_indx][0]
             fft_power_spectrum = measured_freq_and_fft_power_spec[fpga_nb_indx][1]
             number_samples = len(fft_power_spectrum)*2
@@ -714,7 +718,8 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('dB')
            
-           
+            # Plot for CASPER FFT FPGA results
+            # --------------------------------
             freq = measured_freq_and_fft_power_spec[fpga_wb_indx][0]
             fft_power_spectrum = measured_freq_and_fft_power_spec[fpga_wb_indx][1]
             number_samples = len(fft_power_spectrum)*2
@@ -747,17 +752,17 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
         disp_fft_cpu()
         print('')
 
-        # print('SFDR: GPU')
-        # print('---------')
-        # disp_fft_gpu_fp32()
-        # disp_fft_gpu_fp16()
-        # disp_fft_gpu_vkfp32()
-        # print('')
+        print('SFDR: GPU')
+        print('---------')
+        disp_fft_gpu_fp32()
+        disp_fft_gpu_fp16()
+        disp_fft_gpu_vkfp32()
+        print('')
 
-        # print('SFDR: FPGA')
-        # print('----------')
-        # disp_fpga()
-        # print('')
+        print('SFDR: FPGA')
+        print('----------')
+        disp_fpga()
+        print('')
 
     _compute_mse(fft_cpu_out, fft_gpu_out, fpga_cmplx)
     measured_freq_and_fft_power_spec = _compute_freq([fft_cpu_out, fft_gpu_out, fpga_cmplx])
