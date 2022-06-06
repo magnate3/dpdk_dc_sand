@@ -28,7 +28,7 @@ import pyopencl.array as cla
 N = 2**16
 shape = (1, 1, N)  # input array shape
 
-def generate_data(src, scale=0.1):
+def generate_data(src, scale=0.1, dither=2**(-9), distribution='Gaussian'):
     
     def _pack_real_to_complex_interleave(data_in):
         data_out = np.zeros((shape[0], shape[1], 2*shape[2]), dtype=np.float64)
@@ -48,12 +48,12 @@ def generate_data(src, scale=0.1):
 
         # Real input with complex formatting. Generate N random samples and either use as 
         # a N-valued real array or create a complex-valued array with imag as zero (0j).
-        input_real_fp64 = scale*cp.random.random((shape[0], shape[1], shape[2])).astype(cp.float64)
+        input_real_fp64 = scale*cp.random.normal((shape[0], shape[1], shape[2])).astype(cp.float64)
         input_cmplx_interleave_fp64 = _pack_real_to_complex_interleave(input_real_fp64)
 
         return (input_real_fp64, input_cmplx_interleave_fp64)
 
-    def _generate_data_cw(scale, dither=True):
+    def _generate_data_cw(scale, dither, distribution):
         # Option 2: Generate CW
         # Store the input/output arrays as fp16 arrays twice as long, as complex32 is not yet available
         # Additonal note: CuPy is expecting the data as complex. To input real data create array as R+j0.
@@ -64,8 +64,13 @@ def generate_data(src, scale=0.1):
         f = shape[2]/32 # This should be 53.5MHz
 
         in_array = np.linspace(-(f*np.pi), f*np.pi, shape[2])
-        if dither:
-            input_real_fp64 = scale*np.cos(in_array).astype(np.float64) + 2**(-9)*np.random.random(shape[2]).astype(np.float64)
+        if dither > 0:
+            if distribution == 'Gaussian':
+                input_real_fp64 = scale*np.cos(in_array).astype(np.float64) + dither*np.random.normal(size=(1,shape[2]))
+            elif distribution == 'uniform':
+                # input_real_fp64 = scale*np.cos(in_array).astype(np.float64) + dither*np.random.random(size=(1,shape[2])).astype(np.float64)
+                # input_real_fp64 = scale*np.cos(in_array).astype(np.float64) + np.random.uniform(-0.5, 0.5,size=(1,shape[2]))/512
+                input_real_fp64 = scale*np.cos(in_array).astype(np.float64) + np.random.uniform(-0.5, 0.5, size=(1,shape[2]))*dither
         else:
             input_real_fp64 = scale*np.cos(in_array).astype(np.float64)
 
@@ -99,7 +104,7 @@ def generate_data(src, scale=0.1):
     if src == 'wgn':
         return _generate_data_wgn(scale)
     elif src == 'cw':
-        return _generate_data_cw(scale, dither=True)
+        return _generate_data_cw(scale, dither, distribution)
     elif src == 'const':
         return _generate_constant(scale)
 
@@ -296,7 +301,7 @@ def fft_fpga(filenames):
     for entry in fpga_fft:
         for i in range(len(entry[0])):
             if np.isnan(entry[0][i]) or (entry[0][i] == 0):
-                entry[0][i] = 2**(-10)*np.random.random()
+                entry[0][i] = 2**(-10)*np.random.normal()
 
     fpga_cmplx.append(fpga_fft[0][0] +1j*fpga_fft[1][0])
     fpga_cmplx.append(fpga_fft[2][0] +1j*fpga_fft[3][0])
@@ -773,7 +778,7 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
 
 def main():
     # Generate data: Options, 'wgn', 'cw', 'const'
-    input_real_fp64, input_cmplx_interleave_fp64 = generate_data('cw', scale=0.1)
+    input_real_fp64, input_cmplx_interleave_fp64 = generate_data('cw', scale=0.1, dither=2**(-9), distribution='Gaussian')
 
     # Run GPU FFT's
     fft_gpu_out = fft_gpu(input_real_fp64, input_cmplx_interleave_fp64)
@@ -782,12 +787,14 @@ def main():
     fft_cpu_out = fft_cpu(input_cmplx_interleave_fp64)
 
     # Import Quantised 8bit (FPGA)
+    # Use if debugging using VSCode
     # filenames_nb = ("fft_analysis/fft_real_scale_0_9_freq_53_5MHz_dither_2_15_shift_21930.h5", 
     #                 "fft_analysis/fft_imag_scale_0_9_freq_53_5MHz_dither_2_15_shift_21930.h5")
 
     # filenames_wb = ("fft_analysis/fft_q_real_scale_0_1_freq_53_5MHz_dither_2_11_shift_32766.h5", 
     #                 "fft_analysis/fft_q_imag_scale_0_1_freq_53_5MHz_dither_2_11_shift_32766.h5")
 
+    # Use if running via commandline
     filenames_nb = ("fft_real_scale_0_9_freq_53_5MHz_dither_2_15_shift_21930.h5", 
                     "fft_imag_scale_0_9_freq_53_5MHz_dither_2_15_shift_21930.h5")
 
