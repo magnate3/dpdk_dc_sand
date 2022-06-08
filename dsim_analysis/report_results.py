@@ -11,7 +11,7 @@ def display_wgn_results(results):
         print(f'Pol1 - Scale: {entry[1]}   Mean: {entry[2][1]}    StdDev: {entry[3][1]}    Var: {entry[4][1]}')
 
     # plot the 3rd noise level (0.25)
-    plot_hist(results[2])
+    plot_hist(results[2], hist_source = 'wgn')
     plot_allan_var(results[2][5])
 
 def display_cw_results(results):
@@ -28,7 +28,7 @@ def display_cw_results(results):
 
     max_scale = (max_scale_pol0, max_scale_pol1)
 
-    plot_hist(results[0])
+    plot_hist(results[0], hist_source = 'cw')
     plot_linearity_scale(scale, max_scale)
     plot_linearity_difference(scale, max_scale)
 
@@ -123,7 +123,7 @@ def plot_channelised_data(channelised_data):
     plt.show()
 
 
-def plot_hist(hist_results):
+def plot_hist(hist_results, hist_source):
     plt.figure()
     bins = hist_results[0][0][1]
     plt.stairs(hist_results[0][0][0], hist_results[0][0][1], edgecolor="black", fill=True)
@@ -135,18 +135,18 @@ def plot_hist(hist_results):
     plt.legend(['Pol0', 'Pol1'])
 
 
-    # if hist_source == 'wgn':
-    # Add a Gaussian reference to the plot. The max value should be the max of the hist bin count.
-    mu = 0
-    variance = hist_results[4][0]
-    sigma = math.sqrt(variance)
-    x = np.linspace(mu - 3*sigma, mu + 3*sigma, len(hist_results[0][0][0]))
-    gausian_ref = stats.norm.pdf(x, mu, sigma)
-    gausian_ref = gausian_ref/np.max(gausian_ref)
-    plt.plot(x, np.max(hist_results[0][0][0]) * gausian_ref)
-    plt.show()
-    # source: https://matplotlib.org/3.5.0/tutorials/text/mathtext.html
-    # source: https://stackoverflow.com/questions/10138085/how-to-plot-normal-distribution
+    if hist_source == 'wgn':
+        # Add a Gaussian reference to the plot. The max value should be the max of the hist bin count.
+        mu = 0
+        variance = hist_results[4][0]
+        sigma = math.sqrt(variance)
+        x = np.linspace(mu - 3*sigma, mu + 3*sigma, len(hist_results[0][0][0]))
+        gausian_ref = stats.norm.pdf(x, mu, sigma)
+        gausian_ref = gausian_ref/np.max(gausian_ref)
+        plt.plot(x, np.max(hist_results[0][0][0]) * gausian_ref)
+        plt.show()
+        # source: https://matplotlib.org/3.5.0/tutorials/text/mathtext.html
+        # source: https://stackoverflow.com/questions/10138085/how-to-plot-normal-distribution
 
 def plot_allan_var(allan_var_results):
     t2_p0,ad_p0 = allan_var_results[0]
