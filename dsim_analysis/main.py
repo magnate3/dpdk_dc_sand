@@ -127,9 +127,11 @@ async def async_main(args: argparse.Namespace) -> None:
             layout = recv.Layout(SAMPLE_BITS, src_packet_samples, chunk_samples, mask_timestamp)
 
             ringbuffer_capacity = 2
+            src_chunks_per_stream = 4 
             ring = ChunkRingbuffer(ringbuffer_capacity, name="recv_ringbuffer", task_name="run_receive", monitor=NullMonitor())
-            
-            streams = recv.make_streams(layout, ring, src_affinity)
+            free_ringbuffers = [spead2.recv.ChunkRingbuffer(src_chunks_per_stream) for _ in range(N_POLS)]
+
+            streams = recv.make_streams(layout, ring, free_ringbuffers, src_affinity)
 
             ctx = accel.create_some_context(device_filter=lambda x: x.is_cuda)
             src_chunks_per_stream = 4   
