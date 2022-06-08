@@ -103,6 +103,13 @@ class Plot:
 
 
 @dataclass
+class Figure:
+    """A figure created by ``pdf_report.figure`` or ``pdf_report.raw_figure``."""
+
+    code: str
+
+
+@dataclass
 class Step:
     """A step created by ``pdf_report.step``."""
 
@@ -196,6 +203,8 @@ def parse(input_data: list) -> Tuple[List[ConfigParam], List[Result]]:
                                     detail["legend_labels"],
                                 )
                                 if detail["$msg_type"] == "plot"
+                                else Figure(detail["code"])
+                                if detail["$msg_type"] == "figure"
                                 else Detail("", 0)  # Blank catch-all.
                                 for detail in msg["details"]
                             ]
@@ -350,6 +359,10 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                 elif isinstance(detail, Plot):
                                     mp = MiniPage(width=NoEscape(r"0.6\textwidth"))
                                     mp.append(NoEscape(detail.get_pgf_str()))
+                                    procedure_table.add_row((MultiColumn(2, align="|c|", data=mp),))
+                                elif isinstance(detail, Figure):
+                                    mp = MiniPage(width=NoEscape(r"0.6\textwidth"))
+                                    mp.append(NoEscape(detail.code))
                                     procedure_table.add_row((MultiColumn(2, align="|c|", data=mp),))
                                 procedure_table.add_hline()
 
