@@ -1,0 +1,12 @@
+- mempool caches
+- mempool flags for single-producer or single-consumer
+
+Tx:
+- deal with transmission failures
+Offloads:
+- free Tx mbuf on demand?
+
+Rx:
+- flow filter for valid packets
+- checksum offload
+- multi-packet receive queues?

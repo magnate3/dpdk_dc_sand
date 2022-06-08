@@ -5,6 +5,12 @@
 \usepackage{tablefootnote}
 \usepackage{color}
 \usepackage{colortbl}
+\usepackage{listings}
+\lstset{breaklines, breakatwhitespace, basicstyle=\scriptsize\ttfamily}
+% Magic incantation based on
+% http://www.bollchen.de/blog/2011/04/good-looking-line-breaks-with-the-listings-package/
+\lstset{prebreak=\raisebox{0ex}[0ex][0ex]{\ensuremath{\hookleftarrow}}}
+\lstset{postbreak=\raisebox{0ex}[0ex][0ex]{\ensuremath{\hookrightarrow\space}}}
 
 \newcommand{\docClient}{NRF (National Research Foundation)}
 \newcommand{\docFacility}{SARAO (South African Radio Astronomy Observatory)}

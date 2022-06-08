@@ -10,6 +10,12 @@ def test_channelisation(pdf_report, skarab_dsim_fixture):
 
     Fulfils requirement ABC.
     """
+    pdf_report.config(
+        channels=4096,
+        antennas=13,
+        bandwidth=1712e6,
+    )
+
     pdf_report.step("Select a random channel.")
     pdf_report.detail("Random channel selected: 42")
 
@@ -49,6 +55,14 @@ def test_delay_tracking(pdf_report, skarab_dsim_fixture):
 
     Fulfils requirement FGD.
     """
+
+    pdf_report.config(
+        channels=4096,
+        antennas=13,
+        bandwidth=1712e6,
+        enthusiasm="Low",
+    )
+
     pdf_report.step("Set delay model on Antenna 1")
     pdf_report.detail("Setting delay model on antenna 1")
     sleep(1)
@@ -74,6 +88,11 @@ def test_baselines(pdf_report, skarab_dsim_fixture):
 
     Fulfils another requirement.
     """
+
+    pdf_report.config(
+        setup="Arbitrary",
+    )
+
     pdf_report.step("Set something.")
     sleep(1)
     pdf_report.detail("Checking that something is set.")
