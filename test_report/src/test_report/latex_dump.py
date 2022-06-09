@@ -8,9 +8,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import List, Literal, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
-import numpy as np
-import tikzplotlib
 from docutils.core import publish_parts
 from dotenv import dotenv_values
 from pylatex import (
@@ -68,41 +65,6 @@ class Detail:
 
 
 @dataclass
-class Plot:
-    """A plot requested by ``pdf_report.plot``.
-
-    This class does the drawing, given the details.
-    """
-
-    #: The X-axis.
-    x: np.ndarray
-    y: np.ndarray
-    caption: str
-    xlabel: str
-    ylabel: str
-    legend_labels: Union[str, List[str]]
-
-    def get_pgf_str(self) -> str:
-        """Output the PGF-plots string for the data represented here."""
-        with plt.style.context("ggplot"):
-            fig, ax = plt.subplots()
-            if self.y.ndim > 1:
-                for y, legend_label in zip(self.y, self.legend_labels):
-                    ax.plot(self.x, y, label=legend_label)
-            else:
-                ax.plot(self.x, self.y, label=self.legend_labels)
-            ax.set(
-                title=self.caption,
-                xlabel=self.xlabel,
-                ylabel=self.ylabel,
-            )
-            ax.legend()
-            ax.grid()
-        tikzplotlib.clean_figure(fig)
-        return tikzplotlib.get_tikz_code(fig, table_row_sep=r"\\")
-
-
-@dataclass
 class Figure:
     """A figure created by ``pdf_report.figure`` or ``pdf_report.raw_figure``."""
 
@@ -114,7 +76,7 @@ class Step:
     """A step created by ``pdf_report.step``."""
 
     message: str
-    details: List[Union[Detail, Plot]] = field(default_factory=list)
+    details: List[Union[Detail, Figure]] = field(default_factory=list)
 
 
 @dataclass
@@ -194,15 +156,6 @@ def parse(input_data: list) -> Tuple[List[ConfigParam], List[Result]]:
                             details = [
                                 Detail(detail["message"], detail["timestamp"])
                                 if detail["$msg_type"] == "detail"
-                                else Plot(
-                                    np.array(detail["x"]),
-                                    np.array(detail["y"]),
-                                    detail["caption"],
-                                    detail["xlabel"],
-                                    detail["ylabel"],
-                                    detail["legend_labels"],
-                                )
-                                if detail["$msg_type"] == "plot"
                                 else Figure(detail["code"])
                                 if detail["$msg_type"] == "figure"
                                 else Detail("", 0)  # Blank catch-all.
@@ -356,10 +309,6 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                             detail.message,
                                         ]
                                     )
-                                elif isinstance(detail, Plot):
-                                    mp = MiniPage(width=NoEscape(r"0.6\textwidth"))
-                                    mp.append(NoEscape(detail.get_pgf_str()))
-                                    procedure_table.add_row((MultiColumn(2, align="|c|", data=mp),))
                                 elif isinstance(detail, Figure):
                                     mp = MiniPage(width=NoEscape(r"0.6\textwidth"))
                                     mp.append(NoEscape(detail.code))
