@@ -310,7 +310,8 @@ def document_from_json(input_data: Union[str, list]) -> Document:
                                         ]
                                     )
                                 elif isinstance(detail, Figure):
-                                    mp = MiniPage(width=NoEscape(r"0.6\textwidth"))
+                                    mp = MiniPage(width=NoEscape(r"\textwidth"))
+                                    mp.append(NoEscape(r"\center"))
                                     mp.append(NoEscape(detail.code))
                                     procedure_table.add_row((MultiColumn(2, align="|c|", data=mp),))
                                 procedure_table.add_hline()
