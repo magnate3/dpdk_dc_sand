@@ -115,7 +115,7 @@ def fft_cpu(input_cmplx_interleave_fp64):
 
     # Run FFT (FP64)(Complex128)
     # NumPy
-    # fft_cpu_fp64 = np.fft.fftn(input_cmplx)
+    fft_cpu_fp64 = np.fft.fftn(input_cmplx)
     
     # SciPy
     fft_cpu_fp64 = scipy.fftpack.fftn(input_cmplx)
@@ -123,7 +123,7 @@ def fft_cpu(input_cmplx_interleave_fp64):
     # ---- FFT FP32 with NumPy ----
     # Run FFT (FP32)(Complex64)
     # NumPy
-    # fft_cpu_fp32 = np.fft.fftn(input_cmplx.astype(np.complex64))
+    fft_cpu_fp32 = np.fft.fftn(input_cmplx.astype(np.complex64))
 
     # SciPy
     fft_cpu_fp32 = scipy.fftpack.fftn(input_cmplx.astype(np.complex64))
@@ -583,60 +583,47 @@ def analyse_data(fft_cpu_out, fft_gpu_out, fpga_cmplx):
 
 
 
-            # SciPy FFT FP64
-            # --------------
-            freq_cpu = measured_freq_and_fft_power_spec[cpu_fp64_indx][0]
-            fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp64_indx][1]
-            number_samples = len(fft_power_spectrum_cpu)*2
+            # SciPy FFT FP64 vs FP32
+            # ----------------------
+            fft_power_spectrum_cpu_fp64 = measured_freq_and_fft_power_spec[cpu_fp64_indx][1]
+            fft_power_spectrum_cpu_fp32 = measured_freq_and_fft_power_spec[cpu_fp32_indx][1]
+            number_samples = len(fft_power_spectrum_cpu_fp64)*2
             difference_dB_cpu_fp64 = sfdr[cpu_fp64_indx][0]
 
-            # sfdr.append((freq_cpu, difference_dB)) # for printout
             fundamental_bin_cpu = sfdr[cpu_fp64_indx][1]
             next_tone_bin_cpu = sfdr[cpu_fp64_indx][2]
 
             plt.figure()
-            # markers_cpu = [fundamental_bin_cpu, next_tone_bin_cpu]
-            # print(f'difference_dB_cpu_fp64: {difference_dB_cpu_fp64}')
-            plt.plot(10*np.log10(fft_power_spectrum_cpu))
-
-            # if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
-            #     plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
-            # else:
-            #     plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
-            plt.title(f'FFT: CPU (SciPy FP64)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            plt.plot(10*np.log10(fft_power_spectrum_cpu_fp32), linestyle='--', label='FP32')
+            plt.plot(10*np.log10(fft_power_spectrum_cpu_fp64), label='FP64')
+            plt.legend()
+            # plt.title(f'FFT: CPU (SciPy FP64)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'FFT: CPU (SciPy)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
-            plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu)+len(fft_power_spectrum_cpu)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
+            plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu_fp64)+len(fft_power_spectrum_cpu_fp64)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
             plt.xlabel('Frequency (MHz)')
             plt.ylabel('dB')
 
 
             # SciPy FFT FP32
             # --------------
-            freq_cpu = measured_freq_and_fft_power_spec[cpu_fp32_indx][0]
-            fft_power_spectrum_cpu = measured_freq_and_fft_power_spec[cpu_fp32_indx][1]
-            number_samples = len(fft_power_spectrum_cpu)*2
-            difference_dB_cpu_fp32 = sfdr[cpu_fp32_indx][0]
+            # fft_power_spectrum_cpu_fp32 = measured_freq_and_fft_power_spec[cpu_fp32_indx][1]
+            # number_samples = len(fft_power_spectrum_cpu_fp32)*2
+            # difference_dB_cpu_fp32 = sfdr[cpu_fp32_indx][0]
 
-            # sfdr.append((freq_cpu, difference_dB)) # for printout
-            fundamental_bin_cpu = sfdr[cpu_fp32_indx][1]
-            next_tone_bin_cpu = sfdr[cpu_fp32_indx][2]
+            # # sfdr.append((freq_cpu, difference_dB)) # for printout
+            # fundamental_bin_cpu = sfdr[cpu_fp32_indx][1]
+            # next_tone_bin_cpu = sfdr[cpu_fp32_indx][2]
 
-            plt.figure()
-            # markers_cpu = [fundamental_bin_cpu, next_tone_bin_cpu]
-            # print(f'difference_dB_cpu_fp32: {difference_dB_cpu_fp32}')
-            plt.plot(10*np.log10(fft_power_spectrum_cpu))
-
-            # if fundamental_bin_cpu < len(fft_power_spectrum_cpu)/2:
-            #     plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
-            # else:
-            #     plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
-            plt.title(f'FFT: CPU (SciPy FP32)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
-            labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
-            labels = labels.round(0)
-            plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu)+len(fft_power_spectrum_cpu)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
-            plt.xlabel('Frequency (MHz)')
-            plt.ylabel('dB')
+            # plt.figure()
+            # plt.plot(10*np.log10(fft_power_spectrum_cpu_fp32))
+            # plt.title(f'FFT: CPU (SciPy FP32)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            # labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
+            # labels = labels.round(0)
+            # plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu_fp32)+len(fft_power_spectrum_cpu_fp32)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
+            # plt.xlabel('Frequency (MHz)')
+            # plt.ylabel('dB')
 
 
 
