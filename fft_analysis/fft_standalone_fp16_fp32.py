@@ -9,7 +9,7 @@ import config
 def main():
     # Generate data: Options, 'wgn', 'cw', 'const'
     cw = cw_generator.CWGenerator()
-    input_real_fp64, input_cmplx_interleave_fp64 = cw.generate_data(signal='cw', cw_scale=0.1, wgn_scale=2**(-30), distribution='Gaussian')
+    input_real_fp64, input_cmplx_interleave_fp64 = cw.generate_data(signal='cw', cw_scale=0.9, cw_freq=277e6, wgn_scale=2**(-10), distribution='Gaussian')
 
     # Run GPU FFT's
     fft_gpu_out = fft_gpu.fft_gpu(input_real_fp64, input_cmplx_interleave_fp64)

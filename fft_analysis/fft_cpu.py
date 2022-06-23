@@ -16,7 +16,7 @@ def fft_cpu(input_cmplx_interleave_fp64):
     fft_cpu_fp64 = np.fft.fftn(input_cmplx)
     
     # SciPy
-    fft_cpu_fp64 = scipy.fftpack.fftn(input_cmplx)
+    # fft_cpu_fp64 = scipy.fftpack.fftn(input_cmplx)
 
     # ---- FFT FP32 with NumPy ----
     # Run FFT (FP32)(Complex64)
@@ -24,7 +24,7 @@ def fft_cpu(input_cmplx_interleave_fp64):
     fft_cpu_fp32 = np.fft.fftn(input_cmplx.astype(np.complex64))
 
     # SciPy
-    fft_cpu_fp32 = scipy.fftpack.fftn(input_cmplx.astype(np.complex64))
+    # fft_cpu_fp32 = scipy.fftpack.fftn(input_cmplx.astype(np.complex64))
 
     # ---- FFT FP16 with NumPy ----
     # Run FFT (FP16)
