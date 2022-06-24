@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
+def run(fft_cpu_out, fft_gpu_out, fpga_cmplx, cw_scale, cw_freq):
     fft_gpu_fp32_idx = 0
     fft_gpu_fp16_idx = 1
     fft_gpu_vk_idx = 2
@@ -224,7 +224,9 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
                 plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp64}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: CPU (NumPy FP64)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'SFDR FFT: CPU (NumPy FP64)(Input Scale {cw_scale}) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            # plt.title(f'SFDR FFT: CPU (SciPy FP64)(Input Scale {cw_scale}) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu)+len(fft_power_spectrum_cpu)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
@@ -252,7 +254,8 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
                 plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp32}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: CPU (NumPy FP32)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'SFDR FFT: CPU (NumPy FP32)(Input Scale {cw_scale}) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            # plt.title(f'SFDR FFT: CPU (SciPy FP32)(Input Scale {cw_scale}) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
 
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
@@ -277,7 +280,7 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
             plt.plot(10*np.log10(fft_power_spectrum_cpu_fp64), label='FP64')
             plt.legend()
             # plt.title(f'FFT: CPU (SciPy FP64)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
-            plt.title(f'FFT: CPU (SciPy)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'FFT: CPU (SciPy)(Input Scale {cw_scale}) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu_fp64)+len(fft_power_spectrum_cpu_fp64)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
@@ -326,7 +329,7 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
                 plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp16}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB_cpu_fp16}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: CPU (NumPy FP16)(Input Scale 0.1) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'SFDR FFT: CPU (NumPy FP16)(Input Scale {cw_scale}) - {round(fundamental_bin_cpu*1712e6/number_samples/1e6,2)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum_cpu)+len(fft_power_spectrum_cpu)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
@@ -355,7 +358,7 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
                 plt.text(db_text_x_pos, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, db_text_y_pos, f'SFDR ($\u25C6$): {difference_dB}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: GPU (PyCUDA FP32)(Input Scale 0.1) - {round(fundamental_bin*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'SFDR FFT: GPU (PyCUDA FP32)(Input Scale {cw_scale}) - {round(fundamental_bin*1712e6/number_samples/1e6,2)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum)+len(fft_power_spectrum)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
@@ -382,7 +385,7 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
                 plt.text(db_text_x_pos, db_text_y_pos, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, db_text_y_pos, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: GPU (CuPy FP16)(Input Scale 0.1) - {round(fundamental_bin*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'SFDR FFT: GPU (CuPy FP16)(Input Scale {cw_scale}) - {round(fundamental_bin*1712e6/number_samples/1e6,2)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum)+len(fft_power_spectrum)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
@@ -409,7 +412,7 @@ def run(fft_cpu_out, fft_gpu_out, fpga_cmplx):
                 plt.text(db_text_x_pos, db_text_y_pos, f'SFDR Pol0 ($\u25C6$): {difference_dB}dB', color='green', style='italic')
             else:
                 plt.text(0.25e4, db_text_y_pos, f'SFDR Pol0: ($\u25C6$) {difference_dB}dB', color='green', style='italic')
-            plt.title(f'SFDR FFT: GPU (vkFFT FP32)(Input Scale 0.1) - {round(fundamental_bin*1712e6/number_samples/1e6,2)}MHz')
+            plt.title(f'SFDR FFT: GPU (vkFFT FP32)(Input Scale {cw_scale}) - {round(fundamental_bin*1712e6/number_samples/1e6,2)}MHz')
             labels = np.linspace(0,(1712e6/2)/1e6, int(num_steps/2+1))
             labels = labels.round(0)
             plt.xticks(np.arange(0, (len(fft_power_spectrum)+len(fft_power_spectrum)/(number_samples/num_steps)), step=number_samples/num_steps),labels=labels)
