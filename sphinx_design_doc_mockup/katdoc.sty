@@ -1,0 +1,238 @@
+% File: katdoc.sty
+% Subject: Stylesheet for KAT document
+% Author: M. Welz and A. Pinska; based on template by R.T. Lord and J.C. Guzman
+% Pared down quite severely for use in CBF design doc by J.N. Smith.
+\ProvidesPackage{katdoc}
+% \setcounter{errorcontextlines}{999}
+
+\newcommand{\stylesheetVersion}{1.1.2-dirty}
+
+\usepackage{graphicx}
+\usepackage{lastpage}
+\usepackage{mathptmx}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{array}
+\usepackage{babel}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{ifthen}
+\usepackage{float}
+\usepackage{enumitem}
+
+% For plotting to work nicely.
+\usepackage[utf8]{inputenc}
+\usepackage{pgfplots}
+\DeclareUnicodeCharacter{2212}{−}
+\usepgfplotslibrary{groupplots,dateplot}
+\usetikzlibrary{patterns,shapes.arrows}
+\pgfplotsset{compat=newest}
+
+\geometry{verbose,a4paper,tmargin=32mm,bmargin=27mm,lmargin=21mm,rmargin=19mm,headheight=10mm,headsep=12mm,footskip=12mm}
+\pagestyle{empty}
+\setlength{\parskip}{\medskipamount}
+\setlength{\parindent}{0pt}
+\pagenumbering{arabic}
+\setlength{\unitlength}{1mm}
+\setcounter{secnumdepth}{5}
+\setcounter{tocdepth}{5}
+
+% Template revision
+\newcommand{\templateVersion}{???}
+
+% Front Cover
+\newcommand{\addcontributor}[5]{
+#1 & #2 & #3 & #4 & #5 & \\
+\hline
+}
+
+\newcommand{\addchange}[4]{
+#1 & #2 & #3 & #4 \\
+\hline
+}
+
+\newcommand{\addprogram}[4]{
+#1 & #2 & #3 \\
+\hline
+}
+
+\renewcommand{\maketitle}{
+    \begin{titlepage}
+        \begin{center}
+
+        % SKA logo
+        \begin{figure}
+            \begin{center}
+                \includegraphics[width=0.66\linewidth]{sarao_logo.png}
+            \end{center}
+        \end{figure}
+        \vspace{4cm}
+
+        \renewcommand{\arraystretch}{1.5}
+
+
+        % Title
+        \huge
+        \textbf{\@title}
+        \vspace{3cm}
+
+        % Document Information Table
+        \Large
+        \begin{centering}
+        \makebox[0.75\linewidth]{Document number~\dotfill~\docId}\\
+        \makebox[0.75\linewidth]{\docReleaseName~\dotfill~\docRelease}\\
+        \makebox[0.75\linewidth]{Classification~\dotfill~\docClassification}\\
+        \makebox[0.75\linewidth]{Prepared by~\dotfill~\@author}\\
+        \makebox[0.75\linewidth]{Date~\dotfill~\@date}\\
+        \end{centering}
+
+
+        % Client Table
+        \normalsize
+        \begin{table}[b]
+            \centering
+        \begin{tabularx}{0.8\textwidth}{Xcr}
+        \hline
+        \textbf{Organisation} & : & \docClient \\
+        \textbf{Facility} & : & \docFacility \\
+        \textbf{Project} & : & \docProject \\
+        \textbf{Document Type} & : & \docType \\
+        \textbf{Function/Discipline} & : & \docFunction \\
+        \hline
+        \end{tabularx}
+        \end{table}
+
+        \newpage{}
+
+        % lots of padding for signatures
+        \renewcommand{\arraystretch}{2.0}
+
+        % Approval Table
+        \LARGE
+        \textbf{Document Approval}
+
+        \normalsize
+        \begin{tabularx}{\textwidth}{|l|l|l|l|X|X|}
+            \hline
+            Function & Name & Designation & Affiliation & Date & Signature \\
+            \hline
+            \docApproval
+        \end{tabularx}
+        \vspace{0.5cm}
+
+        % Document History
+        \LARGE
+        \textbf{Document History}
+
+        \renewcommand{\arraystretch}{1.2}
+        \normalsize
+        \begin{tabular}{|p{0.1\textwidth}|p{0.15\textwidth}|p{0.15\textwidth}|p{0.5\textwidth}|}
+            \hline
+            Revision & Date of Issue & ECN Number & Comments \\
+            \hline
+            \docHistory
+        \end{tabular}
+        \vspace{0.5cm}
+
+        % Document Distribution
+        \LARGE
+        \textbf{Document Distribution}
+
+
+        \normalsize
+        \begin{tabularx}{\textwidth}{|X|}
+        \hline
+        %% TODO: Update. eB doesn't exist anymore...
+        Publish in eB and Distribute to all signatories on the document and the relevant line managers. \\
+        \hline
+        \end{tabularx}
+        \vspace{0.5cm}
+
+        % Document Software
+        \LARGE
+        \textbf{Document Software}
+
+        \normalsize
+        \begin{tabularx}{\textwidth}{|l|l|X|}
+            \hline
+            Task & Package & Version \\
+            \hline
+            Stylesheet & katdoc & \stylesheetVersion \\
+            \hline
+            \docSoftware
+        \end{tabularx}
+        \vspace{0.5cm}
+
+        % Company Details
+        \LARGE
+        \textbf{Company Details}
+
+        \normalsize
+        \newcolumntype{L}{>{\raggedright\arraybackslash}X}
+        \begin{tabularx}{\textwidth}{|c|L|L|L|L|}
+            \hline
+            Name & SARAO, Johannesburg & SARAO, Cape Town & SARAO, HartRAO & SARAO, Karoo Astronomy Reserve \\
+            \hline
+            \multirow{6}{*}{\begin{tabular}[c]{@{}l@{}}Physical /\\Postal \\ Address\end{tabular}} & ??? & Black River Park North & P.O. Box 443, & Posbus 69, \\
+            & & 2 Fir Street, & Krugersdorp, & Carnarvon, \\
+            & & Observatory, & 1740, & 8925, \\
+            & & Cape Town, & South Africa & South Africa \\
+            & & 7925, & & \\
+            & & South Africa & & \\
+            \hline
+            Tel. & +27 11 268 3400 & +27 21 506 7300 & +27 12 301 3100 & +27 21 506 7300 \\
+            \hline
+            Fax & +27 11 442 2454 & +27 21 506 7375 & +27 12 301 3300 & +27 86 538 6836 \\
+            \hline
+            \small
+            Website & www.ska.ac.za & www.ska.ac.za & www.hartrao.ac.za & www.ska.ac.za \\
+            \hline
+        \end{tabularx}
+        \vspace{1cm}
+        \end{center}
+        \normalsize
+
+        % reset table cell padding
+        \renewcommand{\arraystretch}{1.0}
+
+    \end{titlepage}
+
+}
+
+
+% General Page Header and Footer
+
+\clearpage
+
+\pagestyle{fancy}
+
+\fancyhead{} % clear all header fields
+\fancyhead[C]{\docClassification}
+\fancyhead[R]{\docId \\ Revision: \docRevision}
+
+\fancyfoot{} % clear all footer fields
+\fancyfoot[L]{\docDate}
+\fancyfoot[C]{\docClassification}
+\fancyfoot[R]{Page \thepage\ of \pageref{LastPage}}
+
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% The entire beginning part of the document
+
+\newcommand{\makekatdocbeginning}{
+\maketitle
+
+\newpage{}
+
+%\tableofcontents{}
+%\newpage{}
+
+% \listoffigures
+
+% \listoftables
+
+%\newpage{}
+}
