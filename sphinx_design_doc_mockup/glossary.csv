@@ -1,0 +1,6 @@
+Term,Definition
+B-Engine,The DSP software or bitstream responsible for beamforming.
+F-Engine,The DSP software or bitstream responsible for channelisation.
+F-X Correlator,A correlator architecture where digitiser data is first channelised (F) per-receptor and then cross-correlation (X) is calculated per-frequency-channel.
+X-Engine,The DSP software or bitstream responsible for correlation.
+PITA,Pain In The Antechamber: a term commonly used when dicsussing the capabilities of Google Docs.
