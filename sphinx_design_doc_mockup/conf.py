@@ -84,6 +84,9 @@ preamble = r"""\usepackage{katdoc}
 \lstset{prebreak=\raisebox{0ex}[0ex][0ex]{\ensuremath{\hookleftarrow}}}
 \lstset{postbreak=\raisebox{0ex}[0ex][0ex]{\ensuremath{\hookrightarrow\space}}}
 
+\usepackage{etoolbox}
+\patchcmd{\thebibliography}{\section*{\refname}}{}{}{}
+
 \newcommand{\docClient}{NRF (National Research Foundation)}
 \newcommand{\docFacility}{South African Radio Astronomy Observatory (SARAO)}
 \newcommand{\docFunction}{Engineering / Digital Signal Processing}
