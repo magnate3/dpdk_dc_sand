@@ -1,6 +1,11 @@
 This is Markdown just to ensure it doesn't get mixed up in all the rst lying
 around in this folder.
 
+The only requirements that I am aware of are captured in the `requirements.txt`,
+they're not pinned, though, so if you're reading this in the distant future,
+something may have changed. They work now though, so once this gets more formal
+then I'll pin them.
+
 One tweak needs to be made because for some reason Sphinx's LaTeX renderer
 refuses to put bibliographies in the place where they're requested, they
 always just go to the end of the document.
