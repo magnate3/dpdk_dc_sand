@@ -73,7 +73,6 @@ latex_elements["maketitle"] = "\\makekatdocbeginning"
 preamble = r"""\usepackage{katdoc}
 \usepackage{mathtools}
 \usepackage{graphicx}
-
 \usepackage{tablefootnote}
 \usepackage{color}
 \usepackage{colortbl}
@@ -86,6 +85,27 @@ preamble = r"""\usepackage{katdoc}
 
 \usepackage{etoolbox}
 \patchcmd{\thebibliography}{\section*{\refname}}{}{}{}
+
+% Sphinx puts all references at the end, but we want them earlier. The collect
+% package allows us to save the data and use it in the right place on the next
+% pass.
+\usepackage{collect}
+\usepackage{ifthen}
+\definecollection{biblio}
+\makeatletter
+\renewenvironment{sphinxthebibliography}[1]{\@nameuse{collect}{biblio}{\def\biblongest{#1}\begin{thebibliography}{#1}}{\end{thebibliography}}}{\@nameuse{endcollect}}
+\let\origbibitem\bibitem
+% When we see the first reference document (R1), break the bibliography, inject
+% "Reference Documents" heading, and restart the bibliography.
+\renewcommand{\bibitem}[1][]{%
+  \ifthenelse{\equal{#1}{R1}}{%
+    \end{thebibliography}%
+    \subsubsection*{Reference Documents}%
+    \begin{thebibliography}{\biblongest}%
+  }{}%
+  \origbibitem[#1]%
+}
+\makeatother
 
 \newcommand{\docClient}{NRF (National Research Foundation)}
 \newcommand{\docFacility}{South African Radio Astronomy Observatory (SARAO)}

@@ -23,9 +23,15 @@ Applicable and Reference Documents
     :labelprefix: A
     :keyprefix: a-
 
-.. rubric:: Reference Documents
-
 .. bibliography:: reference_docs.bib
     :style: plain
     :labelprefix: R
     :keyprefix: r-
+
+.. This pastes in the actual bibliography which Sphinx writes at the end of
+   the document. It also injects the "Reference Documents" heading at the
+   right place.
+
+.. raw:: latex
+
+    \includecollection{biblio}
